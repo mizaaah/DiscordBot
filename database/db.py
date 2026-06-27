@@ -6,6 +6,18 @@ ALLOWED_SETTINGS = {
     "autorole_id", "welcome_message", "goodbye_message"
 }
 
+ALLOWED_AUTOMOD_SETTINGS = {
+    "enabled", "spam_enabled", "spam_threshold", "spam_window", "spam_action",
+    "invite_enabled", "invite_action", "caps_enabled", "caps_threshold",
+    "caps_min_length", "caps_action", "mention_enabled", "mention_threshold",
+    "mention_action", "flood_enabled", "flood_threshold", "flood_action", "bypass_roles"
+}
+
+ALLOWED_TICKET_SETTINGS = {
+    "category_id", "staff_role_id", "log_channel_id",
+    "panel_message_id", "panel_channel_id"
+}
+
 
 class Database:
     def __init__(self):
@@ -63,6 +75,73 @@ class Database:
                     reason          TEXT NOT NULL DEFAULT 'Aucune raison fournie',
                     unban_at        TIMESTAMPTZ NOT NULL,
                     created_at      TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS automod_config (
+                    guild_id            BIGINT PRIMARY KEY,
+                    enabled             BOOLEAN DEFAULT TRUE,
+                    spam_enabled        BOOLEAN DEFAULT TRUE,
+                    spam_threshold      INTEGER DEFAULT 5,
+                    spam_window         INTEGER DEFAULT 5,
+                    spam_action         TEXT DEFAULT 'mute',
+                    invite_enabled      BOOLEAN DEFAULT FALSE,
+                    invite_action       TEXT DEFAULT 'warn',
+                    caps_enabled        BOOLEAN DEFAULT FALSE,
+                    caps_threshold      INTEGER DEFAULT 70,
+                    caps_min_length     INTEGER DEFAULT 10,
+                    caps_action         TEXT DEFAULT 'warn',
+                    mention_enabled     BOOLEAN DEFAULT FALSE,
+                    mention_threshold   INTEGER DEFAULT 5,
+                    mention_action      TEXT DEFAULT 'mute',
+                    flood_enabled       BOOLEAN DEFAULT TRUE,
+                    flood_threshold     INTEGER DEFAULT 3,
+                    flood_action        TEXT DEFAULT 'warn',
+                    bypass_roles        BIGINT[] DEFAULT '{}'
+                )
+            """)
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS ticket_config (
+                    guild_id            BIGINT PRIMARY KEY,
+                    category_id         BIGINT,
+                    staff_role_id       BIGINT,
+                    log_channel_id      BIGINT,
+                    ticket_counter      INTEGER DEFAULT 0,
+                    panel_message_id    BIGINT,
+                    panel_channel_id    BIGINT
+                )
+            """)
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS tickets (
+                    id              SERIAL PRIMARY KEY,
+                    guild_id        BIGINT NOT NULL,
+                    channel_id      BIGINT NOT NULL UNIQUE,
+                    user_id         BIGINT NOT NULL,
+                    ticket_number   INTEGER NOT NULL,
+                    status          TEXT DEFAULT 'open',
+                    created_at      TIMESTAMPTZ DEFAULT NOW(),
+                    closed_at       TIMESTAMPTZ,
+                    closed_by       BIGINT
+                )
+            """)
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS rr_panels (
+                    id          SERIAL PRIMARY KEY,
+                    guild_id    BIGINT NOT NULL,
+                    channel_id  BIGINT NOT NULL,
+                    message_id  BIGINT NOT NULL UNIQUE,
+                    title       TEXT NOT NULL,
+                    description TEXT
+                )
+            """)
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS rr_buttons (
+                    id          SERIAL PRIMARY KEY,
+                    panel_id    INTEGER REFERENCES rr_panels(id) ON DELETE CASCADE,
+                    role_id     BIGINT NOT NULL,
+                    label       TEXT NOT NULL,
+                    emoji       TEXT,
+                    style       TEXT DEFAULT 'secondary'
                 )
             """)
 
@@ -234,3 +313,139 @@ class Database:
                 "DELETE FROM temp_bans WHERE guild_id = $1 AND user_id = $2",
                 guild_id, user_id
             )
+
+    # ── AutoMod ──────────────────────────────────────────────────────────────
+
+    async def get_automod_config(self, guild_id: int) -> dict:
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow("SELECT * FROM automod_config WHERE guild_id = $1", guild_id)
+            if not row:
+                await conn.execute(
+                    "INSERT INTO automod_config (guild_id) VALUES ($1) ON CONFLICT DO NOTHING", guild_id
+                )
+                row = await conn.fetchrow("SELECT * FROM automod_config WHERE guild_id = $1", guild_id)
+            return dict(row)
+
+    async def update_automod_setting(self, guild_id: int, setting: str, value):
+        if setting not in ALLOWED_AUTOMOD_SETTINGS:
+            raise ValueError(f"Paramètre '{setting}' non autorisé.")
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                f"""
+                INSERT INTO automod_config (guild_id, {setting})
+                VALUES ($1, $2)
+                ON CONFLICT (guild_id) DO UPDATE SET {setting} = $2
+                """,
+                guild_id, value
+            )
+
+    # ── Tickets ───────────────────────────────────────────────────────────────
+
+    async def get_ticket_config(self, guild_id: int) -> dict:
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow("SELECT * FROM ticket_config WHERE guild_id = $1", guild_id)
+            if not row:
+                await conn.execute(
+                    "INSERT INTO ticket_config (guild_id) VALUES ($1) ON CONFLICT DO NOTHING", guild_id
+                )
+                row = await conn.fetchrow("SELECT * FROM ticket_config WHERE guild_id = $1", guild_id)
+            return dict(row)
+
+    async def update_ticket_config(self, guild_id: int, setting: str, value):
+        if setting not in ALLOWED_TICKET_SETTINGS:
+            raise ValueError(f"Paramètre '{setting}' non autorisé.")
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                f"""
+                INSERT INTO ticket_config (guild_id, {setting})
+                VALUES ($1, $2)
+                ON CONFLICT (guild_id) DO UPDATE SET {setting} = $2
+                """,
+                guild_id, value
+            )
+
+    async def increment_ticket_counter(self, guild_id: int) -> int:
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                "INSERT INTO ticket_config (guild_id) VALUES ($1) ON CONFLICT DO NOTHING", guild_id
+            )
+            return await conn.fetchval(
+                "UPDATE ticket_config SET ticket_counter = ticket_counter + 1 WHERE guild_id = $1 RETURNING ticket_counter",
+                guild_id
+            )
+
+    async def create_ticket(self, guild_id: int, channel_id: int, user_id: int, ticket_number: int):
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                "INSERT INTO tickets (guild_id, channel_id, user_id, ticket_number) VALUES ($1, $2, $3, $4)",
+                guild_id, channel_id, user_id, ticket_number
+            )
+
+    async def get_ticket(self, channel_id: int) -> dict | None:
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow("SELECT * FROM tickets WHERE channel_id = $1", channel_id)
+            return dict(row) if row else None
+
+    async def get_user_open_ticket(self, guild_id: int, user_id: int) -> dict | None:
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT * FROM tickets WHERE guild_id = $1 AND user_id = $2 AND status = 'open'",
+                guild_id, user_id
+            )
+            return dict(row) if row else None
+
+    async def close_ticket(self, channel_id: int, closed_by: int):
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE tickets SET status = 'closed', closed_at = NOW(), closed_by = $2 WHERE channel_id = $1",
+                channel_id, closed_by
+            )
+
+    # ── Reaction Roles ────────────────────────────────────────────────────────
+
+    async def create_rr_panel(self, guild_id: int, channel_id: int, message_id: int, title: str, description: str = None) -> int:
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "INSERT INTO rr_panels (guild_id, channel_id, message_id, title, description) VALUES ($1, $2, $3, $4, $5) RETURNING id",
+                guild_id, channel_id, message_id, title, description
+            )
+            return row["id"]
+
+    async def get_rr_panel_by_id(self, panel_id: int, guild_id: int) -> dict | None:
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT * FROM rr_panels WHERE id = $1 AND guild_id = $2", panel_id, guild_id
+            )
+            return dict(row) if row else None
+
+    async def get_all_rr_panels(self, guild_id: int) -> list:
+        async with self.pool.acquire() as conn:
+            return await conn.fetch("SELECT * FROM rr_panels WHERE guild_id = $1 ORDER BY id", guild_id)
+
+    async def get_all_rr_panels_global(self) -> list:
+        async with self.pool.acquire() as conn:
+            return await conn.fetch("SELECT * FROM rr_panels ORDER BY id")
+
+    async def add_rr_button(self, panel_id: int, role_id: int, label: str, emoji: str = None, style: str = "secondary") -> int:
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "INSERT INTO rr_buttons (panel_id, role_id, label, emoji, style) VALUES ($1, $2, $3, $4, $5) RETURNING id",
+                panel_id, role_id, label, emoji, style
+            )
+            return row["id"]
+
+    async def get_rr_buttons(self, panel_id: int) -> list:
+        async with self.pool.acquire() as conn:
+            return await conn.fetch(
+                "SELECT * FROM rr_buttons WHERE panel_id = $1 ORDER BY id", panel_id
+            )
+
+    async def remove_rr_button(self, button_id: int, panel_id: int):
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                "DELETE FROM rr_buttons WHERE id = $1 AND panel_id = $2", button_id, panel_id
+            )
+
+    async def delete_rr_panel(self, panel_id: int):
+        async with self.pool.acquire() as conn:
+            await conn.execute("DELETE FROM rr_panels WHERE id = $1", panel_id)

@@ -15,6 +15,9 @@ load_dotenv()
 COGS = [
     "cogs.logs",
     "cogs.moderation",
+    "cogs.automod",
+    "cogs.tickets",
+    "cogs.reactionroles",
     "cogs.info",
     "cogs.xp",
     "cogs.welcome",

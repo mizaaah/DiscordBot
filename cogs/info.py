@@ -188,6 +188,21 @@ class Info(commands.Cog):
             inline=False
         )
         embed.add_field(
+            name="🤖 AutoMod",
+            value="`/automod status` `/automod toggle` `/automod spam` `/automod flood`\n`/automod invites` `/automod caps` `/automod mentions` `/automod bypass`",
+            inline=False
+        )
+        embed.add_field(
+            name="🎫 Tickets",
+            value="`/ticket` `/tadd` `/tremove`",
+            inline=False
+        )
+        embed.add_field(
+            name="🎭 Rôles réactifs",
+            value="`/rr create` `/rr add` `/rr remove` `/rr delete` `/rr list`",
+            inline=False
+        )
+        embed.add_field(
             name="⚙️ Configuration",
             value="`/config` `/setlogs` `/setwelcome` `/setgoodbye` `/setautorole`",
             inline=False
