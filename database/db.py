@@ -7,7 +7,7 @@ DB_PATH = os.getenv("DB_PATH", "bot.db")
 
 ALLOWED_SETTINGS = {
     "log_channel_id", "welcome_channel_id", "goodbye_channel_id",
-    "autorole_id", "welcome_message", "goodbye_message"
+    "autorole_id", "welcome_message", "goodbye_message", "report_channel_id"
 }
 
 ALLOWED_AUTOMOD_SETTINGS = {
@@ -188,6 +188,23 @@ class Database:
                 ephemeral   INTEGER DEFAULT 1,
                 position    INTEGER DEFAULT 0
             )""",
+            """CREATE TABLE IF NOT EXISTS autosanctions (
+                guild_id    INTEGER NOT NULL,
+                warn_count  INTEGER NOT NULL,
+                action      TEXT NOT NULL,
+                duration    INTEGER,
+                PRIMARY KEY (guild_id, warn_count)
+            )""",
+            """CREATE TABLE IF NOT EXISTS reports (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id        INTEGER NOT NULL,
+                message_id      INTEGER,
+                reporter_id     INTEGER NOT NULL,
+                reported_id     INTEGER NOT NULL,
+                reason          TEXT NOT NULL,
+                resolved        INTEGER DEFAULT 0,
+                created_at      TEXT DEFAULT (datetime('now'))
+            )""",
             """CREATE TABLE IF NOT EXISTS xp_roles (
                 guild_id    INTEGER NOT NULL,
                 level       INTEGER NOT NULL,
@@ -215,6 +232,15 @@ class Database:
         for stmt in stmts:
             await self.db.execute(stmt)
         await self.db.commit()
+        # Migrations pour installations existantes
+        for migration in [
+            "ALTER TABLE guild_settings ADD COLUMN report_channel_id INTEGER",
+        ]:
+            try:
+                await self.db.execute(migration)
+                await self.db.commit()
+            except Exception:
+                pass
 
     async def close(self):
         if self.db:
@@ -483,6 +509,40 @@ class Database:
             f" ON CONFLICT(guild_id) DO UPDATE SET {setting} = excluded.{setting}",
             guild_id, value
         )
+
+    # ── Auto-sanctions ────────────────────────────────────────────────────────
+
+    async def get_autosanctions(self, guild_id: int) -> list:
+        return await self._rows("SELECT * FROM autosanctions WHERE guild_id = ? ORDER BY warn_count", guild_id)
+
+    async def add_autosanction(self, guild_id: int, warn_count: int, action: str, duration: int | None):
+        await self._exec(
+            "INSERT INTO autosanctions (guild_id, warn_count, action, duration) VALUES (?, ?, ?, ?)"
+            " ON CONFLICT(guild_id, warn_count) DO UPDATE SET action = excluded.action, duration = excluded.duration",
+            guild_id, warn_count, action, duration
+        )
+
+    async def remove_autosanction(self, guild_id: int, warn_count: int) -> bool:
+        cur = await self._exec("DELETE FROM autosanctions WHERE guild_id = ? AND warn_count = ?", guild_id, warn_count)
+        return cur.rowcount > 0
+
+    # ── Reports ───────────────────────────────────────────────────────────────
+
+    async def create_report(self, guild_id: int, message_id: int, reporter_id: int, reported_id: int, reason: str) -> int:
+        cur = await self._exec(
+            "INSERT INTO reports (guild_id, message_id, reporter_id, reported_id, reason) VALUES (?, ?, ?, ?, ?)",
+            guild_id, message_id, reporter_id, reported_id, reason
+        )
+        return cur.lastrowid
+
+    async def get_report_by_msg(self, message_id: int) -> dict | None:
+        return await self._row("SELECT * FROM reports WHERE message_id = ?", message_id)
+
+    async def resolve_report(self, report_id: int):
+        await self._exec("UPDATE reports SET resolved = 1 WHERE id = ?", report_id)
+
+    async def get_unresolved_reports(self) -> list:
+        return await self._rows("SELECT * FROM reports WHERE resolved = 0")
 
     # ── XP Roles ──────────────────────────────────────────────────────────────
 

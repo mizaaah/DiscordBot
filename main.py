@@ -24,6 +24,8 @@ COGS = [
     "cogs.xp",
     "cogs.xproles",
     "cogs.tempvoice",
+    "cogs.autosanctions",
+    "cogs.report",
     "cogs.welcome",
     "cogs.config",
 ]

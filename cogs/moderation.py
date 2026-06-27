@@ -5,6 +5,17 @@ from datetime import datetime, timezone
 from utils.helpers import parse_duration, duration_to_str
 
 
+def _parse_dt(value) -> datetime | None:
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, str):
+        try:
+            return datetime.fromisoformat(value)
+        except ValueError:
+            return None
+    return None
+
+
 def get_logs(bot: commands.Bot):
     return bot.get_cog("Logs")
 
@@ -222,6 +233,8 @@ class Moderation(commands.Cog):
         if logs := get_logs(self.bot):
             await logs.log_warn(interaction.guild, membre, interaction.user, raison, warn_id, total)
 
+        self.bot.dispatch("warn_added", interaction.guild, membre, total)
+
     # ── /unwarn ──────────────────────────────────────────────────────────────
 
     @app_commands.command(name="unwarn", description="Supprime un avertissement par son ID")
@@ -251,7 +264,8 @@ class Moderation(commands.Cog):
             for w in warns[:10]:
                 mod = interaction.guild.get_member(w["moderator_id"])
                 mod_name = str(mod) if mod else f"ID:{w['moderator_id']}"
-                date = discord.utils.format_dt(w["created_at"], 'd')
+                dt   = _parse_dt(w["created_at"])
+                date = discord.utils.format_dt(dt, 'd') if dt else "?"
                 embed.add_field(
                     name=f"#{w['id']} — {date}",
                     value=f"**Raison :** {w['reason']}\n**Modérateur :** {mod_name}",
@@ -273,19 +287,41 @@ class Moderation(commands.Cog):
 
     # ── /clear ───────────────────────────────────────────────────────────────
 
-    @app_commands.command(name="clear", description="Supprime des messages en masse")
+    @app_commands.command(name="clear", description="Supprime des messages en masse avec filtres optionnels")
     @app_commands.describe(
         nombre="Nombre de messages à supprimer (1–100)",
-        membre="Ne supprimer que les messages de ce membre (optionnel)"
+        membre="Seulement les messages de ce membre",
+        bots="Seulement les messages de bots",
+        images="Seulement les messages avec images/fichiers",
+        contient="Seulement les messages contenant ce texte"
     )
     @app_commands.default_permissions(manage_messages=True)
-    async def clear(self, interaction: discord.Interaction, nombre: app_commands.Range[int, 1, 100], membre: discord.Member = None):
+    async def clear(
+        self,
+        interaction: discord.Interaction,
+        nombre: app_commands.Range[int, 1, 100],
+        membre: discord.Member = None,
+        bots: bool = False,
+        images: bool = False,
+        contient: str = None
+    ):
         await interaction.response.defer(ephemeral=True)
+        has_filter = membre or bots or images or contient
 
         def check(msg: discord.Message) -> bool:
-            return membre is None or msg.author == membre
+            if membre  and msg.author != membre:                                      return False
+            if bots    and not msg.author.bot:                                        return False
+            if images  and not msg.attachments and not any(e.image for e in msg.embeds): return False
+            if contient and contient.lower() not in msg.content.lower():              return False
+            return True
 
-        deleted = await interaction.channel.purge(limit=nombre, check=check)
+        limit   = min(nombre * 5, 500) if has_filter else nombre
+        deleted = await interaction.channel.purge(limit=limit, check=check if has_filter else None,
+                                                   before=interaction.created_at)
+        # Respect the requested cap
+        if len(deleted) > nombre:
+            deleted = deleted[:nombre]
+
         await interaction.followup.send(f"✅ **{len(deleted)}** message(s) supprimé(s).", ephemeral=True)
 
         if logs := get_logs(self.bot):
