@@ -15,7 +15,8 @@ ALLOWED_AUTOMOD_SETTINGS = {
 
 ALLOWED_TICKET_SETTINGS = {
     "category_id", "staff_role_id", "log_channel_id",
-    "panel_message_id", "panel_channel_id"
+    "panel_message_id", "panel_channel_id",
+    "embed_color", "welcome_message", "categories"
 }
 
 
@@ -108,7 +109,10 @@ class Database:
                     log_channel_id      BIGINT,
                     ticket_counter      INTEGER DEFAULT 0,
                     panel_message_id    BIGINT,
-                    panel_channel_id    BIGINT
+                    panel_channel_id    BIGINT,
+                    embed_color         INTEGER DEFAULT 5793266,
+                    welcome_message     TEXT,
+                    categories          TEXT[] DEFAULT '{}'
                 )
             """)
             await conn.execute("""
@@ -118,12 +122,23 @@ class Database:
                     channel_id      BIGINT NOT NULL UNIQUE,
                     user_id         BIGINT NOT NULL,
                     ticket_number   INTEGER NOT NULL,
+                    category        TEXT,
+                    claimed_by      BIGINT,
                     status          TEXT DEFAULT 'open',
                     created_at      TIMESTAMPTZ DEFAULT NOW(),
                     closed_at       TIMESTAMPTZ,
                     closed_by       BIGINT
                 )
             """)
+            # Migrations pour les serveurs déjà existants
+            for col in [
+                "ALTER TABLE ticket_config ADD COLUMN IF NOT EXISTS embed_color INTEGER DEFAULT 5793266",
+                "ALTER TABLE ticket_config ADD COLUMN IF NOT EXISTS welcome_message TEXT",
+                "ALTER TABLE ticket_config ADD COLUMN IF NOT EXISTS categories TEXT[] DEFAULT '{}'",
+                "ALTER TABLE tickets ADD COLUMN IF NOT EXISTS category TEXT",
+                "ALTER TABLE tickets ADD COLUMN IF NOT EXISTS claimed_by BIGINT",
+            ]:
+                await conn.execute(col)
             await conn.execute("""
                 CREATE TABLE IF NOT EXISTS rr_panels (
                     id          SERIAL PRIMARY KEY,
@@ -374,11 +389,23 @@ class Database:
                 guild_id
             )
 
-    async def create_ticket(self, guild_id: int, channel_id: int, user_id: int, ticket_number: int):
+    async def create_ticket(self, guild_id: int, channel_id: int, user_id: int, ticket_number: int, category: str = None):
         async with self.pool.acquire() as conn:
             await conn.execute(
-                "INSERT INTO tickets (guild_id, channel_id, user_id, ticket_number) VALUES ($1, $2, $3, $4)",
-                guild_id, channel_id, user_id, ticket_number
+                "INSERT INTO tickets (guild_id, channel_id, user_id, ticket_number, category) VALUES ($1, $2, $3, $4, $5)",
+                guild_id, channel_id, user_id, ticket_number, category
+            )
+
+    async def claim_ticket(self, channel_id: int, user_id: int):
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE tickets SET claimed_by = $2 WHERE channel_id = $1", channel_id, user_id
+            )
+
+    async def unclaim_ticket(self, channel_id: int):
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE tickets SET claimed_by = NULL WHERE channel_id = $1", channel_id
             )
 
     async def get_ticket(self, channel_id: int) -> dict | None:
