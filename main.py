@@ -26,6 +26,9 @@ COGS = [
     "cogs.tempvoice",
     "cogs.autosanctions",
     "cogs.report",
+    "cogs.antighostping",
+    "cogs.boost",
+    "cogs.cmdperms",
     "cogs.welcome",
     "cogs.config",
 ]

@@ -7,8 +7,11 @@ DB_PATH = os.getenv("DB_PATH", "bot.db")
 
 ALLOWED_SETTINGS = {
     "log_channel_id", "welcome_channel_id", "goodbye_channel_id",
-    "autorole_id", "welcome_message", "goodbye_message", "report_channel_id"
+    "autorole_id", "welcome_message", "goodbye_message",
+    "report_channel_id", "ghostping_enabled"
 }
+
+ALLOWED_BOOST_SETTINGS = {"reward_role_id", "channel_id", "message"}
 
 ALLOWED_AUTOMOD_SETTINGS = {
     "enabled", "spam_enabled", "spam_threshold", "spam_window", "spam_action",
@@ -228,6 +231,20 @@ class Database:
                 hidden          INTEGER DEFAULT 0,
                 allowed_users   TEXT DEFAULT '[]'
             )""",
+            """CREATE TABLE IF NOT EXISTS boost_config (
+                guild_id        INTEGER PRIMARY KEY,
+                reward_role_id  INTEGER,
+                channel_id      INTEGER,
+                message         TEXT DEFAULT '🚀 {mention} vient de booster **{server}** ! Merci ! 🎉'
+            )""",
+            """CREATE TABLE IF NOT EXISTS cmd_permissions (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id    INTEGER NOT NULL,
+                command     TEXT NOT NULL,
+                type        TEXT NOT NULL,
+                target_id   INTEGER NOT NULL,
+                UNIQUE(guild_id, command, type, target_id)
+            )""",
         ]
         for stmt in stmts:
             await self.db.execute(stmt)
@@ -235,6 +252,7 @@ class Database:
         # Migrations pour installations existantes
         for migration in [
             "ALTER TABLE guild_settings ADD COLUMN report_channel_id INTEGER",
+            "ALTER TABLE guild_settings ADD COLUMN ghostping_enabled INTEGER DEFAULT 1",
         ]:
             try:
                 await self.db.execute(migration)
@@ -612,3 +630,50 @@ class Database:
 
     async def delete_tempvoice_channel(self, channel_id: int):
         await self._exec("DELETE FROM tempvoice_channels WHERE channel_id = ?", channel_id)
+
+    # ── Boost ─────────────────────────────────────────────────────────────────
+
+    async def get_boost_config(self, guild_id: int) -> dict:
+        row = await self._row("SELECT * FROM boost_config WHERE guild_id = ?", guild_id)
+        if not row:
+            await self._exec("INSERT OR IGNORE INTO boost_config (guild_id) VALUES (?)", guild_id)
+            row = await self._row("SELECT * FROM boost_config WHERE guild_id = ?", guild_id)
+        return row
+
+    async def update_boost_config(self, guild_id: int, setting: str, value):
+        if setting not in ALLOWED_BOOST_SETTINGS:
+            raise ValueError(f"Paramètre '{setting}' non autorisé.")
+        await self._exec(
+            f"INSERT INTO boost_config (guild_id, {setting}) VALUES (?, ?)"
+            f" ON CONFLICT(guild_id) DO UPDATE SET {setting} = excluded.{setting}",
+            guild_id, value
+        )
+
+    # ── Cmd permissions ───────────────────────────────────────────────────────
+
+    async def get_cmd_permissions(self, guild_id: int, command: str) -> list:
+        return await self._rows(
+            "SELECT * FROM cmd_permissions WHERE guild_id = ? AND command = ?", guild_id, command
+        )
+
+    async def get_all_cmd_permissions(self, guild_id: int, command: str = None) -> list:
+        if command:
+            return await self._rows(
+                "SELECT * FROM cmd_permissions WHERE guild_id = ? AND command = ? ORDER BY command",
+                guild_id, command
+            )
+        return await self._rows(
+            "SELECT * FROM cmd_permissions WHERE guild_id = ? ORDER BY command", guild_id
+        )
+
+    async def add_cmd_permission(self, guild_id: int, command: str, ptype: str, target_id: int):
+        await self._exec(
+            "INSERT OR IGNORE INTO cmd_permissions (guild_id, command, type, target_id) VALUES (?, ?, ?, ?)",
+            guild_id, command, ptype, target_id
+        )
+
+    async def clear_cmd_permissions(self, guild_id: int, command: str) -> int:
+        cur = await self._exec(
+            "DELETE FROM cmd_permissions WHERE guild_id = ? AND command = ?", guild_id, command
+        )
+        return cur.rowcount
