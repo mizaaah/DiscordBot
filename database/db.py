@@ -28,6 +28,10 @@ ALLOWED_ANTIRAID_SETTINGS = {
     "min_account_age", "action", "alert_channel_id", "lockdown_active"
 }
 
+ALLOWED_TEMPVOICE_SETTINGS = {
+    "trigger_channel_id", "control_channel_id", "category_id", "default_limit", "name_format"
+}
+
 
 class Database:
     def __init__(self):
@@ -183,6 +187,29 @@ class Database:
                 action_data TEXT NOT NULL,
                 ephemeral   INTEGER DEFAULT 1,
                 position    INTEGER DEFAULT 0
+            )""",
+            """CREATE TABLE IF NOT EXISTS xp_roles (
+                guild_id    INTEGER NOT NULL,
+                level       INTEGER NOT NULL,
+                role_id     INTEGER NOT NULL,
+                PRIMARY KEY (guild_id, level)
+            )""",
+            """CREATE TABLE IF NOT EXISTS tempvoice_config (
+                guild_id            INTEGER PRIMARY KEY,
+                trigger_channel_id  INTEGER,
+                control_channel_id  INTEGER,
+                category_id         INTEGER,
+                default_limit       INTEGER DEFAULT 0,
+                name_format         TEXT DEFAULT '{user} • Salon'
+            )""",
+            """CREATE TABLE IF NOT EXISTS tempvoice_channels (
+                channel_id      INTEGER PRIMARY KEY,
+                guild_id        INTEGER NOT NULL,
+                owner_id        INTEGER NOT NULL,
+                control_msg_id  INTEGER,
+                locked          INTEGER DEFAULT 0,
+                hidden          INTEGER DEFAULT 0,
+                allowed_users   TEXT DEFAULT '[]'
             )""",
         ]
         for stmt in stmts:
@@ -456,3 +483,72 @@ class Database:
             f" ON CONFLICT(guild_id) DO UPDATE SET {setting} = excluded.{setting}",
             guild_id, value
         )
+
+    # ── XP Roles ──────────────────────────────────────────────────────────────
+
+    async def get_xp_roles(self, guild_id: int) -> list:
+        return await self._rows("SELECT * FROM xp_roles WHERE guild_id = ? ORDER BY level", guild_id)
+
+    async def add_xp_role(self, guild_id: int, level: int, role_id: int):
+        await self._exec(
+            "INSERT INTO xp_roles (guild_id, level, role_id) VALUES (?, ?, ?)"
+            " ON CONFLICT(guild_id, level) DO UPDATE SET role_id = excluded.role_id",
+            guild_id, level, role_id
+        )
+
+    async def remove_xp_role(self, guild_id: int, level: int) -> bool:
+        cur = await self._exec("DELETE FROM xp_roles WHERE guild_id = ? AND level = ?", guild_id, level)
+        return cur.rowcount > 0
+
+    # ── TempVoice Config ──────────────────────────────────────────────────────
+
+    async def get_tempvoice_config(self, guild_id: int) -> dict:
+        row = await self._row("SELECT * FROM tempvoice_config WHERE guild_id = ?", guild_id)
+        if not row:
+            await self._exec("INSERT OR IGNORE INTO tempvoice_config (guild_id) VALUES (?)", guild_id)
+            row = await self._row("SELECT * FROM tempvoice_config WHERE guild_id = ?", guild_id)
+        return row
+
+    async def update_tempvoice_config(self, guild_id: int, setting: str, value):
+        if setting not in ALLOWED_TEMPVOICE_SETTINGS:
+            raise ValueError(f"Paramètre '{setting}' non autorisé.")
+        await self._exec(
+            f"INSERT INTO tempvoice_config (guild_id, {setting}) VALUES (?, ?)"
+            f" ON CONFLICT(guild_id) DO UPDATE SET {setting} = excluded.{setting}",
+            guild_id, value
+        )
+
+    # ── TempVoice Channels ────────────────────────────────────────────────────
+
+    async def create_tempvoice_channel(self, channel_id: int, guild_id: int, owner_id: int, control_msg_id: int | None):
+        await self._exec(
+            "INSERT OR IGNORE INTO tempvoice_channels (channel_id, guild_id, owner_id, control_msg_id) VALUES (?, ?, ?, ?)",
+            channel_id, guild_id, owner_id, control_msg_id
+        )
+
+    async def get_tempvoice_channel(self, channel_id: int) -> dict | None:
+        return await self._row("SELECT * FROM tempvoice_channels WHERE channel_id = ?", channel_id)
+
+    async def get_tempvoice_by_msg(self, msg_id: int) -> dict | None:
+        return await self._row("SELECT * FROM tempvoice_channels WHERE control_msg_id = ?", msg_id)
+
+    async def get_all_tempvoice_channels(self) -> list:
+        return await self._rows("SELECT * FROM tempvoice_channels")
+
+    async def update_tempvoice_state(self, channel_id: int, locked: int = None, hidden: int = None):
+        if locked is not None:
+            await self._exec("UPDATE tempvoice_channels SET locked = ? WHERE channel_id = ?", locked, channel_id)
+        if hidden is not None:
+            await self._exec("UPDATE tempvoice_channels SET hidden = ? WHERE channel_id = ?", hidden, channel_id)
+
+    async def update_tempvoice_allowed(self, channel_id: int, allowed_users: list):
+        await self._exec(
+            "UPDATE tempvoice_channels SET allowed_users = ? WHERE channel_id = ?",
+            json.dumps(allowed_users), channel_id
+        )
+
+    async def update_tempvoice_owner(self, channel_id: int, owner_id: int):
+        await self._exec("UPDATE tempvoice_channels SET owner_id = ? WHERE channel_id = ?", owner_id, channel_id)
+
+    async def delete_tempvoice_channel(self, channel_id: int):
+        await self._exec("DELETE FROM tempvoice_channels WHERE channel_id = ?", channel_id)

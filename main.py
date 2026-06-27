@@ -22,6 +22,8 @@ COGS = [
     "cogs.embedbuilder",
     "cogs.info",
     "cogs.xp",
+    "cogs.xproles",
+    "cogs.tempvoice",
     "cogs.welcome",
     "cogs.config",
 ]

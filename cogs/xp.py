@@ -46,6 +46,7 @@ class XP(commands.Cog):
             )
             embed.set_thumbnail(url=message.author.display_avatar.url)
             await message.channel.send(embed=embed, delete_after=10)
+            self.bot.dispatch("level_up", message.author, new_level)
 
     # ── /rank ─────────────────────────────────────────────────────────────────
 
