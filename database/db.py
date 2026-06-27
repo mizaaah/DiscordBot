@@ -107,6 +107,21 @@ class Database:
                 )
             """)
             await conn.execute("""
+                CREATE TABLE IF NOT EXISTS embed_custom_buttons (
+                    id          SERIAL PRIMARY KEY,
+                    guild_id    BIGINT NOT NULL,
+                    channel_id  BIGINT NOT NULL,
+                    message_id  BIGINT NOT NULL,
+                    label       TEXT NOT NULL,
+                    style       TEXT DEFAULT 'secondary',
+                    emoji       TEXT,
+                    action_type TEXT NOT NULL,
+                    action_data TEXT NOT NULL,
+                    ephemeral   BOOLEAN DEFAULT TRUE,
+                    position    INTEGER DEFAULT 0
+                )
+            """)
+            await conn.execute("""
                 CREATE TABLE IF NOT EXISTS antiraid_config (
                     guild_id            BIGINT PRIMARY KEY,
                     enabled             BOOLEAN DEFAULT FALSE,
@@ -493,6 +508,45 @@ class Database:
     async def delete_rr_panel(self, panel_id: int):
         async with self.pool.acquire() as conn:
             await conn.execute("DELETE FROM rr_panels WHERE id = $1", panel_id)
+
+    # ── Embed Custom Buttons ──────────────────────────────────────────────────
+
+    async def save_embed_button(
+        self, guild_id: int, channel_id: int, message_id: int,
+        label: str, style: str, emoji: str | None,
+        action_type: str, action_data: str, ephemeral: bool, position: int
+    ) -> int:
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                INSERT INTO embed_custom_buttons
+                    (guild_id, channel_id, message_id, label, style, emoji,
+                     action_type, action_data, ephemeral, position)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id
+                """,
+                guild_id, channel_id, message_id, label, style, emoji,
+                action_type, action_data, ephemeral, position
+            )
+            return row["id"]
+
+    async def get_embed_buttons(self, message_id: int) -> list:
+        async with self.pool.acquire() as conn:
+            return await conn.fetch(
+                "SELECT * FROM embed_custom_buttons WHERE message_id = $1 ORDER BY position",
+                message_id
+            )
+
+    async def get_all_embed_button_message_ids(self) -> list:
+        async with self.pool.acquire() as conn:
+            return await conn.fetch(
+                "SELECT DISTINCT message_id FROM embed_custom_buttons WHERE action_type != 'link'"
+            )
+
+    async def delete_embed_buttons_for_message(self, message_id: int):
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                "DELETE FROM embed_custom_buttons WHERE message_id = $1", message_id
+            )
 
     # ── Anti-Raid ─────────────────────────────────────────────────────────────
 
