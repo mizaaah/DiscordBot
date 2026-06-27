@@ -19,6 +19,11 @@ ALLOWED_TICKET_SETTINGS = {
     "embed_color", "welcome_message", "categories"
 }
 
+ALLOWED_ANTIRAID_SETTINGS = {
+    "enabled", "join_threshold", "join_window",
+    "min_account_age", "action", "alert_channel_id", "lockdown_active"
+}
+
 
 class Database:
     def __init__(self):
@@ -99,6 +104,18 @@ class Database:
                     flood_threshold     INTEGER DEFAULT 3,
                     flood_action        TEXT DEFAULT 'warn',
                     bypass_roles        BIGINT[] DEFAULT '{}'
+                )
+            """)
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS antiraid_config (
+                    guild_id            BIGINT PRIMARY KEY,
+                    enabled             BOOLEAN DEFAULT FALSE,
+                    join_threshold      INTEGER DEFAULT 10,
+                    join_window         INTEGER DEFAULT 30,
+                    min_account_age     INTEGER DEFAULT 0,
+                    action              TEXT DEFAULT 'kick',
+                    alert_channel_id    BIGINT,
+                    lockdown_active     BOOLEAN DEFAULT FALSE
                 )
             """)
             await conn.execute("""
@@ -476,3 +493,28 @@ class Database:
     async def delete_rr_panel(self, panel_id: int):
         async with self.pool.acquire() as conn:
             await conn.execute("DELETE FROM rr_panels WHERE id = $1", panel_id)
+
+    # ── Anti-Raid ─────────────────────────────────────────────────────────────
+
+    async def get_antiraid_config(self, guild_id: int) -> dict:
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow("SELECT * FROM antiraid_config WHERE guild_id = $1", guild_id)
+            if not row:
+                await conn.execute(
+                    "INSERT INTO antiraid_config (guild_id) VALUES ($1) ON CONFLICT DO NOTHING", guild_id
+                )
+                row = await conn.fetchrow("SELECT * FROM antiraid_config WHERE guild_id = $1", guild_id)
+            return dict(row)
+
+    async def update_antiraid_setting(self, guild_id: int, setting: str, value):
+        if setting not in ALLOWED_ANTIRAID_SETTINGS:
+            raise ValueError(f"Paramètre '{setting}' non autorisé.")
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                f"""
+                INSERT INTO antiraid_config (guild_id, {setting})
+                VALUES ($1, $2)
+                ON CONFLICT (guild_id) DO UPDATE SET {setting} = $2
+                """,
+                guild_id, value
+            )
