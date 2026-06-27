@@ -11,6 +11,35 @@ XP_MIN = 15
 XP_MAX = 25
 
 
+class LevelUpView(discord.ui.View):
+    def __init__(self, guild_id: int):
+        super().__init__(timeout=30)
+        self.guild_id = guild_id
+
+    @discord.ui.button(label="📊 Mon rang", style=discord.ButtonStyle.secondary)
+    async def show_rank(self, interaction: discord.Interaction, button: discord.ui.Button):
+        data     = await interaction.client.db.get_xp(self.guild_id, interaction.user.id)
+        rank_pos = await interaction.client.db.get_rank(self.guild_id, interaction.user.id)
+        level    = data["level"]
+        cur_xp   = data["xp"]
+        xp_start = total_xp_for_level(level)
+        xp_end   = total_xp_for_level(level + 1)
+        progress = cur_xp - xp_start
+        needed   = xp_end - xp_start
+        filled   = int(16 * progress / needed) if needed > 0 else 0
+        bar      = "█" * filled + "░" * (16 - filled)
+
+        embed = discord.Embed(
+            title=f"⭐ Rang de {interaction.user.display_name}",
+            color=0xFFD700,
+        )
+        embed.set_thumbnail(url=interaction.user.display_avatar.url)
+        embed.add_field(name="🏅 Rang",   value=f"#{rank_pos}", inline=True)
+        embed.add_field(name="⭐ Niveau", value=str(level),      inline=True)
+        embed.add_field(name="📈 XP",     value=f"`{bar}` {progress}/{needed}", inline=False)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
 class XP(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -39,13 +68,20 @@ class XP(commands.Cog):
             new_level = current_level + 1
             await self.bot.db.set_xp(message.guild.id, message.author.id, current_xp, new_level)
 
+            xp_next = total_xp_for_level(new_level + 1) - total_xp_for_level(new_level)
             embed = discord.Embed(
                 title="🎉 Niveau supérieur !",
-                description=f"Félicitations {message.author.mention}, tu passes au niveau **{new_level}** !",
-                color=discord.Color.gold()
+                description=(
+                    f"Bravo {message.author.mention} !\n"
+                    f"Tu passes au niveau **{new_level}** 🚀"
+                ),
+                color=0xFFD700,
             )
             embed.set_thumbnail(url=message.author.display_avatar.url)
-            await message.channel.send(embed=embed, delete_after=10)
+            embed.add_field(name="⭐ Nouveau niveau", value=f"**{new_level}**",       inline=True)
+            embed.add_field(name="📈 Prochain niveau", value=f"{xp_next} XP requis",  inline=True)
+            embed.set_footer(text=f"Continue comme ça, {message.author.display_name} !")
+            await message.channel.send(embed=embed, view=LevelUpView(message.guild.id), delete_after=30)
             self.bot.dispatch("level_up", message.author, new_level)
 
     # ── /rank ─────────────────────────────────────────────────────────────────

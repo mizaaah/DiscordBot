@@ -12,28 +12,49 @@ def _control_embed(channel: discord.VoiceChannel, owner: discord.Member | None, 
     locked  = bool(row.get("locked", 0))
     hidden  = bool(row.get("hidden", 0))
     allowed = json.loads(row.get("allowed_users") or "[]")
-    members = len(channel.members)
-    limit   = channel.user_limit
 
+    if locked and hidden:
+        color = discord.Color.red()
+    elif locked or hidden:
+        color = discord.Color.orange()
+    else:
+        color = discord.Color.green()
+
+    owner_name = owner.display_name if owner else "Inconnu"
     embed = discord.Embed(
-        title=f"🎙️ {channel.name}",
-        description="Gère ton salon vocal avec les boutons ci-dessous.",
-        color=discord.Color.red() if (locked or hidden) else discord.Color.green()
+        title=f"🎙️  Salon de {owner_name}",
+        color=color,
+        description=(
+            f"{'🔒 **Verrouillé**' if locked else '🔓 **Ouvert**'}"
+            f"  •  "
+            f"{'🙈 **Caché**' if hidden else '👁️ **Visible**'}"
+        ),
     )
+
+    if owner:
+        embed.set_thumbnail(url=owner.display_avatar.url)
+
+    members = channel.members
+    limit   = channel.user_limit
+    limit_str = f"{len(members)}/{limit}" if limit else f"{len(members)}/∞"
+
     embed.add_field(name="👑 Propriétaire", value=owner.mention if owner else "❓", inline=True)
-    embed.add_field(name="👥 Membres", value=f"{members}/{limit}" if limit else str(members), inline=True)
-    embed.add_field(
-        name="Statut",
-        value=f"{'🔒 Verrouillé' if locked else '🔓 Ouvert'} • {'🙈 Caché' if hidden else '👁️ Visible'}",
-        inline=False
-    )
+    embed.add_field(name="👥 Membres",      value=limit_str,                        inline=True)
+
+    if members:
+        member_list = " ".join(m.mention for m in members[:10])
+        if len(members) > 10:
+            member_list += f" *+{len(members) - 10}*"
+        embed.add_field(name="🎤 Dans le salon", value=member_list, inline=False)
+
     if allowed:
         embed.add_field(
             name=f"✅ Autorisés ({len(allowed)})",
             value=" ".join(f"<@{uid}>" for uid in allowed[:15]),
-            inline=False
+            inline=False,
         )
-    embed.set_footer(text="Seul le propriétaire peut modifier ce salon.")
+
+    embed.set_footer(text="Seul le propriétaire peut modifier ce salon")
     return embed
 
 
@@ -58,14 +79,14 @@ async def _owner_only(interaction: discord.Interaction, row: dict) -> bool:
 
 
 async def _update_control_msg(bot: commands.Bot, guild: discord.Guild, row: dict, embed: discord.Embed):
+    """Edit the control panel message inside the voice channel."""
     if not row or not row.get("control_msg_id"):
         return
-    config  = await bot.db.get_tempvoice_config(guild.id)
-    ctrl_ch = guild.get_channel(config.get("control_channel_id") or 0)
-    if not ctrl_ch:
+    channel = guild.get_channel(row["channel_id"])
+    if not channel:
         return
     try:
-        msg = await ctrl_ch.fetch_message(row["control_msg_id"])
+        msg = await channel.fetch_message(row["control_msg_id"])
         await msg.edit(embed=embed)
     except (discord.NotFound, discord.Forbidden):
         pass
@@ -126,7 +147,7 @@ class LimitModal(discord.ui.Modal, title="👥 Limite de membres"):
 
 class AllowUserSelect(discord.ui.UserSelect):
     def __init__(self, channel_id: int):
-        super().__init__(placeholder="Utilisateur à autoriser...", min_values=1, max_values=1)
+        super().__init__(placeholder="Utilisateur à autoriser…", min_values=1, max_values=1)
         self.channel_id = channel_id
 
     async def callback(self, interaction: discord.Interaction):
@@ -149,7 +170,7 @@ class AllowUserSelect(discord.ui.UserSelect):
 
 class KickUserSelect(discord.ui.UserSelect):
     def __init__(self, channel_id: int):
-        super().__init__(placeholder="Utilisateur à expulser...", min_values=1, max_values=1)
+        super().__init__(placeholder="Utilisateur à expulser…", min_values=1, max_values=1)
         self.channel_id = channel_id
 
     async def callback(self, interaction: discord.Interaction):
@@ -166,7 +187,7 @@ class KickUserSelect(discord.ui.UserSelect):
 
 class TransferUserSelect(discord.ui.UserSelect):
     def __init__(self, channel_id: int):
-        super().__init__(placeholder="Nouveau propriétaire...", min_values=1, max_values=1)
+        super().__init__(placeholder="Nouveau propriétaire…", min_values=1, max_values=1)
         self.channel_id = channel_id
 
     async def callback(self, interaction: discord.Interaction):
@@ -313,8 +334,6 @@ class TempVoiceControlView(discord.ui.View):
         await interaction.response.send_message("✅ Salon vocal supprimé.", ephemeral=True)
         try: await channel.delete(reason="TempVoice: supprimé par le propriétaire")
         except discord.NotFound: pass
-        try: await interaction.message.delete()
-        except (discord.NotFound, discord.Forbidden): pass
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -342,14 +361,12 @@ class TempVoice(commands.Cog):
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):
-        # Member joined a channel
         if after.channel:
-            config = await self.bot.db.get_tempvoice_config(member.guild.id)
+            config  = await self.bot.db.get_tempvoice_config(member.guild.id)
             trigger = config.get("trigger_channel_id")
             if trigger and after.channel.id == trigger:
                 await self._create_temp_channel(member, config)
 
-        # Member left a channel
         if before.channel and before.channel != after.channel:
             row = await self.bot.db.get_tempvoice_channel(before.channel.id)
             if not row:
@@ -357,7 +374,6 @@ class TempVoice(commands.Cog):
             if len(before.channel.members) == 0:
                 await self._delete_temp_channel(member.guild, row)
             elif member.id == row["owner_id"]:
-                # Transfer ownership to the next member
                 new_owner = before.channel.members[0]
                 await self.bot.db.update_tempvoice_owner(before.channel.id, new_owner.id)
                 updated = {**row, "owner_id": new_owner.id}
@@ -381,46 +397,34 @@ class TempVoice(commands.Cog):
                 name=name,
                 category=category,
                 user_limit=limit,
-                reason="TempVoice: création automatique"
+                reason="TempVoice: création automatique",
             )
             await member.move_to(channel, reason="TempVoice")
         except (discord.Forbidden, discord.HTTPException):
             return
 
+        row_preview = {
+            "channel_id": channel.id, "owner_id": member.id,
+            "locked": 0, "hidden": 0, "allowed_users": "[]",
+        }
+        embed = _control_embed(channel, member, row_preview)
+        view  = TempVoiceControlView(self.bot)
+
         ctrl_msg_id = None
-        ctrl_ch = guild.get_channel(config.get("control_channel_id") or 0)
-        if ctrl_ch:
-            row_preview = {
-                "channel_id": channel.id, "owner_id": member.id,
-                "locked": 0, "hidden": 0, "allowed_users": "[]"
-            }
-            embed = _control_embed(channel, member, row_preview)
-            view  = TempVoiceControlView(self.bot)
-            try:
-                msg         = await ctrl_ch.send(embed=embed, view=view)
-                ctrl_msg_id = msg.id
-            except discord.Forbidden:
-                pass
+        try:
+            msg         = await channel.send(embed=embed, view=view)
+            ctrl_msg_id = msg.id
+        except discord.Forbidden:
+            pass
 
         await self.bot.db.create_tempvoice_channel(channel.id, guild.id, member.id, ctrl_msg_id)
 
     async def _delete_temp_channel(self, guild: discord.Guild, row: dict):
         channel = guild.get_channel(row["channel_id"])
         await self.bot.db.delete_tempvoice_channel(row["channel_id"])
-
         if channel:
             try: await channel.delete(reason="TempVoice: salon vide")
             except discord.NotFound: pass
-
-        if row.get("control_msg_id"):
-            config  = await self.bot.db.get_tempvoice_config(guild.id)
-            ctrl_ch = guild.get_channel(config.get("control_channel_id") or 0)
-            if ctrl_ch:
-                try:
-                    msg = await ctrl_ch.fetch_message(row["control_msg_id"])
-                    await msg.delete()
-                except (discord.NotFound, discord.Forbidden):
-                    pass
 
     # ── Commands ──────────────────────────────────────────────────────────────
 
@@ -429,43 +433,46 @@ class TempVoice(commands.Cog):
     @tempvoice_group.command(name="setup", description="Configure les salons vocaux temporaires")
     @app_commands.describe(
         trigger="Salon vocal à rejoindre pour créer son salon",
-        control="Salon textuel où le panneau de contrôle sera envoyé",
-        categorie="Catégorie où créer les salons (optionnel)"
+        categorie="Catégorie où créer les salons (optionnel)",
     )
     @app_commands.default_permissions(manage_guild=True)
     async def tv_setup(
         self,
         interaction: discord.Interaction,
         trigger:    discord.VoiceChannel,
-        control:    discord.TextChannel,
-        categorie:  discord.CategoryChannel = None
+        categorie:  discord.CategoryChannel = None,
     ):
         db  = self.bot.db
         gid = interaction.guild.id
         await db.update_tempvoice_config(gid, "trigger_channel_id", trigger.id)
-        await db.update_tempvoice_config(gid, "control_channel_id", control.id)
         if categorie:
             await db.update_tempvoice_config(gid, "category_id", categorie.id)
 
-        embed = discord.Embed(title="✅ TempVoice configuré", color=discord.Color.green())
-        embed.add_field(name="🎙️ Déclencheur",      value=trigger.mention,                          inline=True)
-        embed.add_field(name="🎛️ Panneau de contrôle", value=control.mention,                       inline=True)
+        embed = discord.Embed(
+            title="✅ TempVoice configuré",
+            color=discord.Color.green(),
+            description=(
+                "Rejoins le salon déclencheur pour créer ton salon vocal.\n"
+                "Le panneau de contrôle apparaîtra directement **dans le salon créé**."
+            ),
+        )
+        embed.add_field(name="🎙️ Déclencheur", value=trigger.mention, inline=True)
         if categorie:
             embed.add_field(name="📁 Catégorie", value=categorie.mention, inline=True)
-        embed.set_footer(text="Rejoins le salon déclencheur pour créer ton salon vocal !")
+        embed.set_footer(text="Utilise /tempvoice config pour personnaliser le nom et la limite.")
         await interaction.response.send_message(embed=embed)
 
     @tempvoice_group.command(name="config", description="Configure le nom et la limite par défaut")
     @app_commands.describe(
         format="Format du nom ({user} = pseudo du membre)",
-        limite="Limite de membres par défaut (0 = illimité)"
+        limite="Limite de membres par défaut (0 = illimité)",
     )
     @app_commands.default_permissions(manage_guild=True)
     async def tv_config(
         self,
         interaction: discord.Interaction,
         format: str = None,
-        limite: app_commands.Range[int, 0, 99] = None
+        limite: app_commands.Range[int, 0, 99] = None,
     ):
         gid = interaction.guild.id
         if format is not None:
@@ -478,16 +485,17 @@ class TempVoice(commands.Cog):
     @app_commands.default_permissions(manage_guild=True)
     async def tv_status(self, interaction: discord.Interaction):
         config   = await self.bot.db.get_tempvoice_config(interaction.guild.id)
-        trigger  = interaction.guild.get_channel(config.get("trigger_channel_id")  or 0)
-        control  = interaction.guild.get_channel(config.get("control_channel_id")  or 0)
+        trigger  = interaction.guild.get_channel(config.get("trigger_channel_id") or 0)
         category = interaction.guild.get_channel(config.get("category_id") or 0)
+        rows     = await self.bot.db.get_all_tempvoice_channels()
+        active   = sum(1 for r in rows if r["guild_id"] == interaction.guild.id)
 
         embed = discord.Embed(title="🎙️ TempVoice — Configuration", color=discord.Color.blurple())
-        embed.add_field(name="Déclencheur",   value=trigger.mention  if trigger  else "❌ Non configuré", inline=True)
-        embed.add_field(name="Contrôle",      value=control.mention  if control  else "❌ Non configuré", inline=True)
-        embed.add_field(name="Catégorie",     value=category.mention if category else "Aucune",           inline=True)
-        embed.add_field(name="Format du nom", value=f"`{config.get('name_format') or '{user} • Salon'}`", inline=True)
-        embed.add_field(name="Limite défaut", value=str(config.get("default_limit") or "Illimitée"),      inline=True)
+        embed.add_field(name="🎙️ Déclencheur",   value=trigger.mention  if trigger  else "❌ Non configuré", inline=True)
+        embed.add_field(name="📁 Catégorie",      value=category.mention if category else "Aucune",           inline=True)
+        embed.add_field(name="🔢 Salons actifs",  value=str(active),                                          inline=True)
+        embed.add_field(name="✏️ Format du nom",  value=f"`{config.get('name_format') or '{user} • Salon'}`", inline=True)
+        embed.add_field(name="👥 Limite défaut",  value=str(config.get("default_limit") or "Illimitée"),      inline=True)
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
 

@@ -5,6 +5,21 @@ from discord.ext import commands
 DEFAULT_MSG = "🚀 {mention} vient de booster **{server}** ! Merci infiniment ! 🎉"
 
 
+class BoostView(discord.ui.View):
+    def __init__(self, booster_id: int):
+        super().__init__(timeout=None)
+        self.booster_id = booster_id
+
+    @discord.ui.button(label="💜 Merci !", style=discord.ButtonStyle.secondary)
+    async def thank_you(self, interaction: discord.Interaction, button: discord.ui.Button):
+        booster = interaction.guild.get_member(self.booster_id)
+        name    = booster.display_name if booster else "ce membre"
+        await interaction.response.send_message(
+            f"💜 {interaction.user.mention} remercie **{name}** pour son boost !",
+            allowed_mentions=discord.AllowedMentions(users=False),
+        )
+
+
 def _fmt(text: str, member: discord.Member) -> str:
     return (text
         .replace("{mention}", member.mention)
@@ -48,7 +63,7 @@ class Boost(commands.Cog):
                     embed.set_thumbnail(url=after.display_avatar.url)
                     embed.set_footer(text=f"Le serveur a maintenant {after.guild.premium_subscription_count} boost(s)")
                     try:
-                        await ch.send(embed=embed)
+                        await ch.send(embed=embed, view=BoostView(after.id))
                     except discord.Forbidden:
                         pass
 
