@@ -163,52 +163,94 @@ class Info(commands.Cog):
 
     @app_commands.command(name="help", description="Liste toutes les commandes disponibles")
     async def help(self, interaction: discord.Interaction):
-        embed = discord.Embed(
+        e = discord.Embed(
             title="📋 Commandes du bot",
             description="Toutes les commandes utilisent les slash commands (`/`).",
             color=discord.Color.blurple()
         )
-        embed.add_field(
+        e.add_field(
             name="🛡️ Modération",
             value=(
                 "`/kick` `/ban` `/unban` `/mute` `/unmute`\n"
                 "`/warn` `/unwarn` `/warnings` `/clearwarnings`\n"
-                "`/clear` `/slowmode` `/lock` `/unlock`"
+                "`/clear [membre] [bots] [images] [contient]` `/slowmode` `/lock` `/unlock`"
             ),
             inline=False
         )
-        embed.add_field(
-            name="ℹ️ Informations",
-            value="`/userinfo` `/serverinfo` `/botinfo` `/avatar` `/roleinfo`",
+        e.add_field(
+            name="🤖 Auto-sanctions",
+            value="`/autosanction add` `/autosanction remove` `/autosanction list`",
             inline=False
         )
-        embed.add_field(
+        e.add_field(
+            name="🚨 Signalements",
+            value="`/report @user raison` `/setreport #salon`",
+            inline=False
+        )
+        e.add_field(
+            name="🔇 AutoMod",
+            value=(
+                "`/automod status` `/automod toggle` `/automod spam` `/automod flood`\n"
+                "`/automod invites` `/automod caps` `/automod mentions` `/automod bypass`\n"
+                "`/ghostping true/false`"
+            ),
+            inline=False
+        )
+        e.add_field(
+            name="🛡️ Anti-Raid",
+            value="`/antiraid status` `/antiraid toggle` `/antiraid config` `/antiraid lockdown` `/antiraid unlock`",
+            inline=False
+        )
+        e.add_field(
             name="⭐ Système XP",
-            value="`/rank` `/leaderboard` `/setxp` `/addxp` `/resetxp`",
+            value=(
+                "`/rank` `/leaderboard` `/setxp` `/addxp` `/resetxp`\n"
+                "`/xprole add` `/xprole remove` `/xprole list`"
+            ),
             inline=False
         )
-        embed.add_field(
-            name="🤖 AutoMod",
-            value="`/automod status` `/automod toggle` `/automod spam` `/automod flood`\n`/automod invites` `/automod caps` `/automod mentions` `/automod bypass`",
-            inline=False
-        )
-        embed.add_field(
+        e.add_field(
             name="🎫 Tickets",
-            value="`/ticket` `/tadd` `/tremove`",
+            value="`/ticket setup` `/ticket categories` `/ticket couleur` `/ticket message`\n`/tadd` `/tremove` `/tclaim` `/tunclaim`",
             inline=False
         )
-        embed.add_field(
+        e.add_field(
             name="🎭 Rôles réactifs",
             value="`/rr create` `/rr add` `/rr remove` `/rr delete` `/rr list`",
             inline=False
         )
-        embed.add_field(
-            name="⚙️ Configuration",
-            value="`/config` `/setlogs` `/setwelcome` `/setgoodbye` `/setautorole`",
+        e.add_field(
+            name="🎙️ Salons vocaux temporaires",
+            value="`/tempvoice setup` `/tempvoice config` `/tempvoice status`",
             inline=False
         )
-        embed.set_footer(text="Utilise /config pour configurer le bot sur ton serveur.")
-        await interaction.response.send_message(embed=embed)
+        e.add_field(
+            name="🖼️ Constructeur d'embeds",
+            value="`/embed create` `/embed edit`",
+            inline=False
+        )
+        e.add_field(
+            name="💜 Boost Rewards",
+            value="`/boost setup` `/boost message` `/boost status`",
+            inline=False
+        )
+        e.add_field(
+            name="🔐 Permissions commandes",
+            value="`/cmdperm allow-role` `/cmdperm deny-role` `/cmdperm channel` `/cmdperm reset` `/cmdperm list`",
+            inline=False
+        )
+        e.add_field(
+            name="ℹ️ Informations",
+            value="`/userinfo` `/serverinfo` `/botinfo` `/avatar` `/roleinfo`",
+            inline=False
+        )
+        e.add_field(
+            name="⚙️ Configuration",
+            value="`/config` `/setlogs` `/setwelcome` `/setgoodbye` `/setautorole` `/setreport`",
+            inline=False
+        )
+        e.set_footer(text="Utilise /config pour configurer le bot • Les admins sont exemptés des restrictions /cmdperm")
+        await interaction.response.send_message(embed=e)
 
 
 async def setup(bot: commands.Bot):
