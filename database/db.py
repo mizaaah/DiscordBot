@@ -24,7 +24,9 @@ ALLOWED_AUTOMOD_SETTINGS = {
 ALLOWED_TICKET_SETTINGS = {
     "category_id", "staff_role_id", "log_channel_id",
     "panel_message_id", "panel_channel_id",
-    "embed_color", "welcome_message", "categories"
+    "embed_color", "welcome_message", "categories",
+    "channel_name_format", "open_button_label", "open_button_emoji",
+    "close_button_label", "close_button_emoji",
 }
 
 ALLOWED_ANTIRAID_SETTINGS = {
@@ -151,7 +153,12 @@ class Database:
                 panel_channel_id    INTEGER,
                 embed_color         INTEGER DEFAULT 5793266,
                 welcome_message     TEXT,
-                categories          TEXT DEFAULT '[]'
+                categories          TEXT DEFAULT '[]',
+                channel_name_format TEXT DEFAULT '{category}-{number}',
+                open_button_label   TEXT DEFAULT 'Ouvrir un ticket',
+                open_button_emoji   TEXT DEFAULT '📩',
+                close_button_label  TEXT DEFAULT 'Fermer le ticket',
+                close_button_emoji  TEXT DEFAULT '🔒'
             )""",
             """CREATE TABLE IF NOT EXISTS tickets (
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -303,6 +310,11 @@ class Database:
             "ALTER TABLE automod_config ADD COLUMN link_enabled INTEGER DEFAULT 0",
             "ALTER TABLE automod_config ADD COLUMN link_action TEXT DEFAULT 'warn'",
             "ALTER TABLE automod_config ADD COLUMN link_whitelist TEXT DEFAULT '[]'",
+            "ALTER TABLE ticket_config ADD COLUMN channel_name_format TEXT DEFAULT '{category}-{number}'",
+            "ALTER TABLE ticket_config ADD COLUMN open_button_label TEXT DEFAULT 'Ouvrir un ticket'",
+            "ALTER TABLE ticket_config ADD COLUMN open_button_emoji TEXT DEFAULT '📩'",
+            "ALTER TABLE ticket_config ADD COLUMN close_button_label TEXT DEFAULT 'Fermer le ticket'",
+            "ALTER TABLE ticket_config ADD COLUMN close_button_emoji TEXT DEFAULT '🔒'",
         ]:
             try:
                 await self.db.execute(migration)

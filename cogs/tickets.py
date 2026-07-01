@@ -36,8 +36,14 @@ async def _open_ticket(bot: commands.Bot, interaction: discord.Interaction, cate
     ticket_cat   = guild.get_channel(config["category_id"])  if config.get("category_id")  else None
     staff_role   = guild.get_role(config["staff_role_id"])   if config.get("staff_role_id") else None
     ticket_num   = await bot.db.increment_ticket_counter(guild.id)
-    slug         = category.lower().replace(" ", "-") if category else "ticket"
-    channel_name = f"{slug}-{ticket_num:04d}"
+    name_format  = config.get("channel_name_format") or "{category}-{number}"
+    channel_name = (
+        name_format
+        .replace("{category}", category.lower().replace(" ", "-") if category else "ticket")
+        .replace("{number}", f"{ticket_num:04d}")
+        .replace("{user}", user.display_name[:20])
+        .lower().replace(" ", "-")
+    )[:100]
 
     overwrites = {
         guild.default_role: discord.PermissionOverwrite(view_channel=False),
@@ -89,7 +95,7 @@ async def _open_ticket(bot: commands.Bot, interaction: discord.Interaction, cate
     embed.set_thumbnail(url=user.display_avatar.url)
     embed.set_footer(text=t(lang, "ticket.member_id_footer", id=user.id))
 
-    await channel.send(embed=embed, view=TicketCloseView(bot))
+    await channel.send(embed=embed, view=TicketCloseView(bot, config.get("close_button_label"), config.get("close_button_emoji")))
     await channel.send(user.mention, delete_after=1)
     await reply(t(lang, "ticket.created", channel=channel.mention), ephemeral=True)
 
@@ -124,12 +130,17 @@ class TicketCategoryView(discord.ui.View):
 # ── Persistent views ──────────────────────────────────────────────────────────
 
 class TicketOpenView(discord.ui.View):
-    def __init__(self, bot: commands.Bot):
+    def __init__(self, bot: commands.Bot, label: str = None, emoji: str = None):
         super().__init__(timeout=None)
         self.bot = bot
+        if label:
+            self.open_ticket.label = label
+        if emoji:
+            self.open_ticket.emoji = emoji
 
     @discord.ui.button(
-        label="📩 Ouvrir un ticket",
+        label="Ouvrir un ticket",
+        emoji="📩",
         style=discord.ButtonStyle.primary,
         custom_id="ticket_open_persistent"
     )
@@ -149,12 +160,17 @@ class TicketOpenView(discord.ui.View):
 
 
 class TicketCloseView(discord.ui.View):
-    def __init__(self, bot: commands.Bot):
+    def __init__(self, bot: commands.Bot, label: str = None, emoji: str = None):
         super().__init__(timeout=None)
         self.bot = bot
+        if label:
+            self.close_ticket.label = label
+        if emoji:
+            self.close_ticket.emoji = emoji
 
     @discord.ui.button(
-        label="🔒 Fermer le ticket",
+        label="Fermer le ticket",
+        emoji="🔒",
         style=discord.ButtonStyle.danger,
         custom_id="ticket_close_persistent"
     )
@@ -349,7 +365,7 @@ class Tickets(commands.Cog):
             embed.set_thumbnail(url=interaction.guild.icon.url)
         embed.set_footer(text=interaction.guild.name)
 
-        view  = TicketOpenView(self.bot)
+        view  = TicketOpenView(self.bot, config.get("open_button_label"), config.get("open_button_emoji"))
         panel = await salon.send(embed=embed, view=view)
 
         await db.update_ticket_config(gid, "panel_message_id", panel.id)
@@ -379,6 +395,61 @@ class Tickets(commands.Cog):
                 description=t(lang, "ticket.categories_disabled"),
                 color=Colors.SUCCESS
             )
+        await interaction.response.send_message(embed=embed)
+
+    @ticket_group.command(name="customize", description="Personnalise le nom des salons et les boutons d'ouverture/fermeture")
+    @app_commands.describe(
+        format_salon="Format du nom du salon (variables : {category} {number} {user})",
+        bouton_ouvrir_texte="Texte du bouton d'ouverture",
+        bouton_ouvrir_emoji="Emoji du bouton d'ouverture",
+        bouton_fermer_texte="Texte du bouton de fermeture",
+        bouton_fermer_emoji="Emoji du bouton de fermeture",
+    )
+    @app_commands.default_permissions(manage_guild=True)
+    async def ticket_customize(
+        self,
+        interaction: discord.Interaction,
+        format_salon: str = None,
+        bouton_ouvrir_texte: str = None,
+        bouton_ouvrir_emoji: str = None,
+        bouton_fermer_texte: str = None,
+        bouton_fermer_emoji: str = None,
+    ):
+        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
+        updates = {
+            "channel_name_format": format_salon,
+            "open_button_label":   bouton_ouvrir_texte,
+            "open_button_emoji":   bouton_ouvrir_emoji,
+            "close_button_label":  bouton_fermer_texte,
+            "close_button_emoji":  bouton_fermer_emoji,
+        }
+        provided = {k: v for k, v in updates.items() if v is not None}
+        if not provided:
+            return await interaction.response.send_message(embed=error_embed(t(lang, "ticket.customize_no_params")), ephemeral=True)
+
+        db  = self.bot.db
+        gid = interaction.guild.id
+        for setting, value in provided.items():
+            await db.update_ticket_config(gid, setting, value)
+
+        config = await db.get_ticket_config(gid)
+
+        # Re-render the open panel if one already exists
+        if config.get("panel_channel_id") and config.get("panel_message_id"):
+            panel_ch = interaction.guild.get_channel(config["panel_channel_id"])
+            if panel_ch:
+                try:
+                    panel_msg = await panel_ch.fetch_message(config["panel_message_id"])
+                    new_view  = TicketOpenView(self.bot, config.get("open_button_label"), config.get("open_button_emoji"))
+                    await panel_msg.edit(view=new_view)
+                    self.bot.add_view(new_view, message_id=panel_msg.id)
+                except (discord.NotFound, discord.Forbidden):
+                    pass
+
+        embed = discord.Embed(title=t(lang, "ticket.customize_updated_title"), color=Colors.SUCCESS)
+        embed.add_field(name=t(lang, "ticket.channel_name_format_field"), value=f"`{config.get('channel_name_format')}`", inline=False)
+        embed.add_field(name=t(lang, "ticket.open_button_field"), value=f"{config.get('open_button_emoji') or ''} {config.get('open_button_label')}".strip(), inline=True)
+        embed.add_field(name=t(lang, "ticket.close_button_field"), value=f"{config.get('close_button_emoji') or ''} {config.get('close_button_label')}".strip(), inline=True)
         await interaction.response.send_message(embed=embed)
 
     @ticket_group.command(name="couleur", description="Change la couleur des embeds de tickets")
@@ -439,6 +510,9 @@ class Tickets(commands.Cog):
         embed.add_field(name=t(lang, "ticket.log_channel_field"), value=log_ch.mention       if log_ch       else t(lang, "ticket.not_configured_f"),  inline=True)
         embed.add_field(name=t(lang, "ticket.color_field"), value=f"`#{config.get('embed_color', Colors.INFO.value):06X}`", inline=True)
         embed.add_field(name=t(lang, "ticket.opened_count_field"), value=str(config.get("ticket_counter", 0)), inline=True)
+        embed.add_field(name=t(lang, "ticket.channel_name_format_field"), value=f"`{config.get('channel_name_format') or '{category}-{number}'}`", inline=True)
+        embed.add_field(name=t(lang, "ticket.open_button_field"), value=f"{config.get('open_button_emoji') or ''} {config.get('open_button_label') or 'Ouvrir un ticket'}".strip(), inline=True)
+        embed.add_field(name=t(lang, "ticket.close_button_field"), value=f"{config.get('close_button_emoji') or ''} {config.get('close_button_label') or 'Fermer le ticket'}".strip(), inline=True)
 
         cats = [c for c in (config.get("categories") or []) if c]
         embed.add_field(

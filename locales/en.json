@@ -571,7 +571,7 @@
   "help.tickets.title": "🎫 Ticket System",
   "help.tickets.desc": "Create and manage support tickets with categories.",
   "help.tickets.f1.name": "⚙️ Configuration",
-  "help.tickets.f1.value": "`/ticket setup <categorie> [staff]` — Set up\n`/ticket categories` — Manage categories\n`/ticket couleur <hex>` — Embed color\n`/ticket message` — Send the opening panel",
+  "help.tickets.f1.value": "`/ticket setup <categorie> [staff]` — Set up\n`/ticket categories` — Manage categories\n`/ticket couleur <hex>` — Embed color\n`/ticket message` — Send the opening panel\n`/ticket customize` — Channel name format and buttons",
   "help.tickets.f2.name": "🎛️ Managing a ticket",
   "help.tickets.f2.value": "`/tadd @membre` — Add a member\n`/tremove @membre` — Remove a member\n`/tclaim` — Claim the ticket\n`/tunclaim` — Release the ticket",
   "help.roles.label": "🎭 Roles",
@@ -682,5 +682,10 @@
   "err.bot_missing_permissions": "❌ I don't have the required permissions: `{missing}`.",
   "err.on_cooldown": "⏳ Command on cooldown. Try again in {seconds}s.",
   "err.no_private_message": "❌ This command can't be used in a private message.",
-  "err.unexpected": "❌ An unexpected error occurred: `{error}`"
+  "err.unexpected": "❌ An unexpected error occurred: `{error}`",
+  "ticket.customize_no_params": "❌ Specify at least one parameter to change.",
+  "ticket.customize_updated_title": "✅ Ticket customization updated",
+  "ticket.channel_name_format_field": "✏️ Channel name format",
+  "ticket.open_button_field": "📩 Open button",
+  "ticket.close_button_field": "🔒 Close button"
 }

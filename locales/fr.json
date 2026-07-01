@@ -571,7 +571,7 @@
   "help.tickets.title": "🎫 Système de Tickets",
   "help.tickets.desc": "Créez et gérez des tickets de support avec catégories.",
   "help.tickets.f1.name": "⚙️ Configuration",
-  "help.tickets.f1.value": "`/ticket setup <categorie> [staff]` — Configurer\n`/ticket categories` — Gérer les catégories\n`/ticket couleur <hex>` — Couleur des embeds\n`/ticket message` — Envoyer le panneau d'ouverture",
+  "help.tickets.f1.value": "`/ticket setup <categorie> [staff]` — Configurer\n`/ticket categories` — Gérer les catégories\n`/ticket couleur <hex>` — Couleur des embeds\n`/ticket message` — Envoyer le panneau d'ouverture\n`/ticket customize` — Format du nom des salons et boutons",
   "help.tickets.f2.name": "🎛️ Gestion d'un ticket",
   "help.tickets.f2.value": "`/tadd @membre` — Ajouter un membre\n`/tremove @membre` — Retirer un membre\n`/tclaim` — Prendre en charge\n`/tunclaim` — Libérer le ticket",
   "help.roles.label": "🎭 Rôles",
@@ -682,5 +682,10 @@
   "err.bot_missing_permissions": "❌ Je n'ai pas les permissions nécessaires : `{missing}`.",
   "err.on_cooldown": "⏳ Commande en cooldown. Réessaie dans {seconds}s.",
   "err.no_private_message": "❌ Cette commande ne peut pas être utilisée en message privé.",
-  "err.unexpected": "❌ Une erreur inattendue s'est produite : `{error}`"
+  "err.unexpected": "❌ Une erreur inattendue s'est produite : `{error}`",
+  "ticket.customize_no_params": "❌ Spécifie au moins un paramètre à modifier.",
+  "ticket.customize_updated_title": "✅ Personnalisation des tickets mise à jour",
+  "ticket.channel_name_format_field": "✏️ Format du nom de salon",
+  "ticket.open_button_field": "📩 Bouton d'ouverture",
+  "ticket.close_button_field": "🔒 Bouton de fermeture"
 }
