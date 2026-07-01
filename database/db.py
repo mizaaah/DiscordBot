@@ -17,7 +17,8 @@ ALLOWED_AUTOMOD_SETTINGS = {
     "enabled", "spam_enabled", "spam_threshold", "spam_window", "spam_action",
     "invite_enabled", "invite_action", "caps_enabled", "caps_threshold",
     "caps_min_length", "caps_action", "mention_enabled", "mention_threshold",
-    "mention_action", "flood_enabled", "flood_threshold", "flood_action", "bypass_roles"
+    "mention_action", "flood_enabled", "flood_threshold", "flood_action", "bypass_roles",
+    "link_enabled", "link_action", "link_whitelist"
 }
 
 ALLOWED_TICKET_SETTINGS = {
@@ -125,7 +126,10 @@ class Database:
                 flood_enabled       INTEGER DEFAULT 1,
                 flood_threshold     INTEGER DEFAULT 3,
                 flood_action        TEXT DEFAULT 'warn',
-                bypass_roles        TEXT DEFAULT '[]'
+                bypass_roles        TEXT DEFAULT '[]',
+                link_enabled        INTEGER DEFAULT 0,
+                link_action         TEXT DEFAULT 'warn',
+                link_whitelist      TEXT DEFAULT '[]'
             )""",
             """CREATE TABLE IF NOT EXISTS antiraid_config (
                 guild_id            INTEGER PRIMARY KEY,
@@ -296,6 +300,9 @@ class Database:
             "ALTER TABLE guild_settings ADD COLUMN report_channel_id INTEGER",
             "ALTER TABLE guild_settings ADD COLUMN ghostping_enabled INTEGER DEFAULT 1",
             "ALTER TABLE guild_settings ADD COLUMN language TEXT DEFAULT 'fr'",
+            "ALTER TABLE automod_config ADD COLUMN link_enabled INTEGER DEFAULT 0",
+            "ALTER TABLE automod_config ADD COLUMN link_action TEXT DEFAULT 'warn'",
+            "ALTER TABLE automod_config ADD COLUMN link_whitelist TEXT DEFAULT '[]'",
         ]:
             try:
                 await self.db.execute(migration)
@@ -418,7 +425,8 @@ class Database:
         if not row:
             await self._exec("INSERT OR IGNORE INTO automod_config (guild_id) VALUES (?)", guild_id)
             row = await self._row("SELECT * FROM automod_config WHERE guild_id = ?", guild_id)
-        row["bypass_roles"] = json.loads(row.get("bypass_roles") or "[]")
+        row["bypass_roles"]   = json.loads(row.get("bypass_roles") or "[]")
+        row["link_whitelist"] = json.loads(row.get("link_whitelist") or "[]")
         return row
 
     async def update_automod_setting(self, guild_id: int, setting: str, value):

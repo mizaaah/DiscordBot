@@ -2,6 +2,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from utils.colors import Colors
+from utils.embeds import error_embed, success_embed
 
 STYLE_MAP = {
     "primary":   discord.ButtonStyle.primary,
@@ -22,17 +23,17 @@ class RoleButton(discord.ui.Button):
     async def callback(self, interaction: discord.Interaction):
         role = interaction.guild.get_role(self.role_id)
         if not role:
-            return await interaction.response.send_message("❌ Ce rôle n'existe plus.", ephemeral=True)
+            return await interaction.response.send_message(embed=error_embed("❌ Ce rôle n'existe plus."), ephemeral=True)
         if role >= interaction.guild.me.top_role:
             return await interaction.response.send_message(
                 "❌ Je ne peux pas gérer ce rôle (rang trop élevé).", ephemeral=True
             )
         if role in interaction.user.roles:
             await interaction.user.remove_roles(role, reason="Rôle réactif — retrait")
-            await interaction.response.send_message(f"❌ Rôle **{role.name}** retiré.", ephemeral=True)
+            await interaction.response.send_message(embed=error_embed(f"❌ Rôle **{role.name}** retiré."), ephemeral=True)
         else:
             await interaction.user.add_roles(role, reason="Rôle réactif — attribution")
-            await interaction.response.send_message(f"✅ Rôle **{role.name}** obtenu !", ephemeral=True)
+            await interaction.response.send_message(embed=success_embed(f"✅ Rôle **{role.name}** obtenu !"), ephemeral=True)
 
 
 def build_rr_view(buttons_data: list) -> discord.ui.View:
@@ -115,11 +116,11 @@ class ReactionRoles(commands.Cog):
     ):
         panel = await self.bot.db.get_rr_panel_by_id(panel_id, interaction.guild.id)
         if not panel:
-            return await interaction.response.send_message(f"❌ Panel `#{panel_id}` introuvable.", ephemeral=True)
+            return await interaction.response.send_message(embed=error_embed(f"❌ Panel `#{panel_id}` introuvable."), ephemeral=True)
 
         buttons = await self.bot.db.get_rr_buttons(panel_id)
         if len(buttons) >= 25:
-            return await interaction.response.send_message("❌ Maximum 25 boutons par panel.", ephemeral=True)
+            return await interaction.response.send_message(embed=error_embed("❌ Maximum 25 boutons par panel."), ephemeral=True)
 
         if role >= interaction.guild.me.top_role:
             return await interaction.response.send_message(
@@ -141,7 +142,7 @@ class ReactionRoles(commands.Cog):
     async def rr_remove(self, interaction: discord.Interaction, panel_id: int, bouton_id: int):
         panel = await self.bot.db.get_rr_panel_by_id(panel_id, interaction.guild.id)
         if not panel:
-            return await interaction.response.send_message(f"❌ Panel `#{panel_id}` introuvable.", ephemeral=True)
+            return await interaction.response.send_message(embed=error_embed(f"❌ Panel `#{panel_id}` introuvable."), ephemeral=True)
 
         await self.bot.db.remove_rr_button(bouton_id, panel_id)
         await self._rebuild_panel(interaction.guild, dict(panel), panel_id)
@@ -158,7 +159,7 @@ class ReactionRoles(commands.Cog):
     async def rr_delete(self, interaction: discord.Interaction, panel_id: int):
         panel = await self.bot.db.get_rr_panel_by_id(panel_id, interaction.guild.id)
         if not panel:
-            return await interaction.response.send_message(f"❌ Panel `#{panel_id}` introuvable.", ephemeral=True)
+            return await interaction.response.send_message(embed=error_embed(f"❌ Panel `#{panel_id}` introuvable."), ephemeral=True)
 
         channel = interaction.guild.get_channel(panel["channel_id"])
         if channel:
@@ -169,7 +170,7 @@ class ReactionRoles(commands.Cog):
                 pass
 
         await self.bot.db.delete_rr_panel(panel_id)
-        await interaction.response.send_message(f"✅ Panel `#{panel_id}` supprimé.", ephemeral=True)
+        await interaction.response.send_message(embed=success_embed(f"✅ Panel `#{panel_id}` supprimé."), ephemeral=True)
 
     # ── /rr list ──────────────────────────────────────────────────────────────
 

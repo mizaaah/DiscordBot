@@ -1,6 +1,7 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
+from utils.embeds import error_embed
 
 DEFAULT_MSG = "🚀 {mention} vient de booster **{server}** ! Merci infiniment ! 🎉"
 
@@ -86,7 +87,7 @@ class Boost(commands.Cog):
     @app_commands.default_permissions(manage_guild=True)
     async def boost_setup(self, interaction: discord.Interaction, role: discord.Role, salon: discord.TextChannel):
         if role >= interaction.guild.me.top_role:
-            return await interaction.response.send_message("❌ Ce rôle est au-dessus du mien.", ephemeral=True)
+            return await interaction.response.send_message(embed=error_embed("❌ Ce rôle est au-dessus du mien."), ephemeral=True)
         db  = self.bot.db
         gid = interaction.guild.id
         await db.update_boost_config(gid, "reward_role_id", role.id)

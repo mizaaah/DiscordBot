@@ -6,6 +6,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from utils.colors import Colors
+from utils.embeds import error_embed
 
 
 # ── Shared ticket-creation logic ──────────────────────────────────────────────
@@ -161,7 +162,7 @@ class TicketCloseView(discord.ui.View):
     async def close_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
         ticket = await self.bot.db.get_ticket(interaction.channel.id)
         if not ticket:
-            return await interaction.response.send_message("❌ Ce salon n'est pas un ticket.", ephemeral=True)
+            return await interaction.response.send_message(embed=error_embed("❌ Ce salon n'est pas un ticket."), ephemeral=True)
 
         config      = await self.bot.db.get_ticket_config(interaction.guild.id)
         staff_id    = config.get("staff_role_id")
@@ -456,7 +457,7 @@ class Tickets(commands.Cog):
     @app_commands.default_permissions(manage_channels=True)
     async def tadd(self, interaction: discord.Interaction, membre: discord.Member):
         if not await self.bot.db.get_ticket(interaction.channel.id):
-            return await interaction.response.send_message("❌ Ce salon n'est pas un ticket.", ephemeral=True)
+            return await interaction.response.send_message(embed=error_embed("❌ Ce salon n'est pas un ticket."), ephemeral=True)
         await interaction.channel.set_permissions(
             membre, view_channel=True, send_messages=True,
             read_message_history=True, attach_files=True
@@ -470,7 +471,7 @@ class Tickets(commands.Cog):
     async def tremove(self, interaction: discord.Interaction, membre: discord.Member):
         ticket = await self.bot.db.get_ticket(interaction.channel.id)
         if not ticket:
-            return await interaction.response.send_message("❌ Ce salon n'est pas un ticket.", ephemeral=True)
+            return await interaction.response.send_message(embed=error_embed("❌ Ce salon n'est pas un ticket."), ephemeral=True)
         if ticket["user_id"] == membre.id:
             return await interaction.response.send_message(
                 "❌ Impossible de retirer le créateur du ticket.", ephemeral=True
@@ -486,7 +487,7 @@ class Tickets(commands.Cog):
     async def tclaim(self, interaction: discord.Interaction):
         ticket = await self.bot.db.get_ticket(interaction.channel.id)
         if not ticket:
-            return await interaction.response.send_message("❌ Ce salon n'est pas un ticket.", ephemeral=True)
+            return await interaction.response.send_message(embed=error_embed("❌ Ce salon n'est pas un ticket."), ephemeral=True)
         if ticket.get("claimed_by"):
             claimer = interaction.guild.get_member(ticket["claimed_by"])
             return await interaction.response.send_message(
@@ -504,9 +505,9 @@ class Tickets(commands.Cog):
     async def tunclaim(self, interaction: discord.Interaction):
         ticket = await self.bot.db.get_ticket(interaction.channel.id)
         if not ticket:
-            return await interaction.response.send_message("❌ Ce salon n'est pas un ticket.", ephemeral=True)
+            return await interaction.response.send_message(embed=error_embed("❌ Ce salon n'est pas un ticket."), ephemeral=True)
         if not ticket.get("claimed_by"):
-            return await interaction.response.send_message("❌ Ce ticket n'est pas réclamé.", ephemeral=True)
+            return await interaction.response.send_message(embed=error_embed("❌ Ce ticket n'est pas réclamé."), ephemeral=True)
         await self.bot.db.unclaim_ticket(interaction.channel.id)
         embed = discord.Embed(
             description=f"🔓 {interaction.user.mention} a libéré la réclamation de ce ticket.",

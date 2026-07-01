@@ -4,6 +4,7 @@ from discord import app_commands
 from discord.ext import commands
 from utils.helpers import parse_duration, duration_to_str
 from utils.colors import Colors
+from utils.embeds import error_embed, success_embed
 
 ACTION_CHOICES = [
     app_commands.Choice(name="Mute (timeout)",          value="mute"),
@@ -92,7 +93,7 @@ class AutoSanctions(commands.Cog):
             try:
                 duration, _ = parse_duration(duree)
             except ValueError as e:
-                return await interaction.response.send_message(f"❌ {e}", ephemeral=True)
+                return await interaction.response.send_message(embed=error_embed(f"❌ {e}"), ephemeral=True)
 
         await self.bot.db.add_autosanction(interaction.guild.id, warns, action, duration)
         label = _action_label(action, duration)
@@ -106,9 +107,9 @@ class AutoSanctions(commands.Cog):
     async def as_remove(self, interaction: discord.Interaction, warns: int):
         deleted = await self.bot.db.remove_autosanction(interaction.guild.id, warns)
         if deleted:
-            await interaction.response.send_message(f"✅ Sanction au seuil **{warns}** warn(s) supprimée.")
+            await interaction.response.send_message(embed=success_embed(f"✅ Sanction au seuil **{warns}** warn(s) supprimée."))
         else:
-            await interaction.response.send_message(f"❌ Aucune sanction au seuil **{warns}**.", ephemeral=True)
+            await interaction.response.send_message(embed=error_embed(f"❌ Aucune sanction au seuil **{warns}**."), ephemeral=True)
 
     @as_group.command(name="list", description="Liste les sanctions automatiques")
     @app_commands.default_permissions(manage_guild=True)

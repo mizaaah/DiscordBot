@@ -3,6 +3,7 @@ from datetime import timedelta
 from discord import app_commands
 from discord.ext import commands
 from utils.colors import Colors
+from utils.embeds import error_embed, success_embed
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -17,12 +18,12 @@ class ReportView(discord.ui.View):
     async def _get_report(self, interaction: discord.Interaction) -> dict | None:
         report = await interaction.client.db.get_report_by_msg(interaction.message.id)
         if not report:
-            await interaction.response.send_message("❌ Signalement introuvable.", ephemeral=True)
+            await interaction.response.send_message(embed=error_embed("❌ Signalement introuvable."), ephemeral=True)
         return report
 
     async def _require_mod(self, interaction: discord.Interaction) -> bool:
         if not interaction.user.guild_permissions.manage_messages:
-            await interaction.response.send_message("❌ Réservé aux modérateurs.", ephemeral=True)
+            await interaction.response.send_message(embed=error_embed("❌ Réservé aux modérateurs."), ephemeral=True)
             return False
         return True
 
@@ -37,7 +38,7 @@ class ReportView(discord.ui.View):
         report = await self._get_report(interaction)
         if not report: return
         if report["resolved"]:
-            return await interaction.response.send_message("❌ Déjà résolu.", ephemeral=True)
+            return await interaction.response.send_message(embed=error_embed("❌ Déjà résolu."), ephemeral=True)
         await interaction.client.db.resolve_report(report["id"])
         embed = self._mark_resolved(interaction.message.embeds[0].copy(), interaction.user)
         for item in self.children:
@@ -51,12 +52,12 @@ class ReportView(discord.ui.View):
         if not report: return
         member = interaction.guild.get_member(report["reported_id"])
         if not member:
-            return await interaction.response.send_message("❌ Membre introuvable (a quitté ?).", ephemeral=True)
+            return await interaction.response.send_message(embed=error_embed("❌ Membre introuvable (a quitté ?)."), ephemeral=True)
         try:
             await member.timeout(timedelta(hours=1), reason=f"[Report #{report['id']}] {report['reason']}")
-            await interaction.response.send_message(f"✅ {member.mention} muté 1h.", ephemeral=True)
+            await interaction.response.send_message(embed=success_embed(f"✅ {member.mention} muté 1h."), ephemeral=True)
         except discord.Forbidden:
-            await interaction.response.send_message("❌ Permissions insuffisantes.", ephemeral=True)
+            await interaction.response.send_message(embed=error_embed("❌ Permissions insuffisantes."), ephemeral=True)
 
     @discord.ui.button(label="👢 Kick", style=discord.ButtonStyle.danger, custom_id="rep_kick", row=0)
     async def btn_kick(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -65,7 +66,7 @@ class ReportView(discord.ui.View):
         if not report: return
         member = interaction.guild.get_member(report["reported_id"])
         if not member:
-            return await interaction.response.send_message("❌ Membre introuvable.", ephemeral=True)
+            return await interaction.response.send_message(embed=error_embed("❌ Membre introuvable."), ephemeral=True)
         try:
             await member.kick(reason=f"[Report #{report['id']}] {report['reason']}")
             await interaction.client.db.resolve_report(report["id"])
@@ -75,7 +76,7 @@ class ReportView(discord.ui.View):
                 item.disabled = True
             await interaction.response.edit_message(embed=embed, view=self)
         except discord.Forbidden:
-            await interaction.response.send_message("❌ Permissions insuffisantes.", ephemeral=True)
+            await interaction.response.send_message(embed=error_embed("❌ Permissions insuffisantes."), ephemeral=True)
 
     @discord.ui.button(label="🔨 Ban", style=discord.ButtonStyle.danger, custom_id="rep_ban", row=0)
     async def btn_ban(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -84,7 +85,7 @@ class ReportView(discord.ui.View):
         if not report: return
         member = interaction.guild.get_member(report["reported_id"])
         if not member:
-            return await interaction.response.send_message("❌ Membre introuvable.", ephemeral=True)
+            return await interaction.response.send_message(embed=error_embed("❌ Membre introuvable."), ephemeral=True)
         try:
             await member.ban(reason=f"[Report #{report['id']}] {report['reason']}", delete_message_days=0)
             await interaction.client.db.resolve_report(report["id"])
@@ -94,7 +95,7 @@ class ReportView(discord.ui.View):
                 item.disabled = True
             await interaction.response.edit_message(embed=embed, view=self)
         except discord.Forbidden:
-            await interaction.response.send_message("❌ Permissions insuffisantes.", ephemeral=True)
+            await interaction.response.send_message(embed=error_embed("❌ Permissions insuffisantes."), ephemeral=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -112,9 +113,9 @@ class Report(commands.Cog):
     @app_commands.describe(membre="Le membre à signaler", raison="Raison du signalement")
     async def report(self, interaction: discord.Interaction, membre: discord.Member, raison: str):
         if membre == interaction.user:
-            return await interaction.response.send_message("❌ Tu ne peux pas te signaler toi-même.", ephemeral=True)
+            return await interaction.response.send_message(embed=error_embed("❌ Tu ne peux pas te signaler toi-même."), ephemeral=True)
         if membre.bot:
-            return await interaction.response.send_message("❌ Tu ne peux pas signaler un bot.", ephemeral=True)
+            return await interaction.response.send_message(embed=error_embed("❌ Tu ne peux pas signaler un bot."), ephemeral=True)
 
         settings = await self.bot.db.get_guild_settings(interaction.guild.id)
         report_ch = interaction.guild.get_channel(settings.get("report_channel_id") or 0)
@@ -140,7 +141,7 @@ class Report(commands.Cog):
         try:
             msg = await report_ch.send(embed=embed, view=view)
         except discord.Forbidden:
-            return await interaction.response.send_message("❌ Je ne peux pas envoyer dans le canal de signalement.", ephemeral=True)
+            return await interaction.response.send_message(embed=error_embed("❌ Je ne peux pas envoyer dans le canal de signalement."), ephemeral=True)
 
         await self.bot.db.create_report(
             interaction.guild.id, msg.id, interaction.user.id, membre.id, raison
@@ -154,7 +155,7 @@ class Report(commands.Cog):
     @app_commands.default_permissions(manage_guild=True)
     async def setreport(self, interaction: discord.Interaction, salon: discord.TextChannel):
         await self.bot.db.update_guild_setting(interaction.guild.id, "report_channel_id", salon.id)
-        await interaction.response.send_message(f"✅ Canal de signalement défini sur {salon.mention}.")
+        await interaction.response.send_message(embed=success_embed(f"✅ Canal de signalement défini sur {salon.mention}."))
 
 
 async def setup(bot: commands.Bot):

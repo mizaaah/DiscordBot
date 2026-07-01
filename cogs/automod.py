@@ -2,6 +2,7 @@ import re
 import time
 from collections import defaultdict, deque
 from datetime import datetime, timezone, timedelta
+from urllib.parse import urlparse
 
 import discord
 from discord import app_commands
@@ -9,6 +10,14 @@ from discord.ext import commands
 from utils.colors import Colors
 
 INVITE_REGEX = re.compile(r"discord(?:\.gg|app\.com/invite)/[a-zA-Z0-9-]+", re.IGNORECASE)
+URL_REGEX = re.compile(r"(?:https?://|www\.)[^\s<>\"']+", re.IGNORECASE)
+
+
+def _extract_domain(url: str) -> str:
+    if not url.lower().startswith(("http://", "https://")):
+        url = "http://" + url
+    netloc = urlparse(url).netloc.lower().split(":")[0]
+    return netloc[4:] if netloc.startswith("www.") else netloc
 
 ACTION_CHOICES = [
     app_commands.Choice(name="Avertir", value="warn"),
@@ -150,6 +159,15 @@ class AutoMod(commands.Cog):
                 await self._apply_action(message, config["invite_action"], "Lien d'invitation Discord non autorisé")
                 return
 
+        # ── Anti-liens ────────────────────────────────────────────────────────
+        if config.get("link_enabled", False):
+            urls = URL_REGEX.findall(message.content)
+            if urls:
+                whitelist = set(config.get("link_whitelist") or [])
+                if any(_extract_domain(u) not in whitelist for u in urls):
+                    await self._apply_action(message, config["link_action"], "Lien non autorisé")
+                    return
+
         # ── Anti-caps ─────────────────────────────────────────────────────────
         if config.get("caps_enabled", False):
             content = message.content
@@ -204,6 +222,12 @@ class AutoMod(commands.Cog):
         embed.add_field(
             name="🔗 Anti-invites",
             value=f"{status(config['invite_enabled'])} | Action : `{config['invite_action']}`",
+            inline=False
+        )
+        whitelist = config.get("link_whitelist") or []
+        embed.add_field(
+            name="🌐 Anti-liens",
+            value=f"{status(config['link_enabled'])} | Action : `{config['link_action']}` | Whitelist : {len(whitelist)} domaine(s)",
             inline=False
         )
         embed.add_field(
@@ -276,6 +300,39 @@ class AutoMod(commands.Cog):
         await db.update_automod_setting(gid, "invite_action", action)
         state = "activé ✅" if activer else "désactivé ❌"
         await interaction.response.send_message(f"🔗 Anti-invites {state} → `{action}`")
+
+    @automod_group.command(name="links", description="Configure le filtre anti-liens (bloque toutes les URLs)")
+    @app_commands.describe(activer="Activer/désactiver", action="Action à effectuer")
+    @app_commands.choices(action=ACTION_CHOICES)
+    @app_commands.default_permissions(manage_guild=True)
+    async def automod_links(self, interaction: discord.Interaction, activer: bool, action: str = "warn"):
+        db = self.bot.db
+        gid = interaction.guild.id
+        await db.update_automod_setting(gid, "link_enabled", activer)
+        await db.update_automod_setting(gid, "link_action", action)
+        state = "activé ✅" if activer else "désactivé ❌"
+        await interaction.response.send_message(f"🌐 Anti-liens {state} → `{action}`")
+
+    @automod_group.command(name="linkwhitelist", description="Ajoute ou retire un domaine autorisé par l'anti-liens")
+    @app_commands.describe(domaine="Nom de domaine (ex: youtube.com)", action="Ajouter ou retirer")
+    @app_commands.choices(action=[
+        app_commands.Choice(name="Ajouter", value="add"),
+        app_commands.Choice(name="Retirer", value="remove"),
+    ])
+    @app_commands.default_permissions(manage_guild=True)
+    async def automod_linkwhitelist(self, interaction: discord.Interaction, domaine: str, action: str):
+        config = await self.bot.db.get_automod_config(interaction.guild.id)
+        whitelist = list(config.get("link_whitelist") or [])
+        domaine = domaine.lower().strip().removeprefix("www.")
+        if action == "add":
+            if domaine not in whitelist:
+                whitelist.append(domaine)
+            msg = f"✅ **{domaine}** ajouté à la whitelist des liens."
+        else:
+            whitelist = [d for d in whitelist if d != domaine]
+            msg = f"✅ **{domaine}** retiré de la whitelist des liens."
+        await self.bot.db.update_automod_setting(interaction.guild.id, "link_whitelist", whitelist)
+        await interaction.response.send_message(msg)
 
     @automod_group.command(name="caps", description="Configure le filtre anti-majuscules")
     @app_commands.describe(

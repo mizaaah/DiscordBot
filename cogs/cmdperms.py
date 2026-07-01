@@ -2,6 +2,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from utils.colors import Colors
+from utils.embeds import error_embed, success_embed
 
 TYPE_LABELS = {
     "allow_role":    "✅ Rôle autorisé",
@@ -132,11 +133,11 @@ class CmdPerms(commands.Cog):
     async def cp_reset(self, interaction: discord.Interaction, commande: str):
         count = await self.bot.db.clear_cmd_permissions(interaction.guild.id, commande)
         if count:
-            await interaction.response.send_message(f"✅ **{count}** restriction(s) supprimée(s) pour `/{commande}`.")
+            await interaction.response.send_message(embed=success_embed(f"✅ **{count}** restriction(s) supprimée(s) pour `/{commande}`."))
             if logs := get_logs(self.bot):
                 await logs.log_config_change(interaction.guild, interaction.user, f"cmdperm reset /{commande}", f"{count} restriction(s) supprimée(s)")
         else:
-            await interaction.response.send_message(f"❌ Aucune restriction pour `/{commande}`.", ephemeral=True)
+            await interaction.response.send_message(embed=error_embed(f"❌ Aucune restriction pour `/{commande}`."), ephemeral=True)
 
     @cp_group.command(name="list", description="Liste toutes les restrictions de commandes")
     @app_commands.describe(commande="Filtrer par commande (optionnel)")

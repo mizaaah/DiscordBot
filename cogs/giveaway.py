@@ -9,6 +9,7 @@ from discord.ext import commands, tasks
 from utils.i18n import t
 from utils.helpers import parse_duration
 from utils.colors import Colors
+from utils.embeds import error_embed, success_embed
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -77,7 +78,7 @@ class GiveawayButton(discord.ui.Button):
         bot = interaction.client
         row = await bot.db.get_giveaway_by_msg(interaction.message.id)
         if not row:
-            return await interaction.response.send_message("❌ Giveaway introuvable.", ephemeral=True)
+            return await interaction.response.send_message(embed=error_embed("❌ Giveaway introuvable."), ephemeral=True)
 
         lang = await bot.db.get_guild_lang(interaction.guild_id)
 
@@ -270,7 +271,7 @@ class Giveaway(commands.Cog):
             # Raced with background task or already ended — surface a safe error.
             return await interaction.followup.send(t(lang, "giveaway.already_ended"), ephemeral=True)
 
-        await interaction.followup.send("✅ Giveaway terminé.", ephemeral=True)
+        await interaction.followup.send(embed=success_embed("✅ Giveaway terminé."), ephemeral=True)
 
     @giveaway_group.command(name="reroll", description="Relance le tirage au sort pour un giveaway terminé")
     @app_commands.describe(id="ID du giveaway terminé")

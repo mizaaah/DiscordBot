@@ -105,6 +105,8 @@ HELP_PAGES: dict[str, dict] = {
              "`/automod spam <max> <secs>` — Anti-spam\n"
              "`/automod flood <max> <secs>` — Anti-flood\n"
              "`/automod invites on/off` — Bloquer les invitations\n"
+             "`/automod links on/off` — Bloquer tous les liens\n"
+             "`/automod linkwhitelist domaine` — Domaine autorisé\n"
              "`/automod caps <pct>` — Limiter les majuscules\n"
              "`/automod mentions <max>` — Limiter les mentions\n"
              "`/automod bypass @role` — Rôle exempt",

@@ -3,6 +3,7 @@ import json
 from discord import app_commands
 from discord.ext import commands
 from utils.colors import Colors
+from utils.embeds import error_embed, success_embed
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -62,19 +63,19 @@ def _control_embed(channel: discord.VoiceChannel, owner: discord.Member | None, 
 async def _get_row_and_channel(interaction: discord.Interaction):
     row = await interaction.client.db.get_tempvoice_by_msg(interaction.message.id)
     if not row:
-        await interaction.response.send_message("❌ Salon introuvable en base.", ephemeral=True)
+        await interaction.response.send_message(embed=error_embed("❌ Salon introuvable en base."), ephemeral=True)
         return None, None
     channel = interaction.guild.get_channel(row["channel_id"])
     if not channel:
         await interaction.client.db.delete_tempvoice_channel(row["channel_id"])
-        await interaction.response.send_message("❌ Le salon vocal a déjà été supprimé.", ephemeral=True)
+        await interaction.response.send_message(embed=error_embed("❌ Le salon vocal a déjà été supprimé."), ephemeral=True)
         return None, None
     return row, channel
 
 
 async def _owner_only(interaction: discord.Interaction, row: dict) -> bool:
     if interaction.user.id != row["owner_id"]:
-        await interaction.response.send_message("❌ Seul le propriétaire peut faire ça.", ephemeral=True)
+        await interaction.response.send_message(embed=error_embed("❌ Seul le propriétaire peut faire ça."), ephemeral=True)
         return False
     return True
 
@@ -108,12 +109,12 @@ class RenameModal(discord.ui.Modal, title="✏️ Renommer le salon"):
     async def on_submit(self, interaction: discord.Interaction):
         channel = interaction.guild.get_channel(self.channel_id)
         if not channel:
-            return await interaction.response.send_message("❌ Salon introuvable.", ephemeral=True)
+            return await interaction.response.send_message(embed=error_embed("❌ Salon introuvable."), ephemeral=True)
         await channel.edit(name=self.new_name.value.strip(), reason="TempVoice: renommé")
         row   = await self.bot.db.get_tempvoice_channel(self.channel_id)
         owner = interaction.guild.get_member(row["owner_id"]) if row else None
         await _update_control_msg(self.bot, interaction.guild, row, _control_embed(channel, owner, row or {}))
-        await interaction.response.send_message(f"✅ Salon renommé en **{self.new_name.value}** !", ephemeral=True)
+        await interaction.response.send_message(embed=success_embed(f"✅ Salon renommé en **{self.new_name.value}** !"), ephemeral=True)
 
 
 class LimitModal(discord.ui.Modal, title="👥 Limite de membres"):
@@ -130,16 +131,16 @@ class LimitModal(discord.ui.Modal, title="👥 Limite de membres"):
             if not 0 <= val <= 99:
                 raise ValueError
         except ValueError:
-            return await interaction.response.send_message("❌ Valeur invalide (0–99).", ephemeral=True)
+            return await interaction.response.send_message(embed=error_embed("❌ Valeur invalide (0–99)."), ephemeral=True)
         channel = interaction.guild.get_channel(self.channel_id)
         if not channel:
-            return await interaction.response.send_message("❌ Salon introuvable.", ephemeral=True)
+            return await interaction.response.send_message(embed=error_embed("❌ Salon introuvable."), ephemeral=True)
         await channel.edit(user_limit=val, reason="TempVoice: limite modifiée")
         row   = await self.bot.db.get_tempvoice_channel(self.channel_id)
         owner = interaction.guild.get_member(row["owner_id"]) if row else None
         await _update_control_msg(self.bot, interaction.guild, row, _control_embed(channel, owner, row or {}))
         lim_str = f"**{val}** membres" if val else "illimitée"
-        await interaction.response.send_message(f"✅ Limite définie à {lim_str}.", ephemeral=True)
+        await interaction.response.send_message(embed=success_embed(f"✅ Limite définie à {lim_str}."), ephemeral=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -155,7 +156,7 @@ class AllowUserSelect(discord.ui.UserSelect):
         user    = self.values[0]
         channel = interaction.guild.get_channel(self.channel_id)
         if not channel:
-            return await interaction.response.send_message("❌ Salon introuvable.", ephemeral=True)
+            return await interaction.response.send_message(embed=error_embed("❌ Salon introuvable."), ephemeral=True)
         await channel.set_permissions(user, connect=True, view_channel=True, reason="TempVoice: autorisé")
         row = await interaction.client.db.get_tempvoice_channel(self.channel_id)
         if row:
@@ -166,7 +167,7 @@ class AllowUserSelect(discord.ui.UserSelect):
                 row["allowed_users"] = json.dumps(allowed)
             owner = interaction.guild.get_member(row["owner_id"])
             await _update_control_msg(interaction.client, interaction.guild, row, _control_embed(channel, owner, row))
-        await interaction.response.send_message(f"✅ {user.mention} peut maintenant rejoindre.", ephemeral=True)
+        await interaction.response.send_message(embed=success_embed(f"✅ {user.mention} peut maintenant rejoindre."), ephemeral=True)
 
 
 class KickUserSelect(discord.ui.UserSelect):
@@ -179,11 +180,11 @@ class KickUserSelect(discord.ui.UserSelect):
         channel = interaction.guild.get_channel(self.channel_id)
         member  = interaction.guild.get_member(user.id)
         if not member or not member.voice or member.voice.channel != channel:
-            return await interaction.response.send_message(f"❌ {user.mention} n'est pas dans le salon.", ephemeral=True)
+            return await interaction.response.send_message(embed=error_embed(f"❌ {user.mention} n'est pas dans le salon."), ephemeral=True)
         if user.id == interaction.user.id:
-            return await interaction.response.send_message("❌ Tu ne peux pas t'expulser toi-même.", ephemeral=True)
+            return await interaction.response.send_message(embed=error_embed("❌ Tu ne peux pas t'expulser toi-même."), ephemeral=True)
         await member.move_to(None, reason="TempVoice: expulsé par le propriétaire")
-        await interaction.response.send_message(f"✅ {user.mention} a été expulsé du salon.", ephemeral=True)
+        await interaction.response.send_message(embed=success_embed(f"✅ {user.mention} a été expulsé du salon."), ephemeral=True)
 
 
 class TransferUserSelect(discord.ui.UserSelect):
@@ -194,9 +195,9 @@ class TransferUserSelect(discord.ui.UserSelect):
     async def callback(self, interaction: discord.Interaction):
         new_owner = self.values[0]
         if new_owner.bot:
-            return await interaction.response.send_message("❌ Tu ne peux pas transférer à un bot.", ephemeral=True)
+            return await interaction.response.send_message(embed=error_embed("❌ Tu ne peux pas transférer à un bot."), ephemeral=True)
         if new_owner.id == interaction.user.id:
-            return await interaction.response.send_message("❌ Tu es déjà propriétaire.", ephemeral=True)
+            return await interaction.response.send_message(embed=error_embed("❌ Tu es déjà propriétaire."), ephemeral=True)
         await interaction.client.db.update_tempvoice_owner(self.channel_id, new_owner.id)
         row     = await interaction.client.db.get_tempvoice_channel(self.channel_id)
         channel = interaction.guild.get_channel(self.channel_id)
@@ -204,7 +205,7 @@ class TransferUserSelect(discord.ui.UserSelect):
             updated = {**row, "owner_id": new_owner.id}
             await _update_control_msg(interaction.client, interaction.guild, updated,
                                       _control_embed(channel, new_owner, updated))
-        await interaction.response.send_message(f"✅ Propriété transférée à {new_owner.mention}.", ephemeral=True)
+        await interaction.response.send_message(embed=success_embed(f"✅ Propriété transférée à {new_owner.mention}."), ephemeral=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -332,7 +333,7 @@ class TempVoiceControlView(discord.ui.View):
         if not await _owner_only(interaction, row): return
 
         await interaction.client.db.delete_tempvoice_channel(row["channel_id"])
-        await interaction.response.send_message("✅ Salon vocal supprimé.", ephemeral=True)
+        await interaction.response.send_message(embed=success_embed("✅ Salon vocal supprimé."), ephemeral=True)
         try: await channel.delete(reason="TempVoice: supprimé par le propriétaire")
         except discord.NotFound: pass
 
@@ -480,7 +481,7 @@ class TempVoice(commands.Cog):
             await self.bot.db.update_tempvoice_config(gid, "name_format", format)
         if limite is not None:
             await self.bot.db.update_tempvoice_config(gid, "default_limit", limite)
-        await interaction.response.send_message("✅ Configuration mise à jour.", ephemeral=True)
+        await interaction.response.send_message(embed=success_embed("✅ Configuration mise à jour."), ephemeral=True)
 
     @tempvoice_group.command(name="status", description="Affiche la configuration TempVoice")
     @app_commands.default_permissions(manage_guild=True)
