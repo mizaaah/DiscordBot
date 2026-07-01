@@ -2,6 +2,7 @@ import discord
 from datetime import timedelta
 from discord import app_commands
 from discord.ext import commands
+from utils.colors import Colors
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -26,7 +27,7 @@ class ReportView(discord.ui.View):
         return True
 
     def _mark_resolved(self, embed: discord.Embed, by: discord.Member) -> discord.Embed:
-        embed.color = discord.Color.green()
+        embed.color = Colors.SUCCESS
         embed.add_field(name="✅ Résolu par", value=by.mention, inline=True)
         return embed
 
@@ -125,7 +126,7 @@ class Report(commands.Cog):
 
         embed = discord.Embed(
             title="🚨 Nouveau signalement",
-            color=discord.Color.red(),
+            color=Colors.ERROR,
             timestamp=discord.utils.utcnow()
         )
         embed.add_field(name="🎯 Signalé",      value=f"{membre.mention}\n`{membre.id}`", inline=True)

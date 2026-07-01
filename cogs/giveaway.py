@@ -8,6 +8,7 @@ from discord.ext import commands, tasks
 
 from utils.i18n import t
 from utils.helpers import parse_duration
+from utils.colors import Colors
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -29,7 +30,7 @@ def _build_giveaway_embed(row: dict, lang: str, participants: list) -> discord.E
     embed = discord.Embed(
         title=t(lang, "giveaway.title"),
         description=t(lang, "giveaway.desc"),
-        color=0xFFD700,
+        color=Colors.GOLD.value,
     )
     embed.add_field(name=t(lang, "giveaway.prize_label"), value=row["prize"], inline=True)
     embed.add_field(name=t(lang, "giveaway.winners_label"), value=str(row["winners_count"]), inline=True)
@@ -51,7 +52,7 @@ def _build_giveaway_embed(row: dict, lang: str, participants: list) -> discord.E
 def _build_ended_embed(row: dict, lang: str, participants: list) -> discord.Embed:
     embed = discord.Embed(
         title=t(lang, "giveaway.ended_title"),
-        color=0x95A5A6,
+        color=Colors.NEUTRAL.value,
     )
     embed.add_field(name=t(lang, "giveaway.prize_label"), value=row["prize"], inline=True)
     embed.add_field(name=t(lang, "giveaway.participants_label"), value=str(len(participants)), inline=True)
@@ -299,7 +300,7 @@ class Giveaway(commands.Cog):
                 winner=f"<@{winner_id}>",
                 prize=row["prize"],
             ),
-            color=0xFFD700,
+            color=Colors.GOLD.value,
         )
         await interaction.followup.send(embed=embed)
 
@@ -313,11 +314,11 @@ class Giveaway(commands.Cog):
             embed = discord.Embed(
                 title=t(lang, "giveaway.list_title"),
                 description=t(lang, "giveaway.list_empty"),
-                color=0xFFD700,
+                color=Colors.GOLD.value,
             )
             return await interaction.followup.send(embed=embed, ephemeral=True)
 
-        embed = discord.Embed(title=t(lang, "giveaway.list_title"), color=0xFFD700)
+        embed = discord.Embed(title=t(lang, "giveaway.list_title"), color=Colors.GOLD.value)
         for row in giveaways:
             ends_at = _parse_dt(row["ends_at"])
             channel = interaction.guild.get_channel(row["channel_id"])

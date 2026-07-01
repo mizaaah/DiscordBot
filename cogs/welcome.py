@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands
 from utils.i18n import t
+from utils.colors import Colors
 
 
 class WelcomeView(discord.ui.View):
@@ -14,7 +15,7 @@ class WelcomeView(discord.ui.View):
         lang   = await interaction.client.db.get_guild_lang(interaction.guild_id)
         member = interaction.user
         age    = (discord.utils.utcnow() - member.created_at).days
-        color  = member.color if member.color != discord.Color.default() else discord.Color.blurple()
+        color  = member.color if member.color != discord.Color.default() else Colors.INFO
         embed  = discord.Embed(title=t(lang, "welcome.profile_title", member=member.display_name), color=color)
         embed.set_thumbnail(url=member.display_avatar.url)
         embed.add_field(name=t(lang, "welcome.account_created"), value=t(lang, "welcome.account_age", days=age),              inline=True)
@@ -70,7 +71,7 @@ class Welcome(commands.Cog):
         embed = discord.Embed(
             title=t(lang, "welcome.join_title", server=member.guild.name),
             description=message,
-            color=0x57F287,
+            color=Colors.SUCCESS.value,
             timestamp=discord.utils.utcnow(),
         )
         embed.set_author(name=str(member), icon_url=member.display_avatar.url)
@@ -100,7 +101,7 @@ class Welcome(commands.Cog):
         embed = discord.Embed(
             title=t(lang, "welcome.leave_title"),
             description=message,
-            color=0xED4245,
+            color=Colors.ERROR.value,
             timestamp=discord.utils.utcnow(),
         )
         embed.set_author(name=str(member), icon_url=member.display_avatar.url)

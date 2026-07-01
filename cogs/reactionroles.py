@@ -1,6 +1,7 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
+from utils.colors import Colors
 
 STYLE_MAP = {
     "primary":   discord.ButtonStyle.primary,
@@ -77,7 +78,7 @@ class ReactionRoles(commands.Cog):
         embed = discord.Embed(
             title=titre,
             description=description or "",
-            color=discord.Color.blurple()
+            color=Colors.INFO
         )
         embed.set_footer(text="Clique sur un bouton pour obtenir ou retirer un rôle.")
 
@@ -181,7 +182,7 @@ class ReactionRoles(commands.Cog):
                 "❌ Aucun panel de rôles réactifs sur ce serveur.", ephemeral=True
             )
 
-        embed = discord.Embed(title="🎭 Panels de rôles réactifs", color=discord.Color.blurple())
+        embed = discord.Embed(title="🎭 Panels de rôles réactifs", color=Colors.INFO)
         for panel in panels:
             channel = interaction.guild.get_channel(panel["channel_id"])
             buttons = await self.bot.db.get_rr_buttons(panel["id"])
@@ -211,7 +212,7 @@ class ReactionRoles(commands.Cog):
         embed = discord.Embed(
             title=panel["title"],
             description=panel.get("description") or "",
-            color=discord.Color.blurple()
+            color=Colors.INFO
         )
         embed.set_footer(text="Clique sur un bouton pour obtenir ou retirer un rôle.")
 

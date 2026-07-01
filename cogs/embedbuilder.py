@@ -1,6 +1,7 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
+from utils.colors import Colors
 
 VALID_STYLES = {"primary", "secondary", "success", "danger"}
 STYLE_MAP = {
@@ -87,7 +88,7 @@ class ColorModal(discord.ui.Modal, title="Couleur"):
     def __init__(self, v: "EmbedBuilderView"):
         super().__init__()
         self._v = v
-        self.color.default = f"#{v.data.get('color', 0x5865F2):06X}"
+        self.color.default = f"#{v.data.get('color', Colors.INFO.value):06X}"
 
     async def on_submit(self, interaction: discord.Interaction):
         try:
@@ -404,7 +405,7 @@ async def _persist_buttons(
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _default_data() -> dict:
-    return {"title": None, "description": None, "color": 0x5865F2,
+    return {"title": None, "description": None, "color": Colors.INFO.value,
             "image_url": None, "thumbnail_url": None,
             "author_name": None, "author_icon": None,
             "footer_text": None, "footer_icon": None,
@@ -426,7 +427,7 @@ class EmbedBuilderView(discord.ui.View):
     # ── Build embed from data ─────────────────────────────────────────────────
 
     def _build(self) -> discord.Embed:
-        embed = discord.Embed(color=discord.Color(self.data.get("color") or 0x5865F2))
+        embed = discord.Embed(color=discord.Color(self.data.get("color") or Colors.INFO.value))
         if t := self.data.get("title"):       embed.title       = t
         if d := self.data.get("description"): embed.description = d
         if u := self.data.get("image_url"):
@@ -515,7 +516,7 @@ class EmbedBuilderView(discord.ui.View):
     async def btn_buttons(self, interaction: discord.Interaction, button: discord.ui.Button):
         btns  = self.data.get("buttons") or []
         icons = {"link": "🔗", "role": "🎭", "message": "💬"}
-        embed = discord.Embed(title="🔘 Gérer les boutons", color=discord.Color.blurple())
+        embed = discord.Embed(title="🔘 Gérer les boutons", color=Colors.INFO)
         if btns:
             embed.description = "\n".join(
                 f"`#{i+1}` {icons.get(b['action_type'],'🔘')} **{b['label']}** — `{b['action_type']}`"
@@ -587,7 +588,7 @@ class EmbedBuilder(commands.Cog):
         data = {
             "title":         ex.title,
             "description":   ex.description,
-            "color":         ex.color.value if ex.color else 0x5865F2,
+            "color":         ex.color.value if ex.color else Colors.INFO.value,
             "image_url":     ex.image.url       if ex.image     else None,
             "thumbnail_url": ex.thumbnail.url   if ex.thumbnail else None,
             "author_name":   ex.author.name     if ex.author    else None,

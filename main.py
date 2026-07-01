@@ -5,7 +5,7 @@ import traceback
 
 import discord
 from discord import app_commands
-from discord.ext import commands
+from discord.ext import commands, tasks
 from dotenv import load_dotenv
 
 from database.db import Database
@@ -42,6 +42,7 @@ class Bot(commands.Bot):
         intents = discord.Intents.all()
         super().__init__(command_prefix=commands.when_mentioned, intents=intents, help_command=None)
         self.db = Database()
+        self._presence_index = 0
 
     async def setup_hook(self):
         await self.db.connect()
@@ -58,15 +59,27 @@ class Bot(commands.Bot):
         await self.tree.sync()
         print("✅ Slash commands synchronisées.")
 
+        self.rotate_presence.start()
+
     async def on_ready(self):
         print(f"\n🤖 Bot connecté : {self.user} (ID: {self.user.id})")
         print(f"📡 Sur {len(self.guilds)} serveur(s)\n")
-        await self.change_presence(
-            activity=discord.Activity(
-                type=discord.ActivityType.watching,
-                name=f"{len(self.guilds)} serveur(s) | /help"
-            )
-        )
+
+    @tasks.loop(seconds=20)
+    async def rotate_presence(self):
+        member_count = sum(g.member_count or 0 for g in self.guilds)
+        presences = [
+            (discord.ActivityType.watching, f"{len(self.guilds)} serveur(s) | /help"),
+            (discord.ActivityType.watching, f"{member_count} membres"),
+            (discord.ActivityType.listening, "/help"),
+        ]
+        activity_type, name = presences[self._presence_index % len(presences)]
+        self._presence_index += 1
+        await self.change_presence(activity=discord.Activity(type=activity_type, name=name))
+
+    @rotate_presence.before_loop
+    async def before_rotate_presence(self):
+        await self.wait_until_ready()
 
     async def on_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         if interaction.response.is_done():

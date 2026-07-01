@@ -3,6 +3,7 @@ from datetime import datetime, timezone, timedelta
 from discord import app_commands
 from discord.ext import commands
 from utils.helpers import parse_duration, duration_to_str
+from utils.colors import Colors
 
 ACTION_CHOICES = [
     app_commands.Choice(name="Mute (timeout)",          value="mute"),
@@ -59,7 +60,7 @@ class AutoSanctions(commands.Cog):
             embed = discord.Embed(
                 title=f"🤖 Auto-sanction : {_action_label(action, duration)}",
                 description=f"{member.mention} a atteint **{threshold['warn_count']}** avertissement(s).",
-                color=discord.Color.dark_red()
+                color=Colors.DANGER
             )
             await logs.send_log(guild, embed)
 
@@ -113,7 +114,7 @@ class AutoSanctions(commands.Cog):
     @app_commands.default_permissions(manage_guild=True)
     async def as_list(self, interaction: discord.Interaction):
         rows = await self.bot.db.get_autosanctions(interaction.guild.id)
-        embed = discord.Embed(title="🤖 Sanctions automatiques", color=discord.Color.dark_red())
+        embed = discord.Embed(title="🤖 Sanctions automatiques", color=Colors.DANGER)
         if not rows:
             embed.description = "Aucune sanction configurée.\nUtilise `/autosanction add` pour en ajouter."
         else:

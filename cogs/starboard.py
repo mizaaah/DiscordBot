@@ -3,6 +3,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from utils.i18n import t
+from utils.colors import Colors
 
 
 class Starboard(commands.Cog):
@@ -51,7 +52,7 @@ class Starboard(commands.Cog):
 
         embed = discord.Embed(
             title=t(lang, "star.status_title"),
-            color=0xFFD700,
+            color=Colors.GOLD.value,
         )
 
         if not config or not config.get("enabled"):
@@ -123,7 +124,7 @@ class Starboard(commands.Cog):
         if count >= threshold:
             embed = discord.Embed(
                 description=message.content or "",
-                color=0xFFD700,
+                color=Colors.GOLD.value,
                 timestamp=message.created_at,
             )
             embed.set_author(

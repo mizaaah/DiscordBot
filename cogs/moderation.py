@@ -4,6 +4,7 @@ from discord.ext import commands, tasks
 from datetime import datetime, timezone
 from utils.helpers import parse_duration, duration_to_str
 from utils.i18n import t
+from utils.colors import Colors
 
 
 def _parse_dt(value) -> datetime | None:
@@ -55,7 +56,7 @@ class Moderation(commands.Cog):
         embed = discord.Embed(
             title=t(lang, "mod.kick_title"),
             description=t(lang, "mod.kick_desc", member=str(membre)),
-            color=discord.Color.orange()
+            color=Colors.WARNING
         )
         embed.add_field(name=t(lang, "mod.kick_reason"), value=raison)
         await interaction.response.send_message(embed=embed)
@@ -101,7 +102,7 @@ class Moderation(commands.Cog):
             await self.bot.db.add_temp_ban(interaction.guild.id, membre.id, interaction.user.id, raison, unban_at)
 
         title = t(lang, "mod.ban_temp_title", duration=duration_label) if duration_label else t(lang, "mod.ban_title")
-        embed = discord.Embed(title=title, description=t(lang, "mod.ban_desc", member=str(membre)), color=discord.Color.red())
+        embed = discord.Embed(title=title, description=t(lang, "mod.ban_desc", member=str(membre)), color=Colors.ERROR)
         embed.add_field(name=t(lang, "mod.ban_reason"), value=raison, inline=False)
         if duration_label:
             embed.add_field(name=t(lang, "mod.ban_duration"), value=duration_label, inline=True)
@@ -129,7 +130,7 @@ class Moderation(commands.Cog):
             embed = discord.Embed(
                 title=t(lang, "mod.unban_title"),
                 description=t(lang, "mod.unban_desc", user=str(user)),
-                color=discord.Color.green()
+                color=Colors.SUCCESS
             )
             embed.add_field(name=t(lang, "mod.unban_reason"), value=raison)
             await interaction.response.send_message(embed=embed)
@@ -166,7 +167,7 @@ class Moderation(commands.Cog):
         embed = discord.Embed(
             title=t(lang, "mod.mute_title"),
             description=t(lang, "mod.mute_desc", member=membre.mention),
-            color=discord.Color.dark_orange()
+            color=Colors.WARNING
         )
         embed.add_field(name=t(lang, "mod.mute_duration"), value=duration_label, inline=True)
         embed.add_field(name=t(lang, "mod.mute_end"),      value=discord.utils.format_dt(until, 'R'), inline=True)
@@ -195,7 +196,7 @@ class Moderation(commands.Cog):
         embed = discord.Embed(
             title=t(lang, "mod.unmute_title"),
             description=t(lang, "mod.unmute_desc", member=membre.mention),
-            color=discord.Color.green()
+            color=Colors.SUCCESS
         )
         embed.add_field(name=t(lang, "mod.unmute_reason"), value=raison)
         await interaction.response.send_message(embed=embed)
@@ -218,7 +219,7 @@ class Moderation(commands.Cog):
         embed = discord.Embed(
             title=t(lang, "mod.warn_title"),
             description=t(lang, "mod.warn_desc", member=membre.mention),
-            color=discord.Color.yellow()
+            color=Colors.CAUTION
         )
         embed.add_field(name=t(lang, "mod.warn_reason"), value=raison, inline=False)
         embed.add_field(name=t(lang, "mod.warn_total"),  value=str(total), inline=True)
@@ -257,7 +258,7 @@ class Moderation(commands.Cog):
     async def warnings(self, interaction: discord.Interaction, membre: discord.Member):
         lang  = await self.bot.db.get_guild_lang(interaction.guild_id)
         warns = await self.bot.db.get_warnings(interaction.guild.id, membre.id)
-        embed = discord.Embed(title=t(lang, "mod.warnings_title", member=str(membre)), color=discord.Color.yellow())
+        embed = discord.Embed(title=t(lang, "mod.warnings_title", member=str(membre)), color=Colors.CAUTION)
         if not warns:
             embed.description = t(lang, "mod.warnings_empty")
         else:
@@ -294,7 +295,7 @@ class Moderation(commands.Cog):
         sanctions = await self.bot.db.get_sanctions(interaction.guild.id, membre.id)
         embed = discord.Embed(
             title=t(lang, "mod.history_title", member=str(membre)),
-            color=discord.Color.dark_red()
+            color=Colors.DANGER
         )
         embed.set_thumbnail(url=membre.display_avatar.url)
         if not sanctions:
@@ -381,7 +382,7 @@ class Moderation(commands.Cog):
         overwrite = interaction.channel.overwrites_for(interaction.guild.default_role)
         overwrite.send_messages = False
         await interaction.channel.set_permissions(interaction.guild.default_role, overwrite=overwrite)
-        embed = discord.Embed(title=t(lang, "mod.lock_title"), description=f"**{t(lang, 'mod.lock_reason')}:** {raison}", color=discord.Color.red())
+        embed = discord.Embed(title=t(lang, "mod.lock_title"), description=f"**{t(lang, 'mod.lock_reason')}:** {raison}", color=Colors.ERROR)
         await interaction.response.send_message(embed=embed)
         if logs := get_logs(self.bot):
             await logs.log_lock(interaction.guild, interaction.channel, interaction.user, raison, True)
@@ -396,7 +397,7 @@ class Moderation(commands.Cog):
         overwrite = interaction.channel.overwrites_for(interaction.guild.default_role)
         overwrite.send_messages = None
         await interaction.channel.set_permissions(interaction.guild.default_role, overwrite=overwrite)
-        embed = discord.Embed(title=t(lang, "mod.unlock_title"), description=f"**{t(lang, 'mod.lock_reason')}:** {raison}", color=discord.Color.green())
+        embed = discord.Embed(title=t(lang, "mod.unlock_title"), description=f"**{t(lang, 'mod.lock_reason')}:** {raison}", color=Colors.SUCCESS)
         await interaction.response.send_message(embed=embed)
         if logs := get_logs(self.bot):
             await logs.log_lock(interaction.guild, interaction.channel, interaction.user, raison, False)

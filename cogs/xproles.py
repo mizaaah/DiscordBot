@@ -2,6 +2,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from utils.i18n import t
+from utils.colors import Colors
 
 
 class XPRoles(commands.Cog):
@@ -49,7 +50,7 @@ class XPRoles(commands.Cog):
     async def xpr_list(self, interaction: discord.Interaction):
         lang  = await self.bot.db.get_guild_lang(interaction.guild_id)
         rows  = await self.bot.db.get_xp_roles(interaction.guild.id)
-        embed = discord.Embed(title=t(lang, "xproles.list_title"), color=discord.Color.gold())
+        embed = discord.Embed(title=t(lang, "xproles.list_title"), color=Colors.GOLD)
         if not rows:
             embed.description = t(lang, "xproles.list_empty")
         else:

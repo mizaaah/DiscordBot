@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 import discord
 from discord import app_commands
 from discord.ext import commands
+from utils.colors import Colors
 
 ACTION_CHOICES = [
     app_commands.Choice(name="Expulser les raiders", value="kick"),
@@ -75,7 +76,7 @@ class AntiRaid(commands.Cog):
                 f"**Raison :** {reason}\n"
                 f"**Action appliquée :** `{action}`"
             ),
-            color=discord.Color.red(),
+            color=Colors.ERROR,
             timestamp=datetime.now(timezone.utc)
         )
         if action == "lockdown":
@@ -150,7 +151,7 @@ class AntiRaid(commands.Cog):
 
         embed = discord.Embed(
             title="🛡️ Anti-Raid — Configuration",
-            color=discord.Color.red() if config.get("lockdown_active") else discord.Color.blurple()
+            color=Colors.ERROR if config.get("lockdown_active") else Colors.INFO
         )
         embed.add_field(name="Statut",          value=yn(config["enabled"]),              inline=True)
         embed.add_field(name="Lockdown actif",  value="🔴 OUI" if config["lockdown_active"] else "🟢 NON", inline=True)
@@ -198,7 +199,7 @@ class AntiRaid(commands.Cog):
         if salon_alerte:
             await db.update_antiraid_setting(gid, "alert_channel_id", salon_alerte.id)
 
-        embed = discord.Embed(title="✅ Anti-Raid configuré", color=discord.Color.green())
+        embed = discord.Embed(title="✅ Anti-Raid configuré", color=Colors.SUCCESS)
         embed.add_field(name="Seuil",      value=f"{seuil} joins / {fenetre}s", inline=True)
         embed.add_field(name="Action",     value=f"`{action}`",                  inline=True)
         embed.add_field(name="Âge min.",   value=f"{age_min}j" if age_min else "Désactivé", inline=True)
@@ -215,7 +216,7 @@ class AntiRaid(commands.Cog):
         embed = discord.Embed(
             title="🔒 LOCKDOWN ACTIVÉ",
             description=f"Tous les salons texte sont verrouillés.\n**Raison :** {raison}",
-            color=discord.Color.red()
+            color=Colors.ERROR
         )
         embed.set_footer(text="Utilisez /antiraid unlock pour lever le lockdown.")
         await interaction.followup.send(embed=embed)
@@ -231,7 +232,7 @@ class AntiRaid(commands.Cog):
         embed = discord.Embed(
             title="🔓 LOCKDOWN LEVÉ",
             description="Les salons texte sont de nouveau accessibles.",
-            color=discord.Color.green()
+            color=Colors.SUCCESS
         )
         await interaction.followup.send(embed=embed)
 

@@ -2,6 +2,7 @@ import discord
 import json
 from discord import app_commands
 from discord.ext import commands
+from utils.colors import Colors
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -14,11 +15,11 @@ def _control_embed(channel: discord.VoiceChannel, owner: discord.Member | None, 
     allowed = json.loads(row.get("allowed_users") or "[]")
 
     if locked and hidden:
-        color = discord.Color.red()
+        color = Colors.ERROR
     elif locked or hidden:
-        color = discord.Color.orange()
+        color = Colors.WARNING
     else:
-        color = discord.Color.green()
+        color = Colors.SUCCESS
 
     owner_name = owner.display_name if owner else "Inconnu"
     embed = discord.Embed(
@@ -450,7 +451,7 @@ class TempVoice(commands.Cog):
 
         embed = discord.Embed(
             title="✅ TempVoice configuré",
-            color=discord.Color.green(),
+            color=Colors.SUCCESS,
             description=(
                 "Rejoins le salon déclencheur pour créer ton salon vocal.\n"
                 "Le panneau de contrôle apparaîtra directement **dans le salon créé**."
@@ -490,7 +491,7 @@ class TempVoice(commands.Cog):
         rows     = await self.bot.db.get_all_tempvoice_channels()
         active   = sum(1 for r in rows if r["guild_id"] == interaction.guild.id)
 
-        embed = discord.Embed(title="🎙️ TempVoice — Configuration", color=discord.Color.blurple())
+        embed = discord.Embed(title="🎙️ TempVoice — Configuration", color=Colors.INFO)
         embed.add_field(name="🎙️ Déclencheur",   value=trigger.mention  if trigger  else "❌ Non configuré", inline=True)
         embed.add_field(name="📁 Catégorie",      value=category.mention if category else "Aucune",           inline=True)
         embed.add_field(name="🔢 Salons actifs",  value=str(active),                                          inline=True)

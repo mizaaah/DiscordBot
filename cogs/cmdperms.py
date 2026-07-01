@@ -1,6 +1,7 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
+from utils.colors import Colors
 
 TYPE_LABELS = {
     "allow_role":    "✅ Rôle autorisé",
@@ -143,7 +144,7 @@ class CmdPerms(commands.Cog):
     @app_commands.default_permissions(manage_guild=True)
     async def cp_list(self, interaction: discord.Interaction, commande: str = None):
         rows = await self.bot.db.get_all_cmd_permissions(interaction.guild.id, commande)
-        embed = discord.Embed(title="🔐 Permissions par commande", color=discord.Color.blurple())
+        embed = discord.Embed(title="🔐 Permissions par commande", color=Colors.INFO)
         if not rows:
             embed.description = "Aucune restriction configurée."
         else:

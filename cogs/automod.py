@@ -6,6 +6,7 @@ from datetime import datetime, timezone, timedelta
 import discord
 from discord import app_commands
 from discord.ext import commands
+from utils.colors import Colors
 
 INVITE_REGEX = re.compile(r"discord(?:\.gg|app\.com/invite)/[a-zA-Z0-9-]+", re.IGNORECASE)
 
@@ -57,7 +58,7 @@ class AutoMod(commands.Cog):
             except discord.Forbidden:
                 pass
             if logs := self.bot.get_cog("Logs"):
-                embed = discord.Embed(title="🤖 AutoMod — Warn", color=discord.Color.yellow())
+                embed = discord.Embed(title="🤖 AutoMod — Warn", color=Colors.CAUTION)
                 embed.add_field(name="Membre", value=f"{member.mention} (`{member.id}`)", inline=True)
                 embed.add_field(name="Raison", value=reason, inline=False)
                 embed.set_footer(text=f"ID warn : #{warn_id}")
@@ -73,7 +74,7 @@ class AutoMod(commands.Cog):
             except discord.Forbidden:
                 pass
             if logs := self.bot.get_cog("Logs"):
-                embed = discord.Embed(title="🤖 AutoMod — Mute", color=discord.Color.orange())
+                embed = discord.Embed(title="🤖 AutoMod — Mute", color=Colors.WARNING)
                 embed.add_field(name="Membre", value=f"{member.mention} (`{member.id}`)", inline=True)
                 embed.add_field(name="Durée", value="10 minutes", inline=True)
                 embed.add_field(name="Raison", value=reason, inline=False)
@@ -85,7 +86,7 @@ class AutoMod(commands.Cog):
             except discord.Forbidden:
                 pass
             if logs := self.bot.get_cog("Logs"):
-                embed = discord.Embed(title="🤖 AutoMod — Kick", color=discord.Color.red())
+                embed = discord.Embed(title="🤖 AutoMod — Kick", color=Colors.ERROR)
                 embed.add_field(name="Membre", value=f"{member.mention} (`{member.id}`)", inline=True)
                 embed.add_field(name="Raison", value=reason, inline=False)
                 await logs.send_log(guild, embed)
@@ -96,7 +97,7 @@ class AutoMod(commands.Cog):
             except discord.Forbidden:
                 pass
             if logs := self.bot.get_cog("Logs"):
-                embed = discord.Embed(title="🤖 AutoMod — Ban", color=discord.Color.dark_red())
+                embed = discord.Embed(title="🤖 AutoMod — Ban", color=Colors.DANGER)
                 embed.add_field(name="Membre", value=f"{member.mention} (`{member.id}`)", inline=True)
                 embed.add_field(name="Raison", value=reason, inline=False)
                 await logs.send_log(guild, embed)
@@ -187,7 +188,7 @@ class AutoMod(commands.Cog):
 
         embed = discord.Embed(
             title="🤖 AutoMod — Configuration",
-            color=discord.Color.blurple()
+            color=Colors.INFO
         )
         embed.add_field(name="Statut global", value=status(config["enabled"]), inline=False)
         embed.add_field(

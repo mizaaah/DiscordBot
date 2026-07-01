@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 import discord
 from discord import app_commands
 from discord.ext import commands
+from utils.colors import Colors
 
 
 # ── Shared ticket-creation logic ──────────────────────────────────────────────
@@ -62,7 +63,7 @@ async def _open_ticket(bot: commands.Bot, interaction: discord.Interaction, cate
     await bot.db.create_ticket(guild.id, channel.id, user.id, ticket_num, category)
 
     # ── Build welcome embed ──────────────────────────────────────────────────
-    color = discord.Color(config.get("embed_color") or 0x5865F2)
+    color = discord.Color(config.get("embed_color") or Colors.INFO.value)
     template = config.get("welcome_message") or (
         "Bienvenue {mention} !\n\n"
         "Décris ton problème ou ta demande et notre équipe te répondra dès que possible.\n"
@@ -94,7 +95,7 @@ async def _open_ticket(bot: commands.Bot, interaction: discord.Interaction, cate
     await reply(f"✅ Ticket créé : {channel.mention}", ephemeral=True)
 
     if logs := bot.get_cog("Logs"):
-        log_embed = discord.Embed(title="🎫 Ticket ouvert", color=discord.Color.green())
+        log_embed = discord.Embed(title="🎫 Ticket ouvert", color=Colors.SUCCESS)
         log_embed.add_field(name="Membre", value=f"{user.mention} (`{user.id}`)", inline=True)
         log_embed.add_field(name="Salon", value=channel.mention, inline=True)
         log_embed.add_field(name="Numéro", value=f"#{ticket_num:04d}", inline=True)
@@ -178,7 +179,7 @@ class TicketCloseView(discord.ui.View):
         await interaction.response.send_message(
             embed=discord.Embed(
                 description="⚠️ Es-tu sûr de vouloir fermer ce ticket ?",
-                color=discord.Color.orange()
+                color=Colors.WARNING
             ),
             view=TicketCloseConfirmView(self.bot, ticket, config),
             ephemeral=True
@@ -242,7 +243,7 @@ class TicketCloseConfirmView(discord.ui.View):
             if log_ch:
                 embed = discord.Embed(
                     title=f"🎫 Ticket #{self.ticket['ticket_number']:04d} — Fermé",
-                    color=discord.Color.red()
+                    color=Colors.ERROR
                 )
                 embed.add_field(
                     name="Ouvert par",
@@ -275,7 +276,7 @@ class TicketCloseConfirmView(discord.ui.View):
         try:
             close_embed = discord.Embed(
                 description="🔒 Ticket fermé. Suppression dans **5 secondes**...",
-                color=discord.Color.red()
+                color=Colors.ERROR
             )
             await channel.send(embed=close_embed)
         except discord.Forbidden:
@@ -333,7 +334,7 @@ class Tickets(commands.Cog):
             await db.update_ticket_config(gid, "log_channel_id", salon_logs.id)
 
         config = await db.get_ticket_config(gid)
-        color  = discord.Color(config.get("embed_color") or 0x5865F2)
+        color  = discord.Color(config.get("embed_color") or Colors.INFO.value)
 
         embed = discord.Embed(
             title="🎫 Support — Ouvrir un ticket",
@@ -368,13 +369,13 @@ class Tickets(commands.Cog):
             embed = discord.Embed(
                 title="✅ Catégories mises à jour",
                 description="\n".join(f"🏷️ **{c}**" for c in cats),
-                color=discord.Color.green()
+                color=Colors.SUCCESS
             )
             embed.set_footer(text="Un menu déroulant apparaîtra à l'ouverture du ticket.")
         else:
             embed = discord.Embed(
                 description="✅ Catégories désactivées — les tickets s'ouvrent directement.",
-                color=discord.Color.green()
+                color=Colors.SUCCESS
             )
         await interaction.response.send_message(embed=embed)
 
@@ -412,7 +413,7 @@ class Tickets(commands.Cog):
         )
         embed = discord.Embed(
             title="✅ Message d'accueil mis à jour",
-            color=discord.Color.green()
+            color=Colors.SUCCESS
         )
         embed.add_field(name="Aperçu", value=preview, inline=False)
         await interaction.response.send_message(embed=embed)
@@ -421,7 +422,7 @@ class Tickets(commands.Cog):
     @app_commands.default_permissions(manage_guild=True)
     async def ticket_config(self, interaction: discord.Interaction):
         config = await self.bot.db.get_ticket_config(interaction.guild.id)
-        color  = discord.Color(config.get("embed_color") or 0x5865F2)
+        color  = discord.Color(config.get("embed_color") or Colors.INFO.value)
 
         staff_role  = interaction.guild.get_role(config["staff_role_id"])    if config.get("staff_role_id")    else None
         category_ch = interaction.guild.get_channel(config["category_id"])   if config.get("category_id")      else None
@@ -431,7 +432,7 @@ class Tickets(commands.Cog):
         embed.add_field(name="Rôle staff",       value=staff_role.mention    if staff_role   else "❌ Non configuré",  inline=True)
         embed.add_field(name="Catégorie Discord", value=category_ch.mention  if category_ch  else "❌ Non configurée", inline=True)
         embed.add_field(name="Salon de logs",     value=log_ch.mention       if log_ch       else "❌ Non configuré",  inline=True)
-        embed.add_field(name="Couleur",           value=f"`#{config.get('embed_color', 0x5865F2):06X}`", inline=True)
+        embed.add_field(name="Couleur",           value=f"`#{config.get('embed_color', Colors.INFO.value):06X}`", inline=True)
         embed.add_field(name="Tickets ouverts",   value=str(config.get("ticket_counter", 0)), inline=True)
 
         cats = [c for c in (config.get("categories") or []) if c]
@@ -460,7 +461,7 @@ class Tickets(commands.Cog):
             membre, view_channel=True, send_messages=True,
             read_message_history=True, attach_files=True
         )
-        embed = discord.Embed(description=f"✅ {membre.mention} a été ajouté au ticket.", color=discord.Color.green())
+        embed = discord.Embed(description=f"✅ {membre.mention} a été ajouté au ticket.", color=Colors.SUCCESS)
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="tremove", description="Retire un membre de ce ticket")
@@ -475,7 +476,7 @@ class Tickets(commands.Cog):
                 "❌ Impossible de retirer le créateur du ticket.", ephemeral=True
             )
         await interaction.channel.set_permissions(membre, overwrite=None)
-        embed = discord.Embed(description=f"✅ {membre.mention} a été retiré du ticket.", color=discord.Color.orange())
+        embed = discord.Embed(description=f"✅ {membre.mention} a été retiré du ticket.", color=Colors.WARNING)
         await interaction.response.send_message(embed=embed)
 
     # ── /tclaim /tunclaim ─────────────────────────────────────────────────────
@@ -494,7 +495,7 @@ class Tickets(commands.Cog):
         await self.bot.db.claim_ticket(interaction.channel.id, interaction.user.id)
         embed = discord.Embed(
             description=f"🙋 {interaction.user.mention} a réclamé ce ticket et s'en occupe.",
-            color=discord.Color.green()
+            color=Colors.SUCCESS
         )
         await interaction.response.send_message(embed=embed)
 
@@ -509,7 +510,7 @@ class Tickets(commands.Cog):
         await self.bot.db.unclaim_ticket(interaction.channel.id)
         embed = discord.Embed(
             description=f"🔓 {interaction.user.mention} a libéré la réclamation de ce ticket.",
-            color=discord.Color.orange()
+            color=Colors.WARNING
         )
         await interaction.response.send_message(embed=embed)
 

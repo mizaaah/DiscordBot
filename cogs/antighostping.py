@@ -1,6 +1,7 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
+from utils.colors import Colors
 
 
 class AntiGhostping(commands.Cog):
@@ -46,7 +47,7 @@ class AntiGhostping(commands.Cog):
 
         embed = discord.Embed(
             title="👻 Ghost Ping détecté",
-            color=discord.Color.purple(),
+            color=Colors.DANGER,
             timestamp=discord.utils.utcnow()
         )
         embed.set_author(name=str(message.author), icon_url=message.author.display_avatar.url)

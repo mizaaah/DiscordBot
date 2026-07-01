@@ -2,6 +2,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from utils.i18n import t, SUPPORTED
+from utils.colors import Colors
 
 
 def get_logs(bot: commands.Bot):
@@ -34,7 +35,7 @@ class Config(commands.Cog):
 
         embed = discord.Embed(
             title=t(lang, "cfg.title", server=interaction.guild.name),
-            color=discord.Color.blurple()
+            color=Colors.INFO
         )
         embed.add_field(name=t(lang, "cfg.log_channel"),     value=channel_str(settings.get("log_channel_id")),     inline=True)
         embed.add_field(name=t(lang, "cfg.welcome_channel"), value=channel_str(settings.get("welcome_channel_id")), inline=True)

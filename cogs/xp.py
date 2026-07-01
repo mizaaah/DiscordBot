@@ -5,6 +5,7 @@ from discord import app_commands
 from discord.ext import commands
 from utils.helpers import xp_for_level, total_xp_for_level
 from utils.i18n import t
+from utils.colors import Colors
 
 
 XP_COOLDOWNS: dict[tuple[int, int], float] = {}
@@ -36,7 +37,7 @@ class LevelUpView(discord.ui.View):
         filled   = int(16 * progress / needed) if needed > 0 else 0
         bar      = "█" * filled + "░" * (16 - filled)
 
-        embed = discord.Embed(title=t(lang, "xp.rank_title", member=interaction.user.display_name), color=0xFFD700)
+        embed = discord.Embed(title=t(lang, "xp.rank_title", member=interaction.user.display_name), color=Colors.GOLD.value)
         embed.set_thumbnail(url=interaction.user.display_avatar.url)
         embed.add_field(name=t(lang, "xp.rank_field"),  value=f"#{rank_pos}", inline=True)
         embed.add_field(name=t(lang, "xp.level_field"), value=str(level),     inline=True)
@@ -74,7 +75,7 @@ class LeaderboardView(discord.ui.View):
         embed = discord.Embed(
             title=t(lang, "xp.lb_title", server=self.guild.name),
             description="\n".join(lines) if lines else t(lang, "xp.lb_empty"),
-            color=discord.Color.gold()
+            color=Colors.GOLD
         )
         embed.set_footer(text=t(lang, "xp.lb_page", page=self.page + 1, total=self.total))
         return embed
@@ -124,7 +125,7 @@ class XP(commands.Cog):
             embed = discord.Embed(
                 title=t(lang, "xp.levelup_title"),
                 description=t(lang, "xp.levelup_desc", member=message.author.mention, level=new_level),
-                color=0xFFD700,
+                color=Colors.GOLD.value,
             )
             embed.set_thumbnail(url=message.author.display_avatar.url)
             view = LevelUpView(message.guild.id, lang)
@@ -150,7 +151,7 @@ class XP(commands.Cog):
         filled   = int(20 * progress / needed) if needed > 0 else 0
         bar      = "█" * filled + "░" * (20 - filled)
 
-        color = member.color if member.color != discord.Color.default() else discord.Color.gold()
+        color = member.color if member.color != discord.Color.default() else Colors.GOLD
         embed = discord.Embed(title=t(lang, "xp.rank_title", member=member.display_name), color=color)
         embed.set_thumbnail(url=member.display_avatar.url)
         embed.add_field(name=t(lang, "xp.rank_field"),      value=f"#{rank_pos}",                      inline=True)

@@ -2,6 +2,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from datetime import datetime, timezone
+from utils.colors import Colors
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -355,7 +356,7 @@ class Info(commands.Cog):
     @app_commands.describe(membre="Le membre dont voir les infos (toi-même si vide)")
     async def userinfo(self, interaction: discord.Interaction, membre: discord.Member = None):
         member = membre or interaction.user
-        color  = member.color if member.color != discord.Color.default() else discord.Color.blurple()
+        color  = member.color if member.color != discord.Color.default() else Colors.INFO
         embed  = discord.Embed(
             title=f"👤 {member.display_name}",
             color=color,
@@ -418,7 +419,7 @@ class Info(commands.Cog):
         guild = interaction.guild
         embed = discord.Embed(
             title=f"🏰 {guild.name}",
-            color=discord.Color.blurple(),
+            color=Colors.INFO,
             timestamp=discord.utils.utcnow(),
         )
         if guild.icon:
@@ -455,7 +456,7 @@ class Info(commands.Cog):
         bot   = self.bot
         embed = discord.Embed(
             title=f"🤖 {bot.user.name}",
-            color=discord.Color.blurple(),
+            color=Colors.INFO,
             timestamp=discord.utils.utcnow(),
         )
         embed.set_thumbnail(url=bot.user.display_avatar.url)
@@ -475,7 +476,7 @@ class Info(commands.Cog):
         member = membre or interaction.user
         embed  = discord.Embed(
             title=f"🖼️ Avatar de {member.display_name}",
-            color=member.color if member.color != discord.Color.default() else discord.Color.blurple(),
+            color=member.color if member.color != discord.Color.default() else Colors.INFO,
         )
         embed.set_image(url=member.display_avatar.url)
         embed.add_field(
