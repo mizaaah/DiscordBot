@@ -5,6 +5,7 @@ from discord.ext import commands
 from utils.helpers import parse_duration, duration_to_str
 from utils.colors import Colors
 from utils.embeds import error_embed, success_embed
+from utils.i18n import t
 
 ACTION_CHOICES = [
     app_commands.Choice(name="Mute (timeout)",          value="mute"),
@@ -29,9 +30,10 @@ class AutoSanctions(commands.Cog):
         await self._apply(guild, member, threshold)
 
     async def _apply(self, guild: discord.Guild, member: discord.Member, threshold: dict):
+        lang     = await self.bot.db.get_guild_lang(guild.id)
         action   = threshold["action"]
         duration = threshold["duration"]
-        reason   = f"[Auto-sanction] {threshold['warn_count']} avertissement(s)"
+        reason   = t(lang, "asanc.reason", count=threshold['warn_count'])
 
         try:
             if action == "mute" and duration:
@@ -49,18 +51,15 @@ class AutoSanctions(commands.Cog):
             pass
 
         try:
-            label = _action_label(action, duration)
-            await member.send(
-                f"⚠️ Tu as reçu une sanction automatique sur **{guild.name}** : **{label}**\n"
-                f"Raison : {threshold['warn_count']} avertissement(s) atteints."
-            )
+            label = _action_label(lang, action, duration)
+            await member.send(t(lang, "asanc.dm_notice", server=guild.name, label=label, count=threshold['warn_count']))
         except discord.Forbidden:
             pass
 
         if logs := self.bot.get_cog("Logs"):
             embed = discord.Embed(
-                title=f"🤖 Auto-sanction : {_action_label(action, duration)}",
-                description=f"{member.mention} a atteint **{threshold['warn_count']}** avertissement(s).",
+                title=t(lang, "asanc.log_title", label=_action_label(lang, action, duration)),
+                description=t(lang, "asanc.log_desc", member=member.mention, count=threshold['warn_count']),
                 color=Colors.DANGER
             )
             await logs.send_log(guild, embed)
@@ -84,11 +83,12 @@ class AutoSanctions(commands.Cog):
         action: str,
         duree: str = None
     ):
+        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         duration = None
         if action in ACTION_NEEDS_DURATION:
             if not duree:
                 return await interaction.response.send_message(
-                    f"❌ L'action `{action}` nécessite une durée (ex: `1h`, `7d`).", ephemeral=True
+                    t(lang, "asanc.duration_required", action=action), ephemeral=True
                 )
             try:
                 duration, _ = parse_duration(duree)
@@ -96,40 +96,41 @@ class AutoSanctions(commands.Cog):
                 return await interaction.response.send_message(embed=error_embed(f"❌ {e}"), ephemeral=True)
 
         await self.bot.db.add_autosanction(interaction.guild.id, warns, action, duration)
-        label = _action_label(action, duration)
+        label = _action_label(lang, action, duration)
         await interaction.response.send_message(
-            f"✅ À **{warns}** avertissement(s) → **{label}** sera appliqué automatiquement."
+            t(lang, "asanc.add_success", warns=warns, label=label)
         )
 
     @as_group.command(name="remove", description="Supprime une sanction automatique")
     @app_commands.describe(warns="Le seuil à supprimer")
     @app_commands.default_permissions(manage_guild=True)
     async def as_remove(self, interaction: discord.Interaction, warns: int):
+        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         deleted = await self.bot.db.remove_autosanction(interaction.guild.id, warns)
         if deleted:
-            await interaction.response.send_message(embed=success_embed(f"✅ Sanction au seuil **{warns}** warn(s) supprimée."))
+            await interaction.response.send_message(embed=success_embed(t(lang, "asanc.remove_success", warns=warns)))
         else:
-            await interaction.response.send_message(embed=error_embed(f"❌ Aucune sanction au seuil **{warns}**."), ephemeral=True)
+            await interaction.response.send_message(embed=error_embed(t(lang, "asanc.remove_not_found", warns=warns)), ephemeral=True)
 
     @as_group.command(name="list", description="Liste les sanctions automatiques")
     @app_commands.default_permissions(manage_guild=True)
     async def as_list(self, interaction: discord.Interaction):
+        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         rows = await self.bot.db.get_autosanctions(interaction.guild.id)
-        embed = discord.Embed(title="🤖 Sanctions automatiques", color=Colors.DANGER)
+        embed = discord.Embed(title=t(lang, "asanc.list_title"), color=Colors.DANGER)
         if not rows:
-            embed.description = "Aucune sanction configurée.\nUtilise `/autosanction add` pour en ajouter."
+            embed.description = t(lang, "asanc.list_empty")
         else:
             lines = [
-                f"**{r['warn_count']} warn(s)** → {_action_label(r['action'], r['duration'])}"
+                t(lang, "asanc.list_entry", count=r['warn_count'], label=_action_label(lang, r['action'], r['duration']))
                 for r in rows
             ]
             embed.description = "\n".join(lines)
         await interaction.response.send_message(embed=embed)
 
 
-def _action_label(action: str, duration: int | None) -> str:
-    labels = {"mute": "Mute", "kick": "Kick", "ban": "Ban permanent", "tempban": "Ban temporaire"}
-    base = labels.get(action, action)
+def _action_label(lang: str, action: str, duration: int | None) -> str:
+    base = t(lang, f"asanc.action_{action}")
     if duration:
         return f"{base} ({duration_to_str_from_seconds(duration)})"
     return base

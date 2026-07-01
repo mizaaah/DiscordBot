@@ -3,11 +3,12 @@ from discord import app_commands
 from discord.ext import commands
 from utils.colors import Colors
 from utils.embeds import error_embed, success_embed
+from utils.i18n import t
 
-TYPE_LABELS = {
-    "allow_role":    "✅ Rôle autorisé",
-    "deny_role":     "❌ Rôle bloqué",
-    "allow_channel": "📍 Salon restreint",
+TYPE_LABEL_KEYS = {
+    "allow_role":    "cmdperm.type_allow_role",
+    "deny_role":     "cmdperm.type_deny_role",
+    "allow_channel": "cmdperm.type_allow_channel",
 }
 
 
@@ -40,13 +41,14 @@ class CmdPerms(commands.Cog):
         if not perms:
             return True
 
+        lang     = await self.bot.db.get_guild_lang(interaction.guild.id)
         role_ids = {r.id for r in interaction.user.roles}
 
         # Rôles bloqués
         denied = {p["target_id"] for p in perms if p["type"] == "deny_role"}
         if denied & role_ids:
             await interaction.response.send_message(
-                "❌ Tu n'as pas la permission d'utiliser cette commande.", ephemeral=True
+                t(lang, "cmdperm.denied_role"), ephemeral=True
             )
             return False
 
@@ -55,7 +57,7 @@ class CmdPerms(commands.Cog):
         if allowed_ch and interaction.channel_id not in allowed_ch:
             ch_list = " ".join(f"<#{cid}>" for cid in list(allowed_ch)[:5])
             await interaction.response.send_message(
-                f"❌ Cette commande est réservée à : {ch_list}", ephemeral=True
+                t(lang, "cmdperm.wrong_channel", channels=ch_list), ephemeral=True
             )
             return False
 
@@ -63,7 +65,7 @@ class CmdPerms(commands.Cog):
         allowed_r = {p["target_id"] for p in perms if p["type"] == "allow_role"}
         if allowed_r and not (allowed_r & role_ids):
             await interaction.response.send_message(
-                "❌ Tu n'as pas le rôle requis pour cette commande.", ephemeral=True
+                t(lang, "cmdperm.missing_role"), ephemeral=True
             )
             return False
 
@@ -95,9 +97,10 @@ class CmdPerms(commands.Cog):
     @app_commands.autocomplete(commande=_cmd_autocomplete)
     @app_commands.default_permissions(manage_guild=True)
     async def cp_allow_role(self, interaction: discord.Interaction, commande: str, role: discord.Role):
+        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         await self.bot.db.add_cmd_permission(interaction.guild.id, commande, "allow_role", role.id)
         await interaction.response.send_message(
-            f"✅ `/{commande}` est maintenant réservée aux membres avec {role.mention}."
+            t(lang, "cmdperm.allow_role_success", command=commande, role=role.mention)
         )
         if logs := get_logs(self.bot):
             await logs.log_config_change(interaction.guild, interaction.user, f"cmdperm allow-role /{commande}", role.mention)
@@ -107,9 +110,10 @@ class CmdPerms(commands.Cog):
     @app_commands.autocomplete(commande=_cmd_autocomplete)
     @app_commands.default_permissions(manage_guild=True)
     async def cp_deny_role(self, interaction: discord.Interaction, commande: str, role: discord.Role):
+        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         await self.bot.db.add_cmd_permission(interaction.guild.id, commande, "deny_role", role.id)
         await interaction.response.send_message(
-            f"✅ {role.mention} ne peut plus utiliser `/{commande}`."
+            t(lang, "cmdperm.deny_role_success", role=role.mention, command=commande)
         )
         if logs := get_logs(self.bot):
             await logs.log_config_change(interaction.guild, interaction.user, f"cmdperm deny-role /{commande}", role.mention)
@@ -119,9 +123,10 @@ class CmdPerms(commands.Cog):
     @app_commands.autocomplete(commande=_cmd_autocomplete)
     @app_commands.default_permissions(manage_guild=True)
     async def cp_channel(self, interaction: discord.Interaction, commande: str, salon: discord.TextChannel):
+        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         await self.bot.db.add_cmd_permission(interaction.guild.id, commande, "allow_channel", salon.id)
         await interaction.response.send_message(
-            f"✅ `/{commande}` ne peut être utilisée que dans {salon.mention}."
+            t(lang, "cmdperm.channel_success", command=commande, channel=salon.mention)
         )
         if logs := get_logs(self.bot):
             await logs.log_config_change(interaction.guild, interaction.user, f"cmdperm channel /{commande}", salon.mention)
@@ -131,23 +136,25 @@ class CmdPerms(commands.Cog):
     @app_commands.autocomplete(commande=_cmd_autocomplete)
     @app_commands.default_permissions(manage_guild=True)
     async def cp_reset(self, interaction: discord.Interaction, commande: str):
+        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         count = await self.bot.db.clear_cmd_permissions(interaction.guild.id, commande)
         if count:
-            await interaction.response.send_message(embed=success_embed(f"✅ **{count}** restriction(s) supprimée(s) pour `/{commande}`."))
+            await interaction.response.send_message(embed=success_embed(t(lang, "cmdperm.reset_success", count=count, command=commande)))
             if logs := get_logs(self.bot):
-                await logs.log_config_change(interaction.guild, interaction.user, f"cmdperm reset /{commande}", f"{count} restriction(s) supprimée(s)")
+                await logs.log_config_change(interaction.guild, interaction.user, f"cmdperm reset /{commande}", t(lang, "cmdperm.reset_log", count=count))
         else:
-            await interaction.response.send_message(embed=error_embed(f"❌ Aucune restriction pour `/{commande}`."), ephemeral=True)
+            await interaction.response.send_message(embed=error_embed(t(lang, "cmdperm.reset_none", command=commande)), ephemeral=True)
 
     @cp_group.command(name="list", description="Liste toutes les restrictions de commandes")
     @app_commands.describe(commande="Filtrer par commande (optionnel)")
     @app_commands.autocomplete(commande=_cmd_autocomplete)
     @app_commands.default_permissions(manage_guild=True)
     async def cp_list(self, interaction: discord.Interaction, commande: str = None):
+        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         rows = await self.bot.db.get_all_cmd_permissions(interaction.guild.id, commande)
-        embed = discord.Embed(title="🔐 Permissions par commande", color=Colors.INFO)
+        embed = discord.Embed(title=t(lang, "cmdperm.list_title"), color=Colors.INFO)
         if not rows:
-            embed.description = "Aucune restriction configurée."
+            embed.description = t(lang, "cmdperm.list_empty")
         else:
             grouped: dict[str, list] = {}
             for r in rows:
@@ -156,7 +163,7 @@ class CmdPerms(commands.Cog):
             for cmd_name, cmd_perms in sorted(grouped.items()):
                 lines.append(f"**/{cmd_name}**")
                 for p in cmd_perms:
-                    label  = TYPE_LABELS.get(p["type"], p["type"])
+                    label  = t(lang, TYPE_LABEL_KEYS.get(p["type"], p["type"]))
                     target = f"<@&{p['target_id']}>" if "role" in p["type"] else f"<#{p['target_id']}>"
                     lines.append(f"  {label} → {target}")
             embed.description = "\n".join(lines[:40])

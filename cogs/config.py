@@ -37,6 +37,8 @@ class Config(commands.Cog):
             title=t(lang, "cfg.title", server=interaction.guild.name),
             color=Colors.INFO
         )
+        if interaction.guild.icon:
+            embed.set_thumbnail(url=interaction.guild.icon.url)
         embed.add_field(name=t(lang, "cfg.log_channel"),     value=channel_str(settings.get("log_channel_id")),     inline=True)
         embed.add_field(name=t(lang, "cfg.welcome_channel"), value=channel_str(settings.get("welcome_channel_id")), inline=True)
         embed.add_field(name=t(lang, "cfg.goodbye_channel"), value=channel_str(settings.get("goodbye_channel_id")), inline=True)
@@ -58,7 +60,11 @@ class Config(commands.Cog):
     # ── /setlanguage ──────────────────────────────────────────────────────────
 
     @app_commands.command(name="setlanguage", description="Définit la langue du bot / Set the bot language")
-    @app_commands.describe(langue="Langue / Language (fr, en)")
+    @app_commands.describe(langue="Langue / Language")
+    @app_commands.choices(langue=[
+        app_commands.Choice(name="Français", value="fr"),
+        app_commands.Choice(name="English", value="en"),
+    ])
     @app_commands.default_permissions(manage_guild=True)
     async def setlanguage(self, interaction: discord.Interaction, langue: str):
         lang = langue.lower().strip()

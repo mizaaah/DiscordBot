@@ -3,6 +3,7 @@ from discord import app_commands
 from discord.ext import commands
 from utils.colors import Colors
 from utils.embeds import error_embed, success_embed
+from utils.i18n import t
 
 STYLE_MAP = {
     "primary":   discord.ButtonStyle.primary,
@@ -21,19 +22,20 @@ class RoleButton(discord.ui.Button):
         self.role_id = role_id
 
     async def callback(self, interaction: discord.Interaction):
+        lang = await interaction.client.db.get_guild_lang(interaction.guild_id)
         role = interaction.guild.get_role(self.role_id)
         if not role:
-            return await interaction.response.send_message(embed=error_embed("❌ Ce rôle n'existe plus."), ephemeral=True)
+            return await interaction.response.send_message(embed=error_embed(t(lang, "rr.role_gone")), ephemeral=True)
         if role >= interaction.guild.me.top_role:
             return await interaction.response.send_message(
-                "❌ Je ne peux pas gérer ce rôle (rang trop élevé).", ephemeral=True
+                t(lang, "rr.role_too_high"), ephemeral=True
             )
         if role in interaction.user.roles:
             await interaction.user.remove_roles(role, reason="Rôle réactif — retrait")
-            await interaction.response.send_message(embed=error_embed(f"❌ Rôle **{role.name}** retiré."), ephemeral=True)
+            await interaction.response.send_message(embed=error_embed(t(lang, "rr.role_removed", role=role.name)), ephemeral=True)
         else:
             await interaction.user.add_roles(role, reason="Rôle réactif — attribution")
-            await interaction.response.send_message(embed=success_embed(f"✅ Rôle **{role.name}** obtenu !"), ephemeral=True)
+            await interaction.response.send_message(embed=success_embed(t(lang, "rr.role_added", role=role.name)), ephemeral=True)
 
 
 def build_rr_view(buttons_data: list) -> discord.ui.View:
@@ -76,19 +78,19 @@ class ReactionRoles(commands.Cog):
     )
     @app_commands.default_permissions(manage_roles=True)
     async def rr_create(self, interaction: discord.Interaction, salon: discord.TextChannel, titre: str, description: str = None):
+        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         embed = discord.Embed(
             title=titre,
             description=description or "",
             color=Colors.INFO
         )
-        embed.set_footer(text="Clique sur un bouton pour obtenir ou retirer un rôle.")
+        embed.set_footer(text=t(lang, "rr.panel_footer"))
 
         msg = await salon.send(embed=embed)
         panel_id = await self.bot.db.create_rr_panel(interaction.guild.id, salon.id, msg.id, titre, description)
 
         await interaction.response.send_message(
-            f"✅ Panel **#{panel_id}** créé dans {salon.mention}.\n"
-            f"Utilise `/rr add {panel_id} @rôle Étiquette` pour ajouter des boutons.",
+            t(lang, "rr.create_success", panel_id=panel_id, channel=salon.mention),
             ephemeral=True
         )
 
@@ -114,24 +116,25 @@ class ReactionRoles(commands.Cog):
         panel_id: int, role: discord.Role,
         etiquette: str, emoji: str = None, couleur: str = "secondary"
     ):
+        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         panel = await self.bot.db.get_rr_panel_by_id(panel_id, interaction.guild.id)
         if not panel:
-            return await interaction.response.send_message(embed=error_embed(f"❌ Panel `#{panel_id}` introuvable."), ephemeral=True)
+            return await interaction.response.send_message(embed=error_embed(t(lang, "rr.panel_not_found", panel_id=panel_id)), ephemeral=True)
 
         buttons = await self.bot.db.get_rr_buttons(panel_id)
         if len(buttons) >= 25:
-            return await interaction.response.send_message(embed=error_embed("❌ Maximum 25 boutons par panel."), ephemeral=True)
+            return await interaction.response.send_message(embed=error_embed(t(lang, "rr.max_buttons")), ephemeral=True)
 
         if role >= interaction.guild.me.top_role:
             return await interaction.response.send_message(
-                "❌ Je ne peux pas gérer ce rôle (rang trop élevé).", ephemeral=True
+                t(lang, "rr.role_too_high"), ephemeral=True
             )
 
         btn_id = await self.bot.db.add_rr_button(panel_id, role.id, etiquette, emoji, couleur)
-        await self._rebuild_panel(interaction.guild, dict(panel), panel_id)
+        await self._rebuild_panel(interaction.guild, dict(panel), panel_id, lang)
 
         await interaction.response.send_message(
-            f"✅ Bouton `#{btn_id}` ajouté au panel `#{panel_id}` pour {role.mention}.", ephemeral=True
+            t(lang, "rr.add_success", btn_id=btn_id, panel_id=panel_id, role=role.mention), ephemeral=True
         )
 
     # ── /rr remove ────────────────────────────────────────────────────────────
@@ -140,15 +143,16 @@ class ReactionRoles(commands.Cog):
     @app_commands.describe(panel_id="L'ID du panel", bouton_id="L'ID du bouton à retirer (voir /rr list)")
     @app_commands.default_permissions(manage_roles=True)
     async def rr_remove(self, interaction: discord.Interaction, panel_id: int, bouton_id: int):
+        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         panel = await self.bot.db.get_rr_panel_by_id(panel_id, interaction.guild.id)
         if not panel:
-            return await interaction.response.send_message(embed=error_embed(f"❌ Panel `#{panel_id}` introuvable."), ephemeral=True)
+            return await interaction.response.send_message(embed=error_embed(t(lang, "rr.panel_not_found", panel_id=panel_id)), ephemeral=True)
 
         await self.bot.db.remove_rr_button(bouton_id, panel_id)
-        await self._rebuild_panel(interaction.guild, dict(panel), panel_id)
+        await self._rebuild_panel(interaction.guild, dict(panel), panel_id, lang)
 
         await interaction.response.send_message(
-            f"✅ Bouton `#{bouton_id}` retiré du panel `#{panel_id}`.", ephemeral=True
+            t(lang, "rr.remove_success", btn_id=bouton_id, panel_id=panel_id), ephemeral=True
         )
 
     # ── /rr delete ────────────────────────────────────────────────────────────
@@ -157,9 +161,10 @@ class ReactionRoles(commands.Cog):
     @app_commands.describe(panel_id="L'ID du panel à supprimer")
     @app_commands.default_permissions(manage_roles=True)
     async def rr_delete(self, interaction: discord.Interaction, panel_id: int):
+        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         panel = await self.bot.db.get_rr_panel_by_id(panel_id, interaction.guild.id)
         if not panel:
-            return await interaction.response.send_message(embed=error_embed(f"❌ Panel `#{panel_id}` introuvable."), ephemeral=True)
+            return await interaction.response.send_message(embed=error_embed(t(lang, "rr.panel_not_found", panel_id=panel_id)), ephemeral=True)
 
         channel = interaction.guild.get_channel(panel["channel_id"])
         if channel:
@@ -170,37 +175,38 @@ class ReactionRoles(commands.Cog):
                 pass
 
         await self.bot.db.delete_rr_panel(panel_id)
-        await interaction.response.send_message(embed=success_embed(f"✅ Panel `#{panel_id}` supprimé."), ephemeral=True)
+        await interaction.response.send_message(embed=success_embed(t(lang, "rr.delete_success", panel_id=panel_id)), ephemeral=True)
 
     # ── /rr list ──────────────────────────────────────────────────────────────
 
     @rr_group.command(name="list", description="Liste tous les panels de rôles réactifs du serveur")
     @app_commands.default_permissions(manage_roles=True)
     async def rr_list(self, interaction: discord.Interaction):
+        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         panels = await self.bot.db.get_all_rr_panels(interaction.guild.id)
         if not panels:
             return await interaction.response.send_message(
-                "❌ Aucun panel de rôles réactifs sur ce serveur.", ephemeral=True
+                t(lang, "rr.list_empty"), ephemeral=True
             )
 
-        embed = discord.Embed(title="🎭 Panels de rôles réactifs", color=Colors.INFO)
+        embed = discord.Embed(title=t(lang, "rr.list_title"), color=Colors.INFO)
         for panel in panels:
             channel = interaction.guild.get_channel(panel["channel_id"])
             buttons = await self.bot.db.get_rr_buttons(panel["id"])
             btn_info = "\n".join(
                 f"  `#{b['id']}` {b['emoji'] or ''} **{b['label']}** → <@&{b['role_id']}>"
                 for b in buttons
-            ) or "  *Aucun bouton*"
+            ) or t(lang, "rr.no_buttons")
             embed.add_field(
                 name=f"#{panel['id']} — {panel['title']}",
-                value=f"Salon : {channel.mention if channel else '⚠️ introuvable'}\n{btn_info}",
+                value=t(lang, "rr.panel_entry", channel=channel.mention if channel else t(lang, "rr.channel_not_found"), buttons=btn_info),
                 inline=False
             )
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     # ── Helper ────────────────────────────────────────────────────────────────
 
-    async def _rebuild_panel(self, guild: discord.Guild, panel: dict, panel_id: int):
+    async def _rebuild_panel(self, guild: discord.Guild, panel: dict, panel_id: int, lang: str):
         channel = guild.get_channel(panel["channel_id"])
         if not channel:
             return
@@ -215,7 +221,7 @@ class ReactionRoles(commands.Cog):
             description=panel.get("description") or "",
             color=Colors.INFO
         )
-        embed.set_footer(text="Clique sur un bouton pour obtenir ou retirer un rôle.")
+        embed.set_footer(text=t(lang, "rr.panel_footer"))
 
         if buttons:
             view = build_rr_view([dict(b) for b in buttons])

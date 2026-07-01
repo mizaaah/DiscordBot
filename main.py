@@ -9,6 +9,7 @@ from discord.ext import commands, tasks
 from dotenv import load_dotenv
 
 from database.db import Database
+from utils.i18n import t
 
 load_dotenv()
 
@@ -87,19 +88,21 @@ class Bot(commands.Bot):
         else:
             send = interaction.response.send_message
 
+        lang = await self.db.get_guild_lang(interaction.guild_id) if interaction.guild_id else "fr"
+
         if isinstance(error, app_commands.MissingPermissions):
-            await send("❌ Tu n'as pas les permissions nécessaires pour cette commande.", ephemeral=True)
+            await send(t(lang, "err.missing_permissions"), ephemeral=True)
         elif isinstance(error, app_commands.BotMissingPermissions):
             missing = ", ".join(error.missing_permissions)
-            await send(f"❌ Je n'ai pas les permissions nécessaires : `{missing}`.", ephemeral=True)
+            await send(t(lang, "err.bot_missing_permissions", missing=missing), ephemeral=True)
         elif isinstance(error, app_commands.CommandOnCooldown):
-            await send(f"⏳ Commande en cooldown. Réessaie dans {error.retry_after:.1f}s.", ephemeral=True)
+            await send(t(lang, "err.on_cooldown", seconds=f"{error.retry_after:.1f}"), ephemeral=True)
         elif isinstance(error, app_commands.NoPrivateMessage):
-            await send("❌ Cette commande ne peut pas être utilisée en message privé.", ephemeral=True)
+            await send(t(lang, "err.no_private_message"), ephemeral=True)
         else:
             print(f"[ERREUR] {error}", file=sys.stderr)
             traceback.print_exc()
-            await send(f"❌ Une erreur inattendue s'est produite : `{error}`", ephemeral=True)
+            await send(t(lang, "err.unexpected", error=error), ephemeral=True)
 
     async def close(self):
         await self.db.close()

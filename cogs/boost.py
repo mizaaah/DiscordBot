@@ -2,21 +2,25 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from utils.embeds import error_embed
+from utils.i18n import t
 
 DEFAULT_MSG = "🚀 {mention} vient de booster **{server}** ! Merci infiniment ! 🎉"
 
 
 class BoostView(discord.ui.View):
-    def __init__(self, booster_id: int):
+    def __init__(self, booster_id: int, lang: str):
         super().__init__(timeout=None)
         self.booster_id = booster_id
+        self.lang = lang
+        self.children[0].label = t(lang, "boost.thank_you_btn")
 
     @discord.ui.button(label="💜 Merci !", style=discord.ButtonStyle.secondary)
     async def thank_you(self, interaction: discord.Interaction, button: discord.ui.Button):
+        lang    = await interaction.client.db.get_guild_lang(interaction.guild_id)
         booster = interaction.guild.get_member(self.booster_id)
-        name    = booster.display_name if booster else "ce membre"
+        name    = booster.display_name if booster else t(lang, "boost.this_member")
         await interaction.response.send_message(
-            f"💜 {interaction.user.mention} remercie **{name}** pour son boost !",
+            t(lang, "boost.thanks_msg", user=interaction.user.mention, name=name),
             allowed_mentions=discord.AllowedMentions(users=False),
         )
 
@@ -56,15 +60,16 @@ class Boost(commands.Cog):
             if ch_id := config.get("channel_id"):
                 ch = after.guild.get_channel(ch_id)
                 if ch:
+                    lang = await self.bot.db.get_guild_lang(after.guild.id)
                     msg = config.get("message") or DEFAULT_MSG
                     embed = discord.Embed(
                         description=_fmt(msg, after),
                         color=discord.Color.from_str("#f47fff")
                     )
                     embed.set_thumbnail(url=after.display_avatar.url)
-                    embed.set_footer(text=f"Le serveur a maintenant {after.guild.premium_subscription_count} boost(s)")
+                    embed.set_footer(text=t(lang, "boost.footer", count=after.guild.premium_subscription_count))
                     try:
-                        await ch.send(embed=embed, view=BoostView(after.id))
+                        await ch.send(embed=embed, view=BoostView(after.id, lang))
                     except discord.Forbidden:
                         pass
 
@@ -86,38 +91,41 @@ class Boost(commands.Cog):
     @app_commands.describe(role="Rôle donné aux boosters", salon="Salon d'annonce des boosts")
     @app_commands.default_permissions(manage_guild=True)
     async def boost_setup(self, interaction: discord.Interaction, role: discord.Role, salon: discord.TextChannel):
+        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         if role >= interaction.guild.me.top_role:
-            return await interaction.response.send_message(embed=error_embed("❌ Ce rôle est au-dessus du mien."), ephemeral=True)
+            return await interaction.response.send_message(embed=error_embed(t(lang, "boost.role_too_high")), ephemeral=True)
         db  = self.bot.db
         gid = interaction.guild.id
         await db.update_boost_config(gid, "reward_role_id", role.id)
         await db.update_boost_config(gid, "channel_id",     salon.id)
-        embed = discord.Embed(title="✅ Boost rewards configuré", color=discord.Color.from_str("#f47fff"))
-        embed.add_field(name="🎁 Rôle boost", value=role.mention,  inline=True)
-        embed.add_field(name="📢 Salon",       value=salon.mention, inline=True)
-        embed.set_footer(text="Utilise /boost message pour personnaliser le message.")
+        embed = discord.Embed(title=t(lang, "boost.setup_success_title"), color=discord.Color.from_str("#f47fff"))
+        embed.add_field(name=t(lang, "boost.role_field"),    value=role.mention,  inline=True)
+        embed.add_field(name=t(lang, "boost.channel_field"), value=salon.mention, inline=True)
+        embed.set_footer(text=t(lang, "boost.setup_footer"))
         await interaction.response.send_message(embed=embed)
 
     @boost_group.command(name="message", description="Personnalise le message de boost")
     @app_commands.describe(texte="Variables dispo : {mention} {user} {server} {count}")
     @app_commands.default_permissions(manage_guild=True)
     async def boost_message(self, interaction: discord.Interaction, texte: str):
+        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         await self.bot.db.update_boost_config(interaction.guild.id, "message", texte)
         await interaction.response.send_message(
-            f"✅ Message de boost mis à jour :\n> {texte}", ephemeral=True
+            t(lang, "boost.message_updated", text=texte), ephemeral=True
         )
 
     @boost_group.command(name="status", description="Affiche la configuration des boost rewards")
     @app_commands.default_permissions(manage_guild=True)
     async def boost_status(self, interaction: discord.Interaction):
+        lang    = await self.bot.db.get_guild_lang(interaction.guild_id)
         config  = await self.bot.db.get_boost_config(interaction.guild.id)
         role    = interaction.guild.get_role(config.get("reward_role_id") or 0)
         channel = interaction.guild.get_channel(config.get("channel_id")  or 0)
-        embed   = discord.Embed(title="💜 Boost Rewards", color=discord.Color.from_str("#f47fff"))
-        embed.add_field(name="🎁 Rôle",           value=role.mention    if role    else "❌ Non configuré", inline=True)
-        embed.add_field(name="📢 Salon",           value=channel.mention if channel else "❌ Non configuré", inline=True)
-        embed.add_field(name="🔢 Boosts actuels", value=str(interaction.guild.premium_subscription_count),  inline=True)
-        embed.add_field(name="💬 Message",         value=config.get("message") or DEFAULT_MSG,              inline=False)
+        embed   = discord.Embed(title=t(lang, "boost.status_title"), color=discord.Color.from_str("#f47fff"))
+        embed.add_field(name=t(lang, "boost.role_field"),    value=role.mention    if role    else t(lang, "boost.not_configured"), inline=True)
+        embed.add_field(name=t(lang, "boost.channel_field"), value=channel.mention if channel else t(lang, "boost.not_configured"), inline=True)
+        embed.add_field(name=t(lang, "boost.current_count_field"), value=str(interaction.guild.premium_subscription_count),  inline=True)
+        embed.add_field(name=t(lang, "boost.message_field"), value=config.get("message") or DEFAULT_MSG,              inline=False)
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
 

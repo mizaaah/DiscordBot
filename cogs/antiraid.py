@@ -6,6 +6,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from utils.colors import Colors
+from utils.i18n import t
 
 ACTION_CHOICES = [
     app_commands.Choice(name="Expulser les raiders", value="kick"),
@@ -69,23 +70,20 @@ class AntiRaid(commands.Cog):
         ch = guild.get_channel(ch_id)
         if not ch:
             return
+        lang = await self.bot.db.get_guild_lang(guild.id)
         embed = discord.Embed(
-            title="🚨 RAID DÉTECTÉ",
-            description=(
-                f"**{count}** compte(s) ont rejoint en très peu de temps.\n"
-                f"**Raison :** {reason}\n"
-                f"**Action appliquée :** `{action}`"
-            ),
+            title=t(lang, "raid.alert_title"),
+            description=t(lang, "raid.alert_desc", count=count, reason=reason, action=action),
             color=Colors.ERROR,
             timestamp=datetime.now(timezone.utc)
         )
         if action == "lockdown":
             embed.add_field(
-                name="Lockdown actif",
-                value="Utilisez `/antiraid unlock` pour lever le lockdown.",
+                name=t(lang, "raid.lockdown_active_field"),
+                value=t(lang, "raid.lockdown_active_hint"),
                 inline=False
             )
-        embed.set_footer(text="AntiRaid Bot")
+        embed.set_footer(text=t(lang, "raid.footer"))
         try:
             await ch.send(embed=embed)
         except discord.Forbidden:
@@ -145,31 +143,33 @@ class AntiRaid(commands.Cog):
     @antiraid_group.command(name="status", description="Affiche la configuration anti-raid")
     @app_commands.default_permissions(manage_guild=True)
     async def ar_status(self, interaction: discord.Interaction):
+        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         config = await self.bot.db.get_antiraid_config(interaction.guild.id)
 
-        def yn(v): return "✅ Activé" if v else "❌ Désactivé"
+        def yn(v): return t(lang, "common.enabled") if v else t(lang, "common.disabled")
 
         embed = discord.Embed(
-            title="🛡️ Anti-Raid — Configuration",
+            title=t(lang, "raid.status_title"),
             color=Colors.ERROR if config.get("lockdown_active") else Colors.INFO
         )
-        embed.add_field(name="Statut",          value=yn(config["enabled"]),              inline=True)
-        embed.add_field(name="Lockdown actif",  value="🔴 OUI" if config["lockdown_active"] else "🟢 NON", inline=True)
-        embed.add_field(name="Seuil",           value=f"{config['join_threshold']} joins / {config['join_window']}s", inline=True)
-        embed.add_field(name="Action",          value=f"`{config['action']}`",            inline=True)
-        embed.add_field(name="Âge min. compte", value=f"{config['min_account_age']} jour(s)" if config['min_account_age'] else "Désactivé", inline=True)
+        embed.add_field(name=t(lang, "raid.status_field"),      value=yn(config["enabled"]), inline=True)
+        embed.add_field(name=t(lang, "raid.lockdown_field"),    value=t(lang, "raid.lockdown_yes") if config["lockdown_active"] else t(lang, "raid.lockdown_no"), inline=True)
+        embed.add_field(name=t(lang, "raid.threshold_field"),   value=f"{config['join_threshold']} joins / {config['join_window']}s", inline=True)
+        embed.add_field(name=t(lang, "raid.action_field"),      value=f"`{config['action']}`",            inline=True)
+        embed.add_field(name=t(lang, "raid.min_age_field"),     value=t(lang, "raid.min_age_value", days=config['min_account_age']) if config['min_account_age'] else t(lang, "common.disabled"), inline=True)
 
         alert_ch = interaction.guild.get_channel(config["alert_channel_id"]) if config.get("alert_channel_id") else None
-        embed.add_field(name="Salon d'alerte",  value=alert_ch.mention if alert_ch else "❌ Non configuré", inline=True)
+        embed.add_field(name=t(lang, "raid.alert_channel_field"), value=alert_ch.mention if alert_ch else t(lang, "raid.not_configured"), inline=True)
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @antiraid_group.command(name="toggle", description="Active ou désactive l'anti-raid")
     @app_commands.describe(activer="Activer ou désactiver")
     @app_commands.default_permissions(manage_guild=True)
     async def ar_toggle(self, interaction: discord.Interaction, activer: bool):
+        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         await self.bot.db.update_antiraid_setting(interaction.guild.id, "enabled", activer)
-        state = "activé 🛡️" if activer else "désactivé"
-        await interaction.response.send_message(f"Anti-raid {state}.")
+        state = t(lang, "raid.toggle_on") if activer else t(lang, "raid.toggle_off")
+        await interaction.response.send_message(t(lang, "raid.toggle_result", state=state))
 
     @antiraid_group.command(name="config", description="Configure les paramètres anti-raid")
     @app_commands.describe(
@@ -190,6 +190,7 @@ class AntiRaid(commands.Cog):
         age_min: int = 0,
         salon_alerte: discord.TextChannel = None
     ):
+        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         db  = self.bot.db
         gid = interaction.guild.id
         await db.update_antiraid_setting(gid, "join_threshold",   seuil)
@@ -199,26 +200,28 @@ class AntiRaid(commands.Cog):
         if salon_alerte:
             await db.update_antiraid_setting(gid, "alert_channel_id", salon_alerte.id)
 
-        embed = discord.Embed(title="✅ Anti-Raid configuré", color=Colors.SUCCESS)
-        embed.add_field(name="Seuil",      value=f"{seuil} joins / {fenetre}s", inline=True)
-        embed.add_field(name="Action",     value=f"`{action}`",                  inline=True)
-        embed.add_field(name="Âge min.",   value=f"{age_min}j" if age_min else "Désactivé", inline=True)
+        embed = discord.Embed(title=t(lang, "raid.configured_title"), color=Colors.SUCCESS)
+        embed.add_field(name=t(lang, "raid.threshold_field"), value=f"{seuil} joins / {fenetre}s", inline=True)
+        embed.add_field(name=t(lang, "raid.action_field"),    value=f"`{action}`",                  inline=True)
+        embed.add_field(name=t(lang, "raid.min_age_field"),   value=t(lang, "raid.min_age_value", days=age_min) if age_min else t(lang, "common.disabled"), inline=True)
         if salon_alerte:
-            embed.add_field(name="Alertes", value=salon_alerte.mention, inline=True)
+            embed.add_field(name=t(lang, "raid.alerts_field"), value=salon_alerte.mention, inline=True)
         await interaction.response.send_message(embed=embed)
 
     @antiraid_group.command(name="lockdown", description="Verrouille manuellement tout le serveur")
     @app_commands.describe(raison="Raison du lockdown")
     @app_commands.default_permissions(manage_guild=True)
-    async def ar_lockdown(self, interaction: discord.Interaction, raison: str = "Lockdown manuel"):
+    async def ar_lockdown(self, interaction: discord.Interaction, raison: str = None):
+        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
+        raison = raison or t(lang, "raid.manual_lockdown_default")
         await interaction.response.defer()
         await self._lockdown(interaction.guild)
         embed = discord.Embed(
-            title="🔒 LOCKDOWN ACTIVÉ",
-            description=f"Tous les salons texte sont verrouillés.\n**Raison :** {raison}",
+            title=t(lang, "raid.lockdown_on_title"),
+            description=t(lang, "raid.lockdown_on_desc", reason=raison),
             color=Colors.ERROR
         )
-        embed.set_footer(text="Utilisez /antiraid unlock pour lever le lockdown.")
+        embed.set_footer(text=t(lang, "raid.lockdown_on_footer"))
         await interaction.followup.send(embed=embed)
 
         if logs := self.bot.get_cog("Logs"):
@@ -227,11 +230,12 @@ class AntiRaid(commands.Cog):
     @antiraid_group.command(name="unlock", description="Lève le lockdown du serveur")
     @app_commands.default_permissions(manage_guild=True)
     async def ar_unlock(self, interaction: discord.Interaction):
+        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         await interaction.response.defer()
         await self._unlock(interaction.guild)
         embed = discord.Embed(
-            title="🔓 LOCKDOWN LEVÉ",
-            description="Les salons texte sont de nouveau accessibles.",
+            title=t(lang, "raid.lockdown_off_title"),
+            description=t(lang, "raid.lockdown_off_desc"),
             color=Colors.SUCCESS
         )
         await interaction.followup.send(embed=embed)
