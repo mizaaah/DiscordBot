@@ -9,6 +9,10 @@ TYPE_LABELS = {
 }
 
 
+def get_logs(bot: commands.Bot):
+    return bot.get_cog("Logs")
+
+
 class CmdPerms(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -93,6 +97,8 @@ class CmdPerms(commands.Cog):
         await interaction.response.send_message(
             f"✅ `/{commande}` est maintenant réservée aux membres avec {role.mention}."
         )
+        if logs := get_logs(self.bot):
+            await logs.log_config_change(interaction.guild, interaction.user, f"cmdperm allow-role /{commande}", role.mention)
 
     @cp_group.command(name="deny-role", description="Interdit un rôle d'utiliser une commande (blacklist)")
     @app_commands.describe(commande="Commande à restreindre", role="Rôle bloqué")
@@ -103,6 +109,8 @@ class CmdPerms(commands.Cog):
         await interaction.response.send_message(
             f"✅ {role.mention} ne peut plus utiliser `/{commande}`."
         )
+        if logs := get_logs(self.bot):
+            await logs.log_config_change(interaction.guild, interaction.user, f"cmdperm deny-role /{commande}", role.mention)
 
     @cp_group.command(name="channel", description="Limite une commande à un salon spécifique")
     @app_commands.describe(commande="Commande à restreindre", salon="Salon autorisé")
@@ -113,6 +121,8 @@ class CmdPerms(commands.Cog):
         await interaction.response.send_message(
             f"✅ `/{commande}` ne peut être utilisée que dans {salon.mention}."
         )
+        if logs := get_logs(self.bot):
+            await logs.log_config_change(interaction.guild, interaction.user, f"cmdperm channel /{commande}", salon.mention)
 
     @cp_group.command(name="reset", description="Supprime toutes les restrictions d'une commande")
     @app_commands.describe(commande="Commande à libérer")
@@ -122,6 +132,8 @@ class CmdPerms(commands.Cog):
         count = await self.bot.db.clear_cmd_permissions(interaction.guild.id, commande)
         if count:
             await interaction.response.send_message(f"✅ **{count}** restriction(s) supprimée(s) pour `/{commande}`.")
+            if logs := get_logs(self.bot):
+                await logs.log_config_change(interaction.guild, interaction.user, f"cmdperm reset /{commande}", f"{count} restriction(s) supprimée(s)")
         else:
             await interaction.response.send_message(f"❌ Aucune restriction pour `/{commande}`.", ephemeral=True)
 

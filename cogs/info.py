@@ -17,16 +17,18 @@ HELP_PAGES: dict[str, dict] = {
             "Bienvenue dans l'aide ! Choisis une catégorie ci-dessous.\n​"
         ),
         "fields": [
-            ("🛡️ Modération",                "Kick, ban, mute, warn, clear, lock…",           True),
+            ("🛡️ Modération",                "Kick, ban, mute, warn, history, clear, lock…",  True),
             ("🤖 Auto-Mod & Anti-Raid",       "Spam, flood, invites, caps, antiraid…",         True),
-            ("⭐ XP & Niveaux",               "Rank, leaderboard, rôles par niveau…",          True),
+            ("⭐ XP & Niveaux",               "Rank, leaderboard paginé, rôles par niveau…",   True),
             ("🎫 Tickets",                    "Système de support par catégories…",            True),
             ("🎭 Rôles",                      "Rôles réactifs, auto-sanctions…",               True),
             ("🎙️ Vocal Temporaire",           "Salons vocaux auto avec panneau intégré…",      True),
             ("🖼️ Embeds",                     "Créer des messages riches avec boutons…",       True),
+            ("🎉 Giveaways",                  "Tirages au sort…",                              True),
+            ("⭐ Starboard & AFK",            "Messages épinglés, statut absent…",             True),
             ("💜 Communauté",                 "Boost rewards, signalements…",                  True),
             ("🔐 Permissions",                "Restreindre les commandes par rôle/salon…",     True),
-            ("⚙️ Configuration",              "Logs, welcome, autorole, infos…",               True),
+            ("⚙️ Configuration",              "Logs, welcome, langue, autorole, infos…",       True),
         ],
     },
     "moderation": {
@@ -37,7 +39,7 @@ HELP_PAGES: dict[str, dict] = {
         "fields": [
             ("🚫 Sanctions",
              "`/kick @membre [raison]` — Expulse un membre\n"
-             "`/ban @membre [raison] [jours]` — Bannit un membre\n"
+             "`/ban @membre [durée] [raison]` — Bannit un membre\n"
              "`/unban user_id` — Débannit un utilisateur\n"
              "`/mute @membre durée [raison]` — Timeout un membre\n"
              "`/unmute @membre` — Retire le timeout",
@@ -46,13 +48,47 @@ HELP_PAGES: dict[str, dict] = {
              "`/warn @membre raison` — Ajoute un avertissement\n"
              "`/unwarn id` — Supprime un avertissement\n"
              "`/warnings @membre` — Voir les avertissements\n"
-             "`/clearwarnings @membre` — Efface tout",
+             "`/clearwarnings @membre` — Efface tout\n"
+             "`/history @membre` — Historique de toutes les sanctions",
              False),
             ("🧹 Messages & Salons",
              "`/clear [nombre] [membre] [bots] [images] [contient]`\n"
              "`/slowmode [secondes]` — Mode lent\n"
-             "`/lock [salon]` — Verrouille un salon\n"
-             "`/unlock [salon]` — Déverrouille un salon",
+             "`/lock [raison]` — Verrouille le salon\n"
+             "`/unlock [raison]` — Déverrouille le salon",
+             False),
+        ],
+    },
+    "giveaways": {
+        "label": "🎉 Giveaways",
+        "color": 0xFFD700,
+        "title": "🎉 Giveaways",
+        "description": "Tirages au sort avec boutons.",
+        "fields": [
+            ("🎉 Giveaways",
+             "`/giveaway start lot durée [gagnants] [salon]` — Lancer un giveaway\n"
+             "`/giveaway end id` — Terminer manuellement\n"
+             "`/giveaway reroll id` — Nouveau tirage\n"
+             "`/giveaway list` — Giveaways actifs",
+             False),
+        ],
+    },
+    "starboard_afk": {
+        "label": "⭐ Starboard & AFK",
+        "color": 0xFFD700,
+        "title": "⭐ Starboard & 💤 AFK",
+        "description": "Épingle les meilleurs messages et gère les statuts AFK.",
+        "fields": [
+            ("⭐ Starboard",
+             "`/starboard setup #salon [seuil]` — Configurer (défaut: 3⭐)\n"
+             "`/starboard disable` — Désactiver\n"
+             "`/starboard status` — Voir la configuration\n\n"
+             "Les messages ayant assez de ⭐ sont automatiquement épinglés.",
+             False),
+            ("💤 AFK",
+             "`/afk [raison]` — Passer en mode AFK (ou revenir si déjà AFK)\n\n"
+             "Le bot notifie ceux qui te mentionnent que tu es AFK.\n"
+             "Quand tu envoies un message, le statut AFK est retiré.",
              False),
         ],
     },
@@ -241,6 +277,7 @@ HELP_PAGES: dict[str, dict] = {
         "fields": [
             ("🔧 Paramètres",
              "`/config` — Voir toute la configuration\n"
+             "`/setlanguage fr|en` — 🌐 Changer la langue du bot\n"
              "`/setlogs #salon` — Salon des logs\n"
              "`/setwelcome #salon [message]` — Salon d'arrivée\n"
              "`/setgoodbye #salon [message]` — Salon de départ\n"

@@ -8,7 +8,7 @@ DB_PATH = os.getenv("DB_PATH", "bot.db")
 ALLOWED_SETTINGS = {
     "log_channel_id", "welcome_channel_id", "goodbye_channel_id",
     "autorole_id", "welcome_message", "goodbye_message",
-    "report_channel_id", "ghostping_enabled"
+    "report_channel_id", "ghostping_enabled", "language"
 }
 
 ALLOWED_BOOST_SETTINGS = {"reward_role_id", "channel_id", "message"}
@@ -245,6 +245,48 @@ class Database:
                 target_id   INTEGER NOT NULL,
                 UNIQUE(guild_id, command, type, target_id)
             )""",
+            """CREATE TABLE IF NOT EXISTS sanctions (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id        INTEGER NOT NULL,
+                user_id         INTEGER NOT NULL,
+                moderator_id    INTEGER NOT NULL,
+                type            TEXT NOT NULL,
+                reason          TEXT,
+                duration        TEXT,
+                created_at      TEXT DEFAULT (datetime('now'))
+            )""",
+            """CREATE TABLE IF NOT EXISTS giveaways (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id        INTEGER NOT NULL,
+                channel_id      INTEGER NOT NULL,
+                message_id      INTEGER UNIQUE,
+                prize           TEXT NOT NULL,
+                winners_count   INTEGER DEFAULT 1,
+                host_id         INTEGER NOT NULL,
+                ends_at         TEXT NOT NULL,
+                ended           INTEGER DEFAULT 0,
+                winner_ids      TEXT DEFAULT '[]',
+                created_at      TEXT DEFAULT (datetime('now'))
+            )""",
+            """CREATE TABLE IF NOT EXISTS starboard_config (
+                guild_id    INTEGER PRIMARY KEY,
+                channel_id  INTEGER,
+                threshold   INTEGER DEFAULT 3,
+                enabled     INTEGER DEFAULT 1
+            )""",
+            """CREATE TABLE IF NOT EXISTS starboard_posts (
+                original_msg_id INTEGER PRIMARY KEY,
+                guild_id        INTEGER NOT NULL,
+                star_msg_id     INTEGER,
+                star_count      INTEGER DEFAULT 0
+            )""",
+            """CREATE TABLE IF NOT EXISTS afk (
+                guild_id    INTEGER NOT NULL,
+                user_id     INTEGER NOT NULL,
+                reason      TEXT DEFAULT 'AFK',
+                since       TEXT DEFAULT (datetime('now')),
+                PRIMARY KEY (guild_id, user_id)
+            )""",
         ]
         for stmt in stmts:
             await self.db.execute(stmt)
@@ -253,6 +295,7 @@ class Database:
         for migration in [
             "ALTER TABLE guild_settings ADD COLUMN report_channel_id INTEGER",
             "ALTER TABLE guild_settings ADD COLUMN ghostping_enabled INTEGER DEFAULT 1",
+            "ALTER TABLE guild_settings ADD COLUMN language TEXT DEFAULT 'fr'",
         ]:
             try:
                 await self.db.execute(migration)
@@ -677,3 +720,100 @@ class Database:
             "DELETE FROM cmd_permissions WHERE guild_id = ? AND command = ?", guild_id, command
         )
         return cur.rowcount
+
+    # ── Language ──────────────────────────────────────────────────────────────
+
+    async def get_guild_lang(self, guild_id: int) -> str:
+        val = await self._val("SELECT language FROM guild_settings WHERE guild_id = ?", guild_id)
+        return val or "fr"
+
+    # ── Sanctions history ─────────────────────────────────────────────────────
+
+    async def add_sanction(self, guild_id: int, user_id: int, moderator_id: int, stype: str, reason: str = None, duration: str = None):
+        await self._exec(
+            "INSERT INTO sanctions (guild_id, user_id, moderator_id, type, reason, duration) VALUES (?, ?, ?, ?, ?, ?)",
+            guild_id, user_id, moderator_id, stype, reason, duration
+        )
+
+    async def get_sanctions(self, guild_id: int, user_id: int, limit: int = 20) -> list:
+        return await self._rows(
+            "SELECT * FROM sanctions WHERE guild_id = ? AND user_id = ? ORDER BY created_at DESC LIMIT ?",
+            guild_id, user_id, limit
+        )
+
+    # ── Giveaways ─────────────────────────────────────────────────────────────
+
+    async def create_giveaway(self, guild_id: int, channel_id: int, prize: str, winners_count: int, host_id: int, ends_at: str) -> int:
+        cur = await self._exec(
+            "INSERT INTO giveaways (guild_id, channel_id, prize, winners_count, host_id, ends_at) VALUES (?, ?, ?, ?, ?, ?)",
+            guild_id, channel_id, prize, winners_count, host_id, ends_at
+        )
+        return cur.lastrowid
+
+    async def set_giveaway_message(self, giveaway_id: int, message_id: int):
+        await self._exec("UPDATE giveaways SET message_id = ? WHERE id = ?", message_id, giveaway_id)
+
+    async def get_giveaway(self, giveaway_id: int) -> dict | None:
+        return await self._row("SELECT * FROM giveaways WHERE id = ?", giveaway_id)
+
+    async def get_giveaway_by_msg(self, message_id: int) -> dict | None:
+        return await self._row("SELECT * FROM giveaways WHERE message_id = ?", message_id)
+
+    async def get_active_giveaways(self, guild_id: int) -> list:
+        return await self._rows("SELECT * FROM giveaways WHERE guild_id = ? AND ended = 0", guild_id)
+
+    async def get_expired_giveaways(self) -> list:
+        return await self._rows("SELECT * FROM giveaways WHERE ended = 0 AND ends_at <= datetime('now')")
+
+    async def end_giveaway(self, giveaway_id: int, winner_ids: list):
+        await self._exec(
+            "UPDATE giveaways SET ended = 1, winner_ids = ? WHERE id = ?",
+            json.dumps(winner_ids), giveaway_id
+        )
+
+    # ── Starboard ─────────────────────────────────────────────────────────────
+
+    async def get_starboard_config(self, guild_id: int) -> dict:
+        row = await self._row("SELECT * FROM starboard_config WHERE guild_id = ?", guild_id)
+        if not row:
+            await self._exec("INSERT OR IGNORE INTO starboard_config (guild_id) VALUES (?)", guild_id)
+            row = await self._row("SELECT * FROM starboard_config WHERE guild_id = ?", guild_id)
+        return row
+
+    async def update_starboard_config(self, guild_id: int, channel_id: int, threshold: int):
+        await self._exec(
+            "INSERT INTO starboard_config (guild_id, channel_id, threshold, enabled) VALUES (?, ?, ?, 1)"
+            " ON CONFLICT(guild_id) DO UPDATE SET channel_id = ?, threshold = ?, enabled = 1",
+            guild_id, channel_id, threshold, channel_id, threshold
+        )
+
+    async def disable_starboard(self, guild_id: int):
+        await self._exec("UPDATE starboard_config SET enabled = 0 WHERE guild_id = ?", guild_id)
+
+    async def get_starboard_post(self, original_msg_id: int) -> dict | None:
+        return await self._row("SELECT * FROM starboard_posts WHERE original_msg_id = ?", original_msg_id)
+
+    async def upsert_starboard_post(self, original_msg_id: int, guild_id: int, star_msg_id: int, star_count: int):
+        await self._exec(
+            "INSERT INTO starboard_posts (original_msg_id, guild_id, star_msg_id, star_count) VALUES (?, ?, ?, ?)"
+            " ON CONFLICT(original_msg_id) DO UPDATE SET star_msg_id = ?, star_count = ?",
+            original_msg_id, guild_id, star_msg_id, star_count, star_msg_id, star_count
+        )
+
+    async def delete_starboard_post(self, original_msg_id: int):
+        await self._exec("DELETE FROM starboard_posts WHERE original_msg_id = ?", original_msg_id)
+
+    # ── AFK ───────────────────────────────────────────────────────────────────
+
+    async def set_afk(self, guild_id: int, user_id: int, reason: str):
+        await self._exec(
+            "INSERT INTO afk (guild_id, user_id, reason) VALUES (?, ?, ?)"
+            " ON CONFLICT(guild_id, user_id) DO UPDATE SET reason = ?, since = datetime('now')",
+            guild_id, user_id, reason, reason
+        )
+
+    async def get_afk(self, guild_id: int, user_id: int) -> dict | None:
+        return await self._row("SELECT * FROM afk WHERE guild_id = ? AND user_id = ?", guild_id, user_id)
+
+    async def remove_afk(self, guild_id: int, user_id: int):
+        await self._exec("DELETE FROM afk WHERE guild_id = ? AND user_id = ?", guild_id, user_id)

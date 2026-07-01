@@ -1,31 +1,36 @@
 import discord
 from discord.ext import commands
+from utils.i18n import t
 
 
 class WelcomeView(discord.ui.View):
-    def __init__(self):
+    def __init__(self, lang: str = "fr"):
         super().__init__(timeout=None)
+        self.lang = lang
+        self.children[0].label = t(lang, "welcome.profile_btn")
 
-    @discord.ui.button(label="👤 Mon profil", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="👤 Mon profil", style=discord.ButtonStyle.secondary, custom_id="welcome_profile_persistent")
     async def show_profile(self, interaction: discord.Interaction, button: discord.ui.Button):
+        lang   = await interaction.client.db.get_guild_lang(interaction.guild_id)
         member = interaction.user
-        account_age = (discord.utils.utcnow() - member.created_at).days
-        embed = discord.Embed(
-            title=f"👤 {member.display_name}",
-            color=member.color if member.color != discord.Color.default() else discord.Color.blurple(),
-        )
+        age    = (discord.utils.utcnow() - member.created_at).days
+        color  = member.color if member.color != discord.Color.default() else discord.Color.blurple()
+        embed  = discord.Embed(title=t(lang, "welcome.profile_title", member=member.display_name), color=color)
         embed.set_thumbnail(url=member.display_avatar.url)
-        embed.add_field(name="📅 Compte créé",  value=f"il y a **{account_age}** jours",                    inline=True)
-        embed.add_field(name="📥 A rejoint le", value=discord.utils.format_dt(member.joined_at, 'D'),        inline=True)
+        embed.add_field(name=t(lang, "welcome.account_created"), value=t(lang, "welcome.account_age", days=age),              inline=True)
+        embed.add_field(name=t(lang, "welcome.joined_at"),        value=discord.utils.format_dt(member.joined_at, 'D'),        inline=True)
         roles = [r.mention for r in reversed(member.roles) if r != interaction.guild.default_role]
         if roles:
-            embed.add_field(name=f"🎭 Rôles ({len(roles)})", value=" ".join(roles[:10]), inline=False)
+            embed.add_field(name=t(lang, "welcome.roles", count=len(roles)), value=" ".join(roles[:10]), inline=False)
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 class Welcome(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+
+    async def cog_load(self):
+        self.bot.add_view(WelcomeView())
 
     def _format_message(self, template: str, member: discord.Member) -> str:
         return (
@@ -40,8 +45,8 @@ class Welcome(commands.Cog):
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
         settings = await self.bot.db.get_guild_settings(member.guild.id)
+        lang     = settings.get("language") or "fr"
 
-        # Auto-role
         autorole_id = settings.get("autorole_id")
         if autorole_id:
             role = member.guild.get_role(autorole_id)
@@ -51,7 +56,6 @@ class Welcome(commands.Cog):
                 except discord.Forbidden:
                     pass
 
-        # Welcome message
         welcome_channel_id = settings.get("welcome_channel_id")
         if not welcome_channel_id:
             return
@@ -59,46 +63,30 @@ class Welcome(commands.Cog):
         if not channel or not channel.permissions_for(member.guild.me).send_messages:
             return
 
-        template = settings.get("welcome_message") or "Bienvenue {mention} sur **{server}** !"
+        template = settings.get("welcome_message") or t(lang, "welcome.join_default")
         message  = self._format_message(template, member)
-
-        account_age = (discord.utils.utcnow() - member.created_at).days
+        age      = (discord.utils.utcnow() - member.created_at).days
 
         embed = discord.Embed(
-            title=f"👋 Bienvenue sur {member.guild.name} !",
+            title=t(lang, "welcome.join_title", server=member.guild.name),
             description=message,
             color=0x57F287,
             timestamp=discord.utils.utcnow(),
         )
         embed.set_author(name=str(member), icon_url=member.display_avatar.url)
         embed.set_thumbnail(url=member.display_avatar.url)
+        footer_text = t(lang, "welcome.footer_join", count=member.guild.member_count, days=age)
+        embed.set_footer(text=footer_text, icon_url=member.guild.icon.url if member.guild.icon else None)
+        embed.add_field(name=t(lang, "welcome.account_created_field"), value=discord.utils.format_dt(member.created_at, 'D'), inline=True)
+        embed.add_field(name=t(lang, "welcome.members_field"),         value=str(member.guild.member_count),                  inline=True)
 
-        if member.guild.icon:
-            embed.set_footer(
-                text=f"Membre #{member.guild.member_count}  •  Compte créé il y a {account_age} jours",
-                icon_url=member.guild.icon.url,
-            )
-        else:
-            embed.set_footer(
-                text=f"Membre #{member.guild.member_count}  •  Compte créé il y a {account_age} jours"
-            )
-
-        embed.add_field(
-            name="📅 Compte créé le",
-            value=discord.utils.format_dt(member.created_at, 'D'),
-            inline=True,
-        )
-        embed.add_field(
-            name="👥 Membres",
-            value=str(member.guild.member_count),
-            inline=True,
-        )
-
-        await channel.send(embed=embed, view=WelcomeView())
+        await channel.send(embed=embed, view=WelcomeView(lang))
 
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member):
         settings = await self.bot.db.get_guild_settings(member.guild.id)
+        lang     = settings.get("language") or "fr"
+
         goodbye_channel_id = settings.get("goodbye_channel_id")
         if not goodbye_channel_id:
             return
@@ -106,25 +94,19 @@ class Welcome(commands.Cog):
         if not channel or not channel.permissions_for(member.guild.me).send_messages:
             return
 
-        template = settings.get("goodbye_message") or "Au revoir **{name}**, bonne continuation !"
+        template = settings.get("goodbye_message") or t(lang, "welcome.leave_default")
         message  = self._format_message(template, member)
 
         embed = discord.Embed(
-            title="👋 Départ d'un membre",
+            title=t(lang, "welcome.leave_title"),
             description=message,
             color=0xED4245,
             timestamp=discord.utils.utcnow(),
         )
         embed.set_author(name=str(member), icon_url=member.display_avatar.url)
         embed.set_thumbnail(url=member.display_avatar.url)
-
-        if member.guild.icon:
-            embed.set_footer(
-                text=f"Il reste {member.guild.member_count} membres",
-                icon_url=member.guild.icon.url,
-            )
-        else:
-            embed.set_footer(text=f"Il reste {member.guild.member_count} membres")
+        footer_text = t(lang, "welcome.footer_leave", count=member.guild.member_count)
+        embed.set_footer(text=footer_text, icon_url=member.guild.icon.url if member.guild.icon else None)
 
         await channel.send(embed=embed)
 

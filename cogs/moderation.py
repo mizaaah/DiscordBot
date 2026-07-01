@@ -3,6 +3,7 @@ from discord import app_commands
 from discord.ext import commands, tasks
 from datetime import datetime, timezone
 from utils.helpers import parse_duration, duration_to_str
+from utils.i18n import t
 
 
 def _parse_dt(value) -> datetime | None:
@@ -28,8 +29,6 @@ class Moderation(commands.Cog):
     def cog_unload(self):
         self.check_temp_bans.cancel()
 
-    # ── Hierarchy check ──────────────────────────────────────────────────────
-
     def _can_act_on(self, interaction: discord.Interaction, target: discord.Member) -> bool:
         if target == interaction.guild.owner:
             return False
@@ -45,20 +44,22 @@ class Moderation(commands.Cog):
     @app_commands.describe(membre="Le membre à expulser", raison="Raison de l'expulsion")
     @app_commands.default_permissions(kick_members=True)
     async def kick(self, interaction: discord.Interaction, membre: discord.Member, raison: str = "Aucune raison fournie"):
+        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         if not self._can_act_on(interaction, membre):
-            return await interaction.response.send_message("❌ Je ne peux pas agir sur ce membre.", ephemeral=True)
+            return await interaction.response.send_message(t(lang, "mod.cant_act"), ephemeral=True)
         try:
-            await membre.send(f"Tu as été expulsé de **{interaction.guild.name}**.\n**Raison :** {raison}")
+            await membre.send(t(lang, "mod.kick_dm", server=interaction.guild.name, reason=raison))
         except discord.Forbidden:
             pass
         await membre.kick(reason=raison)
         embed = discord.Embed(
-            title="👢 Membre expulsé",
-            description=f"**{membre}** a été expulsé.",
+            title=t(lang, "mod.kick_title"),
+            description=t(lang, "mod.kick_desc", member=str(membre)),
             color=discord.Color.orange()
         )
-        embed.add_field(name="Raison", value=raison)
+        embed.add_field(name=t(lang, "mod.kick_reason"), value=raison)
         await interaction.response.send_message(embed=embed)
+        await self.bot.db.add_sanction(interaction.guild.id, membre.id, interaction.user.id, "kick", raison)
         if logs := get_logs(self.bot):
             await logs.log_kick(interaction.guild, membre, interaction.user, raison)
 
@@ -72,8 +73,9 @@ class Moderation(commands.Cog):
     )
     @app_commands.default_permissions(ban_members=True)
     async def ban(self, interaction: discord.Interaction, membre: discord.Member, durée: str = None, raison: str = "Aucune raison fournie"):
+        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         if not self._can_act_on(interaction, membre):
-            return await interaction.response.send_message("❌ Je ne peux pas agir sur ce membre.", ephemeral=True)
+            return await interaction.response.send_message(t(lang, "mod.cant_act"), ephemeral=True)
 
         unban_at = None
         duration_label = None
@@ -83,33 +85,29 @@ class Moderation(commands.Cog):
                 unban_at = datetime.now(timezone.utc) + delta
                 duration_label = duration_to_str(durée)
             except ValueError as e:
-                return await interaction.response.send_message(f"❌ {e}", ephemeral=True)
+                return await interaction.response.send_message(t(lang, "mod.invalid_duration", error=str(e)), ephemeral=True)
 
         try:
-            dm_msg = f"Tu as été banni de **{interaction.guild.name}**.\n**Raison :** {raison}"
             if duration_label:
-                dm_msg += f"\n**Durée :** {duration_label}"
-            await membre.send(dm_msg)
+                await membre.send(t(lang, "mod.ban_dm_temp", server=interaction.guild.name, reason=raison, duration=duration_label))
+            else:
+                await membre.send(t(lang, "mod.ban_dm", server=interaction.guild.name, reason=raison))
         except discord.Forbidden:
             pass
 
         await membre.ban(reason=raison, delete_message_days=0)
 
         if unban_at:
-            await self.bot.db.add_temp_ban(
-                interaction.guild.id, membre.id, interaction.user.id, raison, unban_at
-            )
+            await self.bot.db.add_temp_ban(interaction.guild.id, membre.id, interaction.user.id, raison, unban_at)
 
-        embed = discord.Embed(
-            title="🔨 Membre banni",
-            description=f"**{membre}** a été banni.",
-            color=discord.Color.red()
-        )
-        embed.add_field(name="Raison", value=raison, inline=False)
+        title = t(lang, "mod.ban_temp_title", duration=duration_label) if duration_label else t(lang, "mod.ban_title")
+        embed = discord.Embed(title=title, description=t(lang, "mod.ban_desc", member=str(membre)), color=discord.Color.red())
+        embed.add_field(name=t(lang, "mod.ban_reason"), value=raison, inline=False)
         if duration_label:
-            embed.add_field(name="Durée", value=duration_label, inline=True)
-            embed.add_field(name="Fin du ban", value=discord.utils.format_dt(unban_at, 'R'), inline=True)
+            embed.add_field(name=t(lang, "mod.ban_duration"), value=duration_label, inline=True)
+            embed.add_field(name=t(lang, "mod.ban_end"), value=discord.utils.format_dt(unban_at, 'R'), inline=True)
         await interaction.response.send_message(embed=embed)
+        await self.bot.db.add_sanction(interaction.guild.id, membre.id, interaction.user.id, "tempban" if duration_label else "ban", raison, duration_label)
         if logs := get_logs(self.bot):
             await logs.log_ban(interaction.guild, membre, interaction.user, raison, duration_label)
 
@@ -119,25 +117,26 @@ class Moderation(commands.Cog):
     @app_commands.describe(user_id="L'ID de l'utilisateur", raison="Raison du déban")
     @app_commands.default_permissions(ban_members=True)
     async def unban(self, interaction: discord.Interaction, user_id: str, raison: str = "Aucune raison fournie"):
+        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         try:
             uid = int(user_id)
         except ValueError:
-            return await interaction.response.send_message("❌ ID invalide.", ephemeral=True)
+            return await interaction.response.send_message(t(lang, "mod.invalid_id"), ephemeral=True)
         try:
             user = await self.bot.fetch_user(uid)
             await interaction.guild.unban(user, reason=raison)
             await self.bot.db.remove_temp_ban(interaction.guild.id, uid)
             embed = discord.Embed(
-                title="✅ Membre débanni",
-                description=f"**{user}** a été débanni.",
+                title=t(lang, "mod.unban_title"),
+                description=t(lang, "mod.unban_desc", user=str(user)),
                 color=discord.Color.green()
             )
-            embed.add_field(name="Raison", value=raison)
+            embed.add_field(name=t(lang, "mod.unban_reason"), value=raison)
             await interaction.response.send_message(embed=embed)
             if logs := get_logs(self.bot):
                 await logs.log_unban(interaction.guild, user, interaction.user, raison)
         except discord.NotFound:
-            await interaction.response.send_message("❌ Cet utilisateur n'est pas banni.", ephemeral=True)
+            await interaction.response.send_message(t(lang, "mod.unban_not_banned"), ephemeral=True)
 
     # ── /mute ────────────────────────────────────────────────────────────────
 
@@ -149,35 +148,37 @@ class Moderation(commands.Cog):
     )
     @app_commands.default_permissions(moderate_members=True)
     async def mute(self, interaction: discord.Interaction, membre: discord.Member, durée: str, raison: str = "Aucune raison fournie"):
+        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         if not self._can_act_on(interaction, membre):
-            return await interaction.response.send_message("❌ Je ne peux pas agir sur ce membre.", ephemeral=True)
+            return await interaction.response.send_message(t(lang, "mod.cant_act"), ephemeral=True)
         try:
             seconds, delta = parse_duration(durée)
         except ValueError as e:
-            return await interaction.response.send_message(f"❌ {e}", ephemeral=True)
+            return await interaction.response.send_message(t(lang, "mod.invalid_duration", error=str(e)), ephemeral=True)
 
         if seconds > 2419200:
-            return await interaction.response.send_message("❌ La durée maximale est de 28 jours.", ephemeral=True)
+            return await interaction.response.send_message(t(lang, "mod.mute_max_duration"), ephemeral=True)
 
         until = datetime.now(timezone.utc) + delta
         await membre.timeout(until, reason=raison)
         duration_label = duration_to_str(durée)
 
         embed = discord.Embed(
-            title="🔇 Membre muté",
-            description=f"**{membre.mention}** a été rendu muet.",
+            title=t(lang, "mod.mute_title"),
+            description=t(lang, "mod.mute_desc", member=membre.mention),
             color=discord.Color.dark_orange()
         )
-        embed.add_field(name="Durée", value=duration_label, inline=True)
-        embed.add_field(name="Fin", value=discord.utils.format_dt(until, 'R'), inline=True)
-        embed.add_field(name="Raison", value=raison, inline=False)
+        embed.add_field(name=t(lang, "mod.mute_duration"), value=duration_label, inline=True)
+        embed.add_field(name=t(lang, "mod.mute_end"),      value=discord.utils.format_dt(until, 'R'), inline=True)
+        embed.add_field(name=t(lang, "mod.mute_reason"),   value=raison, inline=False)
         await interaction.response.send_message(embed=embed)
 
         try:
-            await membre.send(f"Tu as été muté sur **{interaction.guild.name}** pendant {duration_label}.\n**Raison :** {raison}")
+            await membre.send(t(lang, "mod.mute_dm", server=interaction.guild.name, duration=duration_label, reason=raison))
         except discord.Forbidden:
             pass
 
+        await self.bot.db.add_sanction(interaction.guild.id, membre.id, interaction.user.id, "mute", raison, duration_label)
         if logs := get_logs(self.bot):
             await logs.log_mute(interaction.guild, membre, interaction.user, raison, duration_label)
 
@@ -187,15 +188,16 @@ class Moderation(commands.Cog):
     @app_commands.describe(membre="Le membre à démuter", raison="Raison")
     @app_commands.default_permissions(moderate_members=True)
     async def unmute(self, interaction: discord.Interaction, membre: discord.Member, raison: str = "Aucune raison fournie"):
+        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         if not membre.is_timed_out():
-            return await interaction.response.send_message("❌ Ce membre n'est pas muté.", ephemeral=True)
+            return await interaction.response.send_message(t(lang, "mod.unmute_not_muted"), ephemeral=True)
         await membre.timeout(None, reason=raison)
         embed = discord.Embed(
-            title="🔊 Membre démuté",
-            description=f"**{membre.mention}** n'est plus muet.",
+            title=t(lang, "mod.unmute_title"),
+            description=t(lang, "mod.unmute_desc", member=membre.mention),
             color=discord.Color.green()
         )
-        embed.add_field(name="Raison", value=raison)
+        embed.add_field(name=t(lang, "mod.unmute_reason"), value=raison)
         await interaction.response.send_message(embed=embed)
         if logs := get_logs(self.bot):
             await logs.log_unmute(interaction.guild, membre, interaction.user, raison)
@@ -206,30 +208,29 @@ class Moderation(commands.Cog):
     @app_commands.describe(membre="Le membre à avertir", raison="Raison de l'avertissement")
     @app_commands.default_permissions(manage_messages=True)
     async def warn(self, interaction: discord.Interaction, membre: discord.Member, raison: str):
+        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         if membre.bot:
-            return await interaction.response.send_message("❌ Impossible d'avertir un bot.", ephemeral=True)
+            return await interaction.response.send_message(t(lang, "mod.warn_bot"), ephemeral=True)
 
         warn_id = await self.bot.db.add_warning(interaction.guild.id, membre.id, interaction.user.id, raison)
-        total = await self.bot.db.get_warning_count(interaction.guild.id, membre.id)
+        total   = await self.bot.db.get_warning_count(interaction.guild.id, membre.id)
 
         embed = discord.Embed(
-            title="⚠️ Avertissement",
-            description=f"**{membre.mention}** a reçu un avertissement.",
+            title=t(lang, "mod.warn_title"),
+            description=t(lang, "mod.warn_desc", member=membre.mention),
             color=discord.Color.yellow()
         )
-        embed.add_field(name="Raison", value=raison, inline=False)
-        embed.add_field(name="Total warns", value=str(total), inline=True)
-        embed.set_footer(text=f"ID warn : #{warn_id}")
+        embed.add_field(name=t(lang, "mod.warn_reason"), value=raison, inline=False)
+        embed.add_field(name=t(lang, "mod.warn_total"),  value=str(total), inline=True)
+        embed.set_footer(text=t(lang, "mod.warn_footer", id=warn_id))
         await interaction.response.send_message(embed=embed)
 
         try:
-            await membre.send(
-                f"Tu as reçu un avertissement sur **{interaction.guild.name}**.\n"
-                f"**Raison :** {raison}\n**Total warns :** {total}"
-            )
+            await membre.send(t(lang, "mod.warn_dm", server=interaction.guild.name, reason=raison, total=total))
         except discord.Forbidden:
             pass
 
+        await self.bot.db.add_sanction(interaction.guild.id, membre.id, interaction.user.id, "warn", raison)
         if logs := get_logs(self.bot):
             await logs.log_warn(interaction.guild, membre, interaction.user, raison, warn_id, total)
 
@@ -241,11 +242,12 @@ class Moderation(commands.Cog):
     @app_commands.describe(id_warn="L'ID de l'avertissement à supprimer")
     @app_commands.default_permissions(manage_messages=True)
     async def unwarn(self, interaction: discord.Interaction, id_warn: int):
+        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         removed = await self.bot.db.remove_warning(id_warn, interaction.guild.id)
         if removed:
-            await interaction.response.send_message(f"✅ Avertissement `#{id_warn}` supprimé.")
+            await interaction.response.send_message(t(lang, "mod.unwarn_removed", id=id_warn))
         else:
-            await interaction.response.send_message(f"❌ Aucun avertissement `#{id_warn}` trouvé.", ephemeral=True)
+            await interaction.response.send_message(t(lang, "mod.unwarn_not_found", id=id_warn), ephemeral=True)
 
     # ── /warnings ────────────────────────────────────────────────────────────
 
@@ -253,25 +255,23 @@ class Moderation(commands.Cog):
     @app_commands.describe(membre="Le membre dont voir les warns")
     @app_commands.default_permissions(manage_messages=True)
     async def warnings(self, interaction: discord.Interaction, membre: discord.Member):
+        lang  = await self.bot.db.get_guild_lang(interaction.guild_id)
         warns = await self.bot.db.get_warnings(interaction.guild.id, membre.id)
-        embed = discord.Embed(
-            title=f"⚠️ Avertissements de {membre}",
-            color=discord.Color.yellow()
-        )
+        embed = discord.Embed(title=t(lang, "mod.warnings_title", member=str(membre)), color=discord.Color.yellow())
         if not warns:
-            embed.description = "Aucun avertissement."
+            embed.description = t(lang, "mod.warnings_empty")
         else:
             for w in warns[:10]:
-                mod = interaction.guild.get_member(w["moderator_id"])
+                mod      = interaction.guild.get_member(w["moderator_id"])
                 mod_name = str(mod) if mod else f"ID:{w['moderator_id']}"
-                dt   = _parse_dt(w["created_at"])
-                date = discord.utils.format_dt(dt, 'd') if dt else "?"
+                dt       = _parse_dt(w["created_at"])
+                date     = discord.utils.format_dt(dt, 'd') if dt else "?"
                 embed.add_field(
                     name=f"#{w['id']} — {date}",
-                    value=f"**Raison :** {w['reason']}\n**Modérateur :** {mod_name}",
+                    value=f"**{t(lang, 'mod.warnings_reason')}:** {w['reason']}\n**{t(lang, 'mod.warnings_moderator')}:** {mod_name}",
                     inline=False
                 )
-            embed.set_footer(text=f"{len(warns)} avertissement(s) au total")
+            embed.set_footer(text=t(lang, "mod.warnings_footer", count=len(warns)))
         await interaction.response.send_message(embed=embed)
 
     # ── /clearwarnings ───────────────────────────────────────────────────────
@@ -280,10 +280,41 @@ class Moderation(commands.Cog):
     @app_commands.describe(membre="Le membre dont effacer les warns")
     @app_commands.default_permissions(manage_guild=True)
     async def clearwarnings(self, interaction: discord.Interaction, membre: discord.Member):
+        lang  = await self.bot.db.get_guild_lang(interaction.guild_id)
         count = await self.bot.db.clear_warnings(interaction.guild.id, membre.id)
-        await interaction.response.send_message(
-            f"✅ **{count}** avertissement(s) supprimé(s) pour {membre.mention}."
+        await interaction.response.send_message(t(lang, "mod.clearwarn_success", count=count, member=membre.mention))
+
+    # ── /history ─────────────────────────────────────────────────────────────
+
+    @app_commands.command(name="history", description="Affiche l'historique des sanctions d'un membre")
+    @app_commands.describe(membre="Le membre dont voir l'historique")
+    @app_commands.default_permissions(manage_messages=True)
+    async def history(self, interaction: discord.Interaction, membre: discord.Member):
+        lang      = await self.bot.db.get_guild_lang(interaction.guild_id)
+        sanctions = await self.bot.db.get_sanctions(interaction.guild.id, membre.id)
+        embed = discord.Embed(
+            title=t(lang, "mod.history_title", member=str(membre)),
+            color=discord.Color.dark_red()
         )
+        embed.set_thumbnail(url=membre.display_avatar.url)
+        if not sanctions:
+            embed.description = t(lang, "mod.history_empty")
+        else:
+            type_emoji = {"kick": "👢", "ban": "🔨", "tempban": "⏱️", "mute": "🔇", "warn": "⚠️", "unban": "✅"}
+            for s in sanctions[:10]:
+                mod  = interaction.guild.get_member(s["moderator_id"])
+                mod_name = str(mod) if mod else f"ID:{s['moderator_id']}"
+                dt   = _parse_dt(s["created_at"])
+                date = discord.utils.format_dt(dt, 'd') if dt else "?"
+                emoji = type_emoji.get(s["type"], "📋")
+                name  = f"{emoji} {s['type'].upper()} — {date}"
+                val   = f"**{t(lang, 'mod.history_reason')}:** {s['reason'] or '—'}"
+                if s.get("duration"):
+                    val += f"\n**{t(lang, 'mod.mute_duration')}:** {s['duration']}"
+                val += f"\n**{t(lang, 'mod.history_moderator')}:** {mod_name}"
+                embed.add_field(name=name, value=val, inline=False)
+            embed.set_footer(text=t(lang, "mod.history_footer", count=len(sanctions)))
+        await interaction.response.send_message(embed=embed)
 
     # ── /clear ───────────────────────────────────────────────────────────────
 
@@ -305,24 +336,24 @@ class Moderation(commands.Cog):
         images: bool = False,
         contient: str = None
     ):
+        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         await interaction.response.defer(ephemeral=True)
         has_filter = membre or bots or images or contient
 
         def check(msg: discord.Message) -> bool:
-            if membre  and msg.author != membre:                                      return False
-            if bots    and not msg.author.bot:                                        return False
-            if images  and not msg.attachments and not any(e.image for e in msg.embeds): return False
-            if contient and contient.lower() not in msg.content.lower():              return False
+            if membre  and msg.author != membre:                                           return False
+            if bots    and not msg.author.bot:                                             return False
+            if images  and not msg.attachments and not any(e.image for e in msg.embeds):  return False
+            if contient and contient.lower() not in msg.content.lower():                   return False
             return True
 
         limit   = min(nombre * 5, 500) if has_filter else nombre
         deleted = await interaction.channel.purge(limit=limit, check=check if has_filter else None,
                                                    before=interaction.created_at)
-        # Respect the requested cap
         if len(deleted) > nombre:
             deleted = deleted[:nombre]
 
-        await interaction.followup.send(f"✅ **{len(deleted)}** message(s) supprimé(s).", ephemeral=True)
+        await interaction.followup.send(t(lang, "mod.clear_success", count=len(deleted)), ephemeral=True)
 
         if logs := get_logs(self.bot):
             await logs.log_clear(interaction.guild, interaction.channel, interaction.user, len(deleted))
@@ -333,11 +364,12 @@ class Moderation(commands.Cog):
     @app_commands.describe(secondes="Délai en secondes (0 pour désactiver, max 21600)")
     @app_commands.default_permissions(manage_channels=True)
     async def slowmode(self, interaction: discord.Interaction, secondes: app_commands.Range[int, 0, 21600] = 0):
+        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         await interaction.channel.edit(slowmode_delay=secondes)
         if secondes == 0:
-            await interaction.response.send_message("✅ Mode lent désactivé.")
+            await interaction.response.send_message(t(lang, "mod.slowmode_disabled"))
         else:
-            await interaction.response.send_message(f"✅ Mode lent activé : **{secondes}** seconde(s).")
+            await interaction.response.send_message(t(lang, "mod.slowmode_enabled", seconds=secondes))
 
     # ── /lock ────────────────────────────────────────────────────────────────
 
@@ -345,14 +377,11 @@ class Moderation(commands.Cog):
     @app_commands.describe(raison="Raison du verrouillage")
     @app_commands.default_permissions(manage_channels=True)
     async def lock(self, interaction: discord.Interaction, raison: str = "Aucune raison fournie"):
+        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         overwrite = interaction.channel.overwrites_for(interaction.guild.default_role)
         overwrite.send_messages = False
         await interaction.channel.set_permissions(interaction.guild.default_role, overwrite=overwrite)
-        embed = discord.Embed(
-            title="🔒 Salon verrouillé",
-            description=f"**Raison :** {raison}",
-            color=discord.Color.red()
-        )
+        embed = discord.Embed(title=t(lang, "mod.lock_title"), description=f"**{t(lang, 'mod.lock_reason')}:** {raison}", color=discord.Color.red())
         await interaction.response.send_message(embed=embed)
         if logs := get_logs(self.bot):
             await logs.log_lock(interaction.guild, interaction.channel, interaction.user, raison, True)
@@ -363,14 +392,11 @@ class Moderation(commands.Cog):
     @app_commands.describe(raison="Raison du déverrouillage")
     @app_commands.default_permissions(manage_channels=True)
     async def unlock(self, interaction: discord.Interaction, raison: str = "Aucune raison fournie"):
+        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         overwrite = interaction.channel.overwrites_for(interaction.guild.default_role)
         overwrite.send_messages = None
         await interaction.channel.set_permissions(interaction.guild.default_role, overwrite=overwrite)
-        embed = discord.Embed(
-            title="🔓 Salon déverrouillé",
-            description=f"**Raison :** {raison}",
-            color=discord.Color.green()
-        )
+        embed = discord.Embed(title=t(lang, "mod.unlock_title"), description=f"**{t(lang, 'mod.lock_reason')}:** {raison}", color=discord.Color.green())
         await interaction.response.send_message(embed=embed)
         if logs := get_logs(self.bot):
             await logs.log_lock(interaction.guild, interaction.channel, interaction.user, raison, False)
@@ -387,6 +413,9 @@ class Moderation(commands.Cog):
             try:
                 user = await self.bot.fetch_user(ban["user_id"])
                 await guild.unban(user, reason="Durée du ban expirée")
+                if logs := get_logs(self.bot):
+                    lang = await self.bot.db.get_guild_lang(guild.id)
+                    await logs.log_unban(guild, user, self.bot.user, t(lang, "mod.ban_expired_reason"))
             except (discord.NotFound, discord.Forbidden):
                 pass
             finally:

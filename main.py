@@ -31,6 +31,9 @@ COGS = [
     "cogs.cmdperms",
     "cogs.welcome",
     "cogs.config",
+    "cogs.starboard",
+    "cogs.afk",
+    "cogs.giveaway",
 ]
 
 
