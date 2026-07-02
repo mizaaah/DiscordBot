@@ -35,13 +35,20 @@ COGS = [
     "cogs.starboard",
     "cogs.afk",
     "cogs.giveaway",
+    "cogs.owner",
 ]
 
 
 class Bot(commands.Bot):
     def __init__(self):
         intents = discord.Intents.all()
-        super().__init__(command_prefix=commands.when_mentioned, intents=intents, help_command=None)
+        owner_id = os.getenv("OWNER_ID")
+        super().__init__(
+            command_prefix=commands.when_mentioned_or("+"),
+            intents=intents,
+            help_command=None,
+            owner_id=int(owner_id) if owner_id else None,
+        )
         self.db = Database()
         self._presence_index = 0
 
@@ -81,6 +88,16 @@ class Bot(commands.Bot):
     @rotate_presence.before_loop
     async def before_rotate_presence(self):
         await self.wait_until_ready()
+
+    async def on_command_error(self, ctx: commands.Context, error: commands.CommandError):
+        # Prefix commands (+...) are owner-only utilities. Stay silent for anyone
+        # else so the "+" prefix doesn't reveal that hidden commands even exist.
+        if isinstance(error, (commands.CommandNotFound, commands.CheckFailure)):
+            return
+        if await self.is_owner(ctx.author):
+            await ctx.send(f"❌ `{error}`")
+        print(f"[ERREUR prefix] {error}", file=sys.stderr)
+        traceback.print_exc()
 
     async def on_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         if interaction.response.is_done():
