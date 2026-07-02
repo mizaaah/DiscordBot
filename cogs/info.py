@@ -32,6 +32,28 @@ HELP_PAGE_FIELDS = {
     "config":        [False, False],
 }
 
+# Maps a top-level command/group name to the help page it's documented on,
+# used by /help commande:<autocomplete> to jump straight to the right page.
+COMMAND_PAGE_MAP = {
+    "kick": "moderation", "ban": "moderation", "unban": "moderation", "mute": "moderation",
+    "unmute": "moderation", "warn": "moderation", "unwarn": "moderation", "warnings": "moderation",
+    "clearwarnings": "moderation", "history": "moderation", "clear": "moderation",
+    "slowmode": "moderation", "lock": "moderation", "unlock": "moderation",
+    "automod": "automod", "antiraid": "automod", "ghostping": "automod",
+    "rank": "xp", "leaderboard": "xp", "setxp": "xp", "addxp": "xp", "resetxp": "xp", "xprole": "xp",
+    "ticket": "tickets", "tadd": "tickets", "tremove": "tickets", "tclaim": "tickets", "tunclaim": "tickets",
+    "rr": "roles", "autosanction": "roles",
+    "tempvoice": "vocal",
+    "embed": "embeds",
+    "giveaway": "giveaways",
+    "starboard": "starboard_afk", "afk": "starboard_afk",
+    "boost": "community", "report": "community", "setreport": "community",
+    "cmdperm": "permissions",
+    "setup": "config", "config": "config", "setlanguage": "config", "setlogs": "config",
+    "setwelcome": "config", "setgoodbye": "config", "setautorole": "config",
+    "userinfo": "config", "serverinfo": "config", "botinfo": "config", "avatar": "config", "roleinfo": "config",
+}
+
 
 def _build_help_pages(lang: str) -> dict:
     pages = {}
@@ -89,11 +111,11 @@ def _build_help_embed(lang: str, page_key: str, guild: discord.Guild) -> discord
 # ══════════════════════════════════════════════════════════════════════════════
 
 class HelpSelect(discord.ui.Select):
-    def __init__(self, lang: str):
+    def __init__(self, lang: str, default_page: str = "home"):
         self.lang = lang
         pages = _build_help_pages(lang)
         options = [
-            discord.SelectOption(label=data["label"], value=key)
+            discord.SelectOption(label=data["label"], value=key, default=(key == default_page))
             for key, data in pages.items()
         ]
         super().__init__(
@@ -109,9 +131,9 @@ class HelpSelect(discord.ui.Select):
 
 
 class HelpView(discord.ui.View):
-    def __init__(self, lang: str):
+    def __init__(self, lang: str, default_page: str = "home"):
         super().__init__(timeout=300)
-        self.add_item(HelpSelect(lang))
+        self.add_item(HelpSelect(lang, default_page))
 
     async def on_timeout(self):
         for item in self.children:
@@ -292,11 +314,31 @@ class Info(commands.Cog):
 
     # ── /help ─────────────────────────────────────────────────────────────────
 
+    async def _cmd_autocomplete(self, interaction: discord.Interaction, current: str):
+        names = []
+        for cmd in self.bot.tree.get_commands():
+            if isinstance(cmd, app_commands.Group):
+                for sub in cmd.commands:
+                    if isinstance(sub, app_commands.Group):
+                        for sub2 in sub.commands:
+                            names.append(sub2.qualified_name)
+                    else:
+                        names.append(sub.qualified_name)
+            else:
+                names.append(cmd.qualified_name)
+        filtered = sorted(c for c in names if current.lower() in c.lower())
+        return [app_commands.Choice(name=c, value=c) for c in filtered[:25]]
+
     @app_commands.command(name="help", description="Affiche l'aide avec toutes les commandes")
-    async def help(self, interaction: discord.Interaction):
-        lang  = await self.bot.db.get_guild_lang(interaction.guild_id)
-        embed = _build_help_embed(lang, "home", interaction.guild)
-        view  = HelpView(lang)
+    @app_commands.describe(commande="Aller directement à la section d'une commande précise (optionnel)")
+    @app_commands.autocomplete(commande=_cmd_autocomplete)
+    async def help(self, interaction: discord.Interaction, commande: str = None):
+        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
+        page = "home"
+        if commande:
+            page = COMMAND_PAGE_MAP.get(commande.split()[0].lower(), "home")
+        embed = _build_help_embed(lang, page, interaction.guild)
+        view  = HelpView(lang, page)
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 
