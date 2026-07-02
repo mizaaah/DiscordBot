@@ -623,7 +623,7 @@
   "help.config.title": "⚙️ Configuration du Serveur",
   "help.config.desc": "Paramètres généraux du bot pour ce serveur.",
   "help.config.f1.name": "🔧 Paramètres",
-  "help.config.f1.value": "`/config` — Voir toute la configuration\n`/setlanguage fr|en` — 🌐 Changer la langue du bot\n`/setlogs #salon` — Salon des logs\n`/setwelcome #salon [message]` — Salon d'arrivée\n`/setgoodbye #salon [message]` — Salon de départ\n`/setautorole @role` — Rôle automatique à l'arrivée\n`/setreport #salon` — Salon des signalements",
+  "help.config.f1.value": "`/setup` — 🧙 Assistant de configuration interactif\n`/config` — Voir toute la configuration\n`/setlanguage fr|en` — 🌐 Changer la langue du bot\n`/setlogs #salon` — Salon des logs\n`/setwelcome #salon [message]` — Salon d'arrivée\n`/setgoodbye #salon [message]` — Salon de départ\n`/setautorole @role` — Rôle automatique à l'arrivée\n`/setreport #salon` — Salon des signalements",
   "help.config.f2.name": "ℹ️ Informations",
   "help.config.f2.value": "`/userinfo [@membre]` — Infos sur un membre\n`/serverinfo` — Infos sur le serveur\n`/botinfo` — Infos sur le bot\n`/avatar [@membre]` — Voir un avatar\n`/roleinfo @role` — Infos sur un rôle",
   "info.id": "🆔 ID",
