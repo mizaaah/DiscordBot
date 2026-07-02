@@ -17,9 +17,12 @@ STYLE_MAP = {
 
 class RoleButton(discord.ui.Button):
     def __init__(self, role_id: int, label: str, emoji: str = None,
-                 style: discord.ButtonStyle = discord.ButtonStyle.secondary, custom_id: str = ""):
+                 style: discord.ButtonStyle = discord.ButtonStyle.secondary, custom_id: str = "",
+                 panel_id: int = None, exclusive: bool = False):
         super().__init__(label=label, emoji=emoji, style=style, custom_id=custom_id)
-        self.role_id = role_id
+        self.role_id   = role_id
+        self.panel_id  = panel_id
+        self.exclusive = exclusive
 
     async def callback(self, interaction: discord.Interaction):
         lang = await interaction.client.db.get_guild_lang(interaction.guild_id)
@@ -34,11 +37,23 @@ class RoleButton(discord.ui.Button):
             await interaction.user.remove_roles(role, reason="Rôle réactif — retrait")
             await interaction.response.send_message(embed=error_embed(t(lang, "rr.role_removed", role=role.name)), ephemeral=True)
         else:
+            swapped = []
+            if self.exclusive and self.panel_id:
+                other_ids = [b["role_id"] for b in await interaction.client.db.get_rr_buttons(self.panel_id) if b["role_id"] != self.role_id]
+                to_remove = [r for rid in other_ids if (r := interaction.guild.get_role(rid)) and r in interaction.user.roles]
+                if to_remove:
+                    await interaction.user.remove_roles(*to_remove, reason="Rôle réactif exclusif — retrait automatique")
+                    swapped = [r.name for r in to_remove]
             await interaction.user.add_roles(role, reason="Rôle réactif — attribution")
-            await interaction.response.send_message(embed=success_embed(t(lang, "rr.role_added", role=role.name)), ephemeral=True)
+            if swapped:
+                await interaction.response.send_message(
+                    embed=success_embed(t(lang, "rr.role_added_exclusive", role=role.name, old=", ".join(swapped))), ephemeral=True
+                )
+            else:
+                await interaction.response.send_message(embed=success_embed(t(lang, "rr.role_added", role=role.name)), ephemeral=True)
 
 
-def build_rr_view(buttons_data: list) -> discord.ui.View:
+def build_rr_view(buttons_data: list, exclusive: bool = False) -> discord.ui.View:
     view = discord.ui.View(timeout=None)
     for btn in buttons_data:
         style = STYLE_MAP.get(btn["style"], discord.ButtonStyle.secondary)
@@ -47,7 +62,9 @@ def build_rr_view(buttons_data: list) -> discord.ui.View:
             label=btn["label"],
             emoji=btn["emoji"],
             style=style,
-            custom_id=f"rr_{btn['id']}"
+            custom_id=f"rr_{btn['id']}",
+            panel_id=btn["panel_id"],
+            exclusive=exclusive,
         ))
     return view
 
@@ -63,7 +80,7 @@ class ReactionRoles(commands.Cog):
         for panel in panels:
             buttons = await self.bot.db.get_rr_buttons(panel["id"])
             if buttons:
-                view = build_rr_view([dict(b) for b in buttons])
+                view = build_rr_view([dict(b) for b in buttons], exclusive=bool(panel.get("exclusive")))
                 self.bot.add_view(view, message_id=panel["message_id"])
 
     rr_group = app_commands.Group(name="rr", description="Gestion des rôles réactifs")
@@ -98,20 +115,21 @@ class ReactionRoles(commands.Cog):
     @app_commands.describe(
         salon="Le salon où envoyer le panel",
         titre="Le titre du panel",
-        description="Description du panel (optionnel)"
+        description="Description du panel (optionnel)",
+        exclusif="Un seul rôle du panel à la fois (choisir un nouveau rôle retire les autres)"
     )
     @app_commands.default_permissions(manage_roles=True)
-    async def rr_create(self, interaction: discord.Interaction, salon: discord.TextChannel, titre: str, description: str = None):
+    async def rr_create(self, interaction: discord.Interaction, salon: discord.TextChannel, titre: str, description: str = None, exclusif: bool = False):
         lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         embed = discord.Embed(
             title=titre,
             description=description or "",
             color=Colors.INFO
         )
-        embed.set_footer(text=t(lang, "rr.panel_footer"))
+        embed.set_footer(text=t(lang, "rr.panel_footer_exclusive") if exclusif else t(lang, "rr.panel_footer"))
 
         msg = await salon.send(embed=embed)
-        panel_id = await self.bot.db.create_rr_panel(interaction.guild.id, salon.id, msg.id, titre, description)
+        panel_id = await self.bot.db.create_rr_panel(interaction.guild.id, salon.id, msg.id, titre, description, exclusive=exclusif)
 
         await interaction.response.send_message(
             t(lang, "rr.create_success", panel_id=panel_id, channel=salon.mention),
@@ -224,8 +242,11 @@ class ReactionRoles(commands.Cog):
                 f"  `#{b['id']}` {b['emoji'] or ''} **{b['label']}** → <@&{b['role_id']}>"
                 for b in buttons
             ) or t(lang, "rr.no_buttons")
+            title = f"#{panel['id']} — {panel['title']}"
+            if panel.get("exclusive"):
+                title += f" {t(lang, 'rr.exclusive_tag')}"
             embed.add_field(
-                name=f"#{panel['id']} — {panel['title']}",
+                name=title,
                 value=t(lang, "rr.panel_entry", channel=channel.mention if channel else t(lang, "rr.channel_not_found"), buttons=btn_info),
                 inline=False
             )
@@ -243,15 +264,16 @@ class ReactionRoles(commands.Cog):
             return
 
         buttons = await self.bot.db.get_rr_buttons(panel_id)
+        exclusive = bool(panel.get("exclusive"))
         embed = discord.Embed(
             title=panel["title"],
             description=panel.get("description") or "",
             color=Colors.INFO
         )
-        embed.set_footer(text=t(lang, "rr.panel_footer"))
+        embed.set_footer(text=t(lang, "rr.panel_footer_exclusive") if exclusive else t(lang, "rr.panel_footer"))
 
         if buttons:
-            view = build_rr_view([dict(b) for b in buttons])
+            view = build_rr_view([dict(b) for b in buttons], exclusive=exclusive)
             self.bot.add_view(view, message_id=msg.id)
             await msg.edit(embed=embed, view=view)
         else:

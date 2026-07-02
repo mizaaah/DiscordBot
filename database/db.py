@@ -179,7 +179,8 @@ class Database:
                 channel_id  INTEGER NOT NULL,
                 message_id  INTEGER NOT NULL UNIQUE,
                 title       TEXT NOT NULL,
-                description TEXT
+                description TEXT,
+                exclusive   INTEGER DEFAULT 0
             )""",
             """CREATE TABLE IF NOT EXISTS rr_buttons (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -264,7 +265,18 @@ class Database:
                 type            TEXT NOT NULL,
                 reason          TEXT,
                 duration        TEXT,
+                case_id         INTEGER,
                 created_at      TEXT DEFAULT (datetime('now'))
+            )""",
+            """CREATE TABLE IF NOT EXISTS case_counters (
+                guild_id    INTEGER PRIMARY KEY,
+                counter     INTEGER NOT NULL DEFAULT 0
+            )""",
+            """CREATE TABLE IF NOT EXISTS nickname_locks (
+                guild_id    INTEGER NOT NULL,
+                user_id     INTEGER NOT NULL,
+                locked_nick TEXT,
+                PRIMARY KEY (guild_id, user_id)
             )""",
             """CREATE TABLE IF NOT EXISTS giveaways (
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -315,6 +327,8 @@ class Database:
             "ALTER TABLE ticket_config ADD COLUMN open_button_emoji TEXT DEFAULT '📩'",
             "ALTER TABLE ticket_config ADD COLUMN close_button_label TEXT DEFAULT 'Fermer le ticket'",
             "ALTER TABLE ticket_config ADD COLUMN close_button_emoji TEXT DEFAULT '🔒'",
+            "ALTER TABLE sanctions ADD COLUMN case_id INTEGER",
+            "ALTER TABLE rr_panels ADD COLUMN exclusive INTEGER DEFAULT 0",
         ]:
             try:
                 await self.db.execute(migration)
@@ -515,10 +529,10 @@ class Database:
 
     # ── Reaction Roles ────────────────────────────────────────────────────────
 
-    async def create_rr_panel(self, guild_id: int, channel_id: int, message_id: int, title: str, description: str = None) -> int:
+    async def create_rr_panel(self, guild_id: int, channel_id: int, message_id: int, title: str, description: str = None, exclusive: bool = False) -> int:
         cur = await self._exec(
-            "INSERT INTO rr_panels (guild_id, channel_id, message_id, title, description) VALUES (?, ?, ?, ?, ?)",
-            guild_id, channel_id, message_id, title, description
+            "INSERT INTO rr_panels (guild_id, channel_id, message_id, title, description, exclusive) VALUES (?, ?, ?, ?, ?, ?)",
+            guild_id, channel_id, message_id, title, description, int(exclusive)
         )
         return cur.lastrowid
 
@@ -755,10 +769,15 @@ class Database:
 
     # ── Sanctions history ─────────────────────────────────────────────────────
 
-    async def add_sanction(self, guild_id: int, user_id: int, moderator_id: int, stype: str, reason: str = None, duration: str = None):
+    async def next_case_id(self, guild_id: int) -> int:
+        await self._exec("INSERT OR IGNORE INTO case_counters (guild_id) VALUES (?)", guild_id)
+        await self._exec("UPDATE case_counters SET counter = counter + 1 WHERE guild_id = ?", guild_id)
+        return await self._val("SELECT counter FROM case_counters WHERE guild_id = ?", guild_id)
+
+    async def add_sanction(self, guild_id: int, user_id: int, moderator_id: int, stype: str, reason: str = None, duration: str = None, case_id: int = None):
         await self._exec(
-            "INSERT INTO sanctions (guild_id, user_id, moderator_id, type, reason, duration) VALUES (?, ?, ?, ?, ?, ?)",
-            guild_id, user_id, moderator_id, stype, reason, duration
+            "INSERT INTO sanctions (guild_id, user_id, moderator_id, type, reason, duration, case_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            guild_id, user_id, moderator_id, stype, reason, duration, case_id
         )
 
     async def get_sanctions(self, guild_id: int, user_id: int, limit: int = 20) -> list:
@@ -843,3 +862,19 @@ class Database:
 
     async def remove_afk(self, guild_id: int, user_id: int):
         await self._exec("DELETE FROM afk WHERE guild_id = ? AND user_id = ?", guild_id, user_id)
+
+    # ── Nickname locks ────────────────────────────────────────────────────────
+
+    async def set_nickname_lock(self, guild_id: int, user_id: int, locked_nick: str | None):
+        await self._exec(
+            "INSERT INTO nickname_locks (guild_id, user_id, locked_nick) VALUES (?, ?, ?)"
+            " ON CONFLICT(guild_id, user_id) DO UPDATE SET locked_nick = ?",
+            guild_id, user_id, locked_nick, locked_nick
+        )
+
+    async def get_nickname_lock(self, guild_id: int, user_id: int) -> dict | None:
+        return await self._row("SELECT * FROM nickname_locks WHERE guild_id = ? AND user_id = ?", guild_id, user_id)
+
+    async def remove_nickname_lock(self, guild_id: int, user_id: int) -> bool:
+        cur = await self._exec("DELETE FROM nickname_locks WHERE guild_id = ? AND user_id = ?", guild_id, user_id)
+        return cur.rowcount > 0

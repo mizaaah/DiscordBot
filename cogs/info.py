@@ -18,7 +18,7 @@ HELP_PAGE_ORDER = [
 
 HELP_PAGE_FIELDS = {
     "home":          [True] * 12,
-    "moderation":    [False, False, False],
+    "moderation":    [False, False, False, False],
     "automod":       [False, False, False],
     "xp":            [False, False, False],
     "tickets":       [False, False],

@@ -89,7 +89,7 @@ class WarningsView(_PagedEmbedView):
 
 
 class HistoryView(_PagedEmbedView):
-    TYPE_EMOJI = {"kick": "👢", "ban": "🔨", "tempban": "⏱️", "mute": "🔇", "warn": "⚠️", "unban": "✅"}
+    TYPE_EMOJI = {"kick": "👢", "ban": "🔨", "tempban": "⏱️", "mute": "🔇", "unmute": "🔊", "warn": "⚠️", "unban": "✅"}
 
     def __init__(self, sanctions: list, member: discord.Member, guild: discord.Guild, lang: str):
         self.member = member
@@ -110,7 +110,8 @@ class HistoryView(_PagedEmbedView):
             dt       = _parse_dt(s["created_at"])
             date     = discord.utils.format_dt(dt, 'd') if dt else "?"
             emoji    = self.TYPE_EMOJI.get(s["type"], "📋")
-            name     = f"{emoji} {s['type'].upper()} — {date}"
+            case_tag = f"#{s['case_id']} — " if s.get("case_id") else ""
+            name     = f"{emoji} {case_tag}{s['type'].upper()} — {date}"
             val      = f"**{t(lang, 'mod.history_reason')}:** {s['reason'] or '—'}"
             if s.get("duration"):
                 val += f"\n**{t(lang, 'mod.mute_duration')}:** {s['duration']}"
@@ -146,6 +147,7 @@ class Moderation(commands.Cog):
         lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         if not self._can_act_on(interaction, membre):
             return await interaction.response.send_message(t(lang, "mod.cant_act"), ephemeral=True)
+        case_id = await self.bot.db.next_case_id(interaction.guild.id)
         try:
             await membre.send(t(lang, "mod.kick_dm", server=interaction.guild.name, reason=raison))
         except discord.Forbidden:
@@ -157,8 +159,9 @@ class Moderation(commands.Cog):
             color=Colors.WARNING
         )
         embed.add_field(name=t(lang, "mod.kick_reason"), value=raison)
+        embed.set_footer(text=t(lang, "mod.case_footer", id=case_id))
         await interaction.response.send_message(embed=embed)
-        await self.bot.db.add_sanction(interaction.guild.id, membre.id, interaction.user.id, "kick", raison)
+        await self.bot.db.add_sanction(interaction.guild.id, membre.id, interaction.user.id, "kick", raison, case_id=case_id)
         if logs := get_logs(self.bot):
             await logs.log_kick(interaction.guild, membre, interaction.user, raison)
 
@@ -186,6 +189,8 @@ class Moderation(commands.Cog):
             except ValueError as e:
                 return await interaction.response.send_message(t(lang, "mod.invalid_duration", error=str(e)), ephemeral=True)
 
+        case_id = await self.bot.db.next_case_id(interaction.guild.id)
+
         try:
             if duration_label:
                 await membre.send(t(lang, "mod.ban_dm_temp", server=interaction.guild.name, reason=raison, duration=duration_label))
@@ -205,8 +210,9 @@ class Moderation(commands.Cog):
         if duration_label:
             embed.add_field(name=t(lang, "mod.ban_duration"), value=duration_label, inline=True)
             embed.add_field(name=t(lang, "mod.ban_end"), value=discord.utils.format_dt(unban_at, 'R'), inline=True)
+        embed.set_footer(text=t(lang, "mod.case_footer", id=case_id))
         await interaction.response.send_message(embed=embed)
-        await self.bot.db.add_sanction(interaction.guild.id, membre.id, interaction.user.id, "tempban" if duration_label else "ban", raison, duration_label)
+        await self.bot.db.add_sanction(interaction.guild.id, membre.id, interaction.user.id, "tempban" if duration_label else "ban", raison, duration_label, case_id=case_id)
         if logs := get_logs(self.bot):
             await logs.log_ban(interaction.guild, membre, interaction.user, raison, duration_label)
 
@@ -225,13 +231,16 @@ class Moderation(commands.Cog):
             user = await self.bot.fetch_user(uid)
             await interaction.guild.unban(user, reason=raison)
             await self.bot.db.remove_temp_ban(interaction.guild.id, uid)
+            case_id = await self.bot.db.next_case_id(interaction.guild.id)
             embed = discord.Embed(
                 title=t(lang, "mod.unban_title"),
                 description=t(lang, "mod.unban_desc", user=str(user)),
                 color=Colors.SUCCESS
             )
             embed.add_field(name=t(lang, "mod.unban_reason"), value=raison)
+            embed.set_footer(text=t(lang, "mod.case_footer", id=case_id))
             await interaction.response.send_message(embed=embed)
+            await self.bot.db.add_sanction(interaction.guild.id, uid, interaction.user.id, "unban", raison, case_id=case_id)
             if logs := get_logs(self.bot):
                 await logs.log_unban(interaction.guild, user, interaction.user, raison)
         except discord.NotFound:
@@ -258,6 +267,7 @@ class Moderation(commands.Cog):
         if seconds > 2419200:
             return await interaction.response.send_message(t(lang, "mod.mute_max_duration"), ephemeral=True)
 
+        case_id = await self.bot.db.next_case_id(interaction.guild.id)
         until = datetime.now(timezone.utc) + delta
         await membre.timeout(until, reason=raison)
         duration_label = duration_to_str(durée)
@@ -270,6 +280,7 @@ class Moderation(commands.Cog):
         embed.add_field(name=t(lang, "mod.mute_duration"), value=duration_label, inline=True)
         embed.add_field(name=t(lang, "mod.mute_end"),      value=discord.utils.format_dt(until, 'R'), inline=True)
         embed.add_field(name=t(lang, "mod.mute_reason"),   value=raison, inline=False)
+        embed.set_footer(text=t(lang, "mod.case_footer", id=case_id))
         await interaction.response.send_message(embed=embed)
 
         try:
@@ -277,7 +288,7 @@ class Moderation(commands.Cog):
         except discord.Forbidden:
             pass
 
-        await self.bot.db.add_sanction(interaction.guild.id, membre.id, interaction.user.id, "mute", raison, duration_label)
+        await self.bot.db.add_sanction(interaction.guild.id, membre.id, interaction.user.id, "mute", raison, duration_label, case_id=case_id)
         if logs := get_logs(self.bot):
             await logs.log_mute(interaction.guild, membre, interaction.user, raison, duration_label)
 
@@ -290,6 +301,7 @@ class Moderation(commands.Cog):
         lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         if not membre.is_timed_out():
             return await interaction.response.send_message(t(lang, "mod.unmute_not_muted"), ephemeral=True)
+        case_id = await self.bot.db.next_case_id(interaction.guild.id)
         await membre.timeout(None, reason=raison)
         embed = discord.Embed(
             title=t(lang, "mod.unmute_title"),
@@ -297,7 +309,9 @@ class Moderation(commands.Cog):
             color=Colors.SUCCESS
         )
         embed.add_field(name=t(lang, "mod.unmute_reason"), value=raison)
+        embed.set_footer(text=t(lang, "mod.case_footer", id=case_id))
         await interaction.response.send_message(embed=embed)
+        await self.bot.db.add_sanction(interaction.guild.id, membre.id, interaction.user.id, "unmute", raison, case_id=case_id)
         if logs := get_logs(self.bot):
             await logs.log_unmute(interaction.guild, membre, interaction.user, raison)
 
@@ -311,6 +325,7 @@ class Moderation(commands.Cog):
         if membre.bot:
             return await interaction.response.send_message(t(lang, "mod.warn_bot"), ephemeral=True)
 
+        case_id = await self.bot.db.next_case_id(interaction.guild.id)
         warn_id = await self.bot.db.add_warning(interaction.guild.id, membre.id, interaction.user.id, raison)
         total   = await self.bot.db.get_warning_count(interaction.guild.id, membre.id)
 
@@ -321,7 +336,7 @@ class Moderation(commands.Cog):
         )
         embed.add_field(name=t(lang, "mod.warn_reason"), value=raison, inline=False)
         embed.add_field(name=t(lang, "mod.warn_total"),  value=str(total), inline=True)
-        embed.set_footer(text=t(lang, "mod.warn_footer", id=warn_id))
+        embed.set_footer(text=t(lang, "mod.warn_footer_combined", case_id=case_id, warn_id=warn_id))
         await interaction.response.send_message(embed=embed)
 
         try:
@@ -329,7 +344,7 @@ class Moderation(commands.Cog):
         except discord.Forbidden:
             pass
 
-        await self.bot.db.add_sanction(interaction.guild.id, membre.id, interaction.user.id, "warn", raison)
+        await self.bot.db.add_sanction(interaction.guild.id, membre.id, interaction.user.id, "warn", raison, case_id=case_id)
         if logs := get_logs(self.bot):
             await logs.log_warn(interaction.guild, membre, interaction.user, raison, warn_id, total)
 
@@ -476,6 +491,71 @@ class Moderation(commands.Cog):
         await interaction.response.send_message(embed=embed)
         if logs := get_logs(self.bot):
             await logs.log_lock(interaction.guild, interaction.channel, interaction.user, raison, False)
+
+    # ── /nick ────────────────────────────────────────────────────────────────
+
+    nick_group = app_commands.Group(name="nick", description="Gestion des pseudos")
+
+    @nick_group.command(name="reset", description="Réinitialise le pseudo d'un membre et retire tout verrouillage")
+    @app_commands.describe(membre="Le membre dont réinitialiser le pseudo")
+    @app_commands.default_permissions(manage_nicknames=True)
+    async def nick_reset(self, interaction: discord.Interaction, membre: discord.Member):
+        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
+        if not self._can_act_on(interaction, membre):
+            return await interaction.response.send_message(t(lang, "mod.cant_act"), ephemeral=True)
+        await self.bot.db.remove_nickname_lock(interaction.guild.id, membre.id)
+        try:
+            await membre.edit(nick=None, reason=f"Pseudo réinitialisé par {interaction.user}")
+        except discord.Forbidden:
+            return await interaction.response.send_message(t(lang, "mod.nick_no_perms"), ephemeral=True)
+        embed = discord.Embed(description=t(lang, "mod.nick_reset_success", member=membre.mention), color=Colors.SUCCESS)
+        await interaction.response.send_message(embed=embed)
+        if logs := get_logs(self.bot):
+            await logs.log_config_change(interaction.guild, interaction.user, t(lang, "mod.nick_field"), t(lang, "mod.nick_reset_log", member=str(membre)))
+
+    @nick_group.command(name="lock", description="Verrouille le pseudo d'un membre (annule tout changement futur)")
+    @app_commands.describe(membre="Le membre à verrouiller", pseudo="Nouveau pseudo à imposer (pseudo actuel si vide)")
+    @app_commands.default_permissions(manage_nicknames=True)
+    async def nick_lock(self, interaction: discord.Interaction, membre: discord.Member, pseudo: str = None):
+        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
+        if not self._can_act_on(interaction, membre):
+            return await interaction.response.send_message(t(lang, "mod.cant_act"), ephemeral=True)
+        locked_nick = pseudo or membre.display_name
+        try:
+            if membre.nick != locked_nick:
+                await membre.edit(nick=locked_nick, reason=f"Pseudo verrouillé par {interaction.user}")
+        except discord.Forbidden:
+            return await interaction.response.send_message(t(lang, "mod.nick_no_perms"), ephemeral=True)
+        await self.bot.db.set_nickname_lock(interaction.guild.id, membre.id, locked_nick)
+        embed = discord.Embed(description=t(lang, "mod.nick_lock_success", member=membre.mention, nick=locked_nick), color=Colors.WARNING)
+        await interaction.response.send_message(embed=embed)
+        if logs := get_logs(self.bot):
+            await logs.log_config_change(interaction.guild, interaction.user, t(lang, "mod.nick_field"), t(lang, "mod.nick_lock_log", member=str(membre), nick=locked_nick))
+
+    @nick_group.command(name="unlock", description="Retire le verrouillage du pseudo d'un membre")
+    @app_commands.describe(membre="Le membre à déverrouiller")
+    @app_commands.default_permissions(manage_nicknames=True)
+    async def nick_unlock(self, interaction: discord.Interaction, membre: discord.Member):
+        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
+        removed = await self.bot.db.remove_nickname_lock(interaction.guild.id, membre.id)
+        if not removed:
+            return await interaction.response.send_message(t(lang, "mod.nick_not_locked"), ephemeral=True)
+        embed = discord.Embed(description=t(lang, "mod.nick_unlock_success", member=membre.mention), color=Colors.SUCCESS)
+        await interaction.response.send_message(embed=embed)
+        if logs := get_logs(self.bot):
+            await logs.log_config_change(interaction.guild, interaction.user, t(lang, "mod.nick_field"), t(lang, "mod.nick_unlock_log", member=str(membre)))
+
+    @commands.Cog.listener()
+    async def on_member_update(self, before: discord.Member, after: discord.Member):
+        if before.nick == after.nick:
+            return
+        lock = await self.bot.db.get_nickname_lock(after.guild.id, after.id)
+        if not lock or after.nick == lock["locked_nick"]:
+            return
+        try:
+            await after.edit(nick=lock["locked_nick"], reason="Pseudo verrouillé")
+        except discord.Forbidden:
+            pass
 
     # ── Background task: check temp bans ─────────────────────────────────────
 
