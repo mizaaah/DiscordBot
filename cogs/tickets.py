@@ -6,7 +6,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from utils.colors import Colors
-from utils.embeds import error_embed
+from utils.embeds import error_embed, info_embed, success_embed
 from utils.i18n import t
 
 
@@ -27,11 +27,11 @@ async def _open_ticket(bot: commands.Bot, interaction: discord.Interaction, cate
     if existing:
         ch = guild.get_channel(existing["channel_id"])
         if ch:
-            return await reply(t(lang, "ticket.already_open", channel=ch.mention), ephemeral=True)
+            return await reply(embed=error_embed(t(lang, "ticket.already_open", channel=ch.mention)), ephemeral=True)
 
     config = await bot.db.get_ticket_config(guild.id)
     if not config.get("staff_role_id"):
-        return await reply(t(lang, "ticket.not_configured"), ephemeral=True)
+        return await reply(embed=error_embed(t(lang, "ticket.not_configured")), ephemeral=True)
 
     ticket_cat   = guild.get_channel(config["category_id"])  if config.get("category_id")  else None
     staff_role   = guild.get_role(config["staff_role_id"])   if config.get("staff_role_id") else None
@@ -67,7 +67,7 @@ async def _open_ticket(bot: commands.Bot, interaction: discord.Interaction, cate
             overwrites=overwrites, reason=f"Ticket ouvert par {user}"
         )
     except discord.Forbidden:
-        return await reply(t(lang, "ticket.cant_create_channel"), ephemeral=True)
+        return await reply(embed=error_embed(t(lang, "ticket.cant_create_channel")), ephemeral=True)
 
     await bot.db.create_ticket(guild.id, channel.id, user.id, ticket_num, category)
 
@@ -97,7 +97,7 @@ async def _open_ticket(bot: commands.Bot, interaction: discord.Interaction, cate
 
     await channel.send(embed=embed, view=TicketCloseView(bot, config.get("close_button_label"), config.get("close_button_emoji")))
     await channel.send(user.mention, delete_after=1)
-    await reply(t(lang, "ticket.created", channel=channel.mention), ephemeral=True)
+    await reply(embed=success_embed(t(lang, "ticket.created", channel=channel.mention)), ephemeral=True)
 
     if logs := bot.get_cog("Logs"):
         log_embed = discord.Embed(title=t(lang, "ticket.log_opened_title"), color=Colors.SUCCESS)
@@ -151,7 +151,7 @@ class TicketOpenView(discord.ui.View):
 
         if categories:
             await interaction.response.send_message(
-                t(lang, "ticket.pick_category"),
+                embed=info_embed(t(lang, "ticket.pick_category")),
                 view=TicketCategoryView(self.bot, categories),
                 ephemeral=True
             )
@@ -190,7 +190,7 @@ class TicketCloseView(discord.ui.View):
 
         if not (is_owner or is_staff):
             return await interaction.response.send_message(
-                t(lang, "ticket.close_denied"), ephemeral=True
+                embed=error_embed(t(lang, "ticket.close_denied")), ephemeral=True
             )
 
         await interaction.response.send_message(
@@ -311,7 +311,7 @@ class TicketCloseConfirmView(discord.ui.View):
     @discord.ui.button(label="❌ Annuler", style=discord.ButtonStyle.secondary)
     async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.stop()
-        await interaction.response.send_message(t(self.lang, "ticket.close_cancelled"), ephemeral=True)
+        await interaction.response.send_message(embed=info_embed(t(self.lang, "ticket.close_cancelled")), ephemeral=True)
 
 
 # ── Cog ───────────────────────────────────────────────────────────────────────
@@ -372,7 +372,7 @@ class Tickets(commands.Cog):
         await db.update_ticket_config(gid, "panel_channel_id", salon.id)
 
         await interaction.response.send_message(
-            t(lang, "ticket.setup_success", channel=salon.mention), ephemeral=True
+            embed=success_embed(t(lang, "ticket.setup_success", channel=salon.mention)), ephemeral=True
         )
 
     @ticket_group.command(name="categories", description="Définit les catégories de tickets (menu déroulant à l'ouverture)")
@@ -463,7 +463,7 @@ class Tickets(commands.Cog):
                 raise ValueError
         except ValueError:
             return await interaction.response.send_message(
-                t(lang, "ticket.invalid_color"), ephemeral=True
+                embed=error_embed(t(lang, "ticket.invalid_color")), ephemeral=True
             )
         await self.bot.db.update_ticket_config(interaction.guild.id, "embed_color", color_int)
         embed = discord.Embed(
@@ -554,7 +554,7 @@ class Tickets(commands.Cog):
             return await interaction.response.send_message(embed=error_embed(t(lang, "ticket.not_a_ticket")), ephemeral=True)
         if ticket["user_id"] == membre.id:
             return await interaction.response.send_message(
-                t(lang, "ticket.cant_remove_creator"), ephemeral=True
+                embed=error_embed(t(lang, "ticket.cant_remove_creator")), ephemeral=True
             )
         await interaction.channel.set_permissions(membre, overwrite=None)
         embed = discord.Embed(description=t(lang, "ticket.member_removed", member=membre.mention), color=Colors.WARNING)
@@ -572,7 +572,7 @@ class Tickets(commands.Cog):
         if ticket.get("claimed_by"):
             claimer = interaction.guild.get_member(ticket["claimed_by"])
             return await interaction.response.send_message(
-                t(lang, "ticket.already_claimed", claimer=claimer.mention if claimer else t(lang, "ticket.unknown")), ephemeral=True
+                embed=error_embed(t(lang, "ticket.already_claimed", claimer=claimer.mention if claimer else t(lang, "ticket.unknown"))), ephemeral=True
             )
         await self.bot.db.claim_ticket(interaction.channel.id, interaction.user.id)
         embed = discord.Embed(

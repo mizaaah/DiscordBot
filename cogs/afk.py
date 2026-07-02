@@ -3,6 +3,7 @@ from discord import app_commands
 from discord.ext import commands
 from datetime import datetime, timezone
 
+from utils.embeds import info_embed, success_embed
 from utils.i18n import t
 
 
@@ -46,7 +47,7 @@ class AFK(commands.Cog):
             elapsed = (discord.utils.utcnow() - since_dt).total_seconds()
             duration_str = _fmt_duration(int(elapsed), lang)
             await interaction.response.send_message(
-                t(lang, "afk.back", member=interaction.user.mention, duration=duration_str),
+                embed=info_embed(t(lang, "afk.back", member=interaction.user.mention, duration=duration_str)),
                 ephemeral=True,
             )
             return
@@ -64,7 +65,7 @@ class AFK(commands.Cog):
             pass
 
         await interaction.response.send_message(
-            t(lang, "afk.set_success", reason=raison),
+            embed=success_embed(t(lang, "afk.set_success", reason=raison)),
             ephemeral=True,
         )
 
@@ -95,7 +96,7 @@ class AFK(commands.Cog):
                 pass
 
             await message.channel.send(
-                t(lang, "afk.back", member=message.author.mention, duration=duration_str),
+                embed=info_embed(t(lang, "afk.back", member=message.author.mention, duration=duration_str)),
                 delete_after=10,
             )
             return  # Don't also check mentions in the same message
@@ -114,13 +115,13 @@ class AFK(commands.Cog):
             duration_str = _fmt_duration(int(elapsed), lang)
 
             await message.channel.send(
-                t(
+                embed=info_embed(t(
                     lang,
                     "afk.ping_notify",
                     member=member.display_name,
                     reason=afk_info["reason"],
                     duration=duration_str,
-                ),
+                )),
                 delete_after=10,
             )
             notified += 1

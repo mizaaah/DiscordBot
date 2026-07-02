@@ -4,6 +4,7 @@ from discord.ext import commands
 
 from utils.i18n import t
 from utils.colors import Colors
+from utils.embeds import success_embed
 
 
 class Starboard(commands.Cog):
@@ -32,7 +33,7 @@ class Starboard(commands.Cog):
         lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         await self.bot.db.update_starboard_config(interaction.guild_id, salon.id, seuil)
         await interaction.response.send_message(
-            t(lang, "star.config_success", threshold=seuil, channel=salon.mention),
+            embed=success_embed(t(lang, "star.config_success", threshold=seuil, channel=salon.mention)),
             ephemeral=True,
         )
 
@@ -41,7 +42,7 @@ class Starboard(commands.Cog):
         lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         await self.bot.db.disable_starboard(interaction.guild_id)
         await interaction.response.send_message(
-            t(lang, "star.disable_success"),
+            embed=success_embed(t(lang, "star.disable_success")),
             ephemeral=True,
         )
 

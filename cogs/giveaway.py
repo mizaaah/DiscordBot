@@ -9,7 +9,7 @@ from discord.ext import commands, tasks
 from utils.i18n import t
 from utils.helpers import parse_duration
 from utils.colors import Colors
-from utils.embeds import error_embed, success_embed
+from utils.embeds import error_embed, info_embed, success_embed
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -84,7 +84,7 @@ class GiveawayButton(discord.ui.Button):
 
         if row["ended"]:
             return await interaction.response.send_message(
-                t(lang, "giveaway.already_ended"), ephemeral=True
+                embed=error_embed(t(lang, "giveaway.already_ended")), ephemeral=True
             )
 
         # Participants are stored in the separate `participants` column.
@@ -110,8 +110,8 @@ class GiveawayButton(discord.ui.Button):
 
         await interaction.response.edit_message(embed=embed, view=new_view)
 
-        msg = t(lang, "giveaway.join_success") if joined else t(lang, "giveaway.leave_success")
-        await interaction.followup.send(msg, ephemeral=True)
+        msg = success_embed(t(lang, "giveaway.join_success")) if joined else info_embed(t(lang, "giveaway.leave_success"))
+        await interaction.followup.send(embed=msg, ephemeral=True)
 
 
 class GiveawayView(discord.ui.View):
@@ -220,7 +220,7 @@ class Giveaway(commands.Cog):
             _seconds, delta = parse_duration(durée)
         except ValueError:
             return await interaction.followup.send(
-                t(lang, "giveaway.invalid_duration"), ephemeral=True
+                embed=error_embed(t(lang, "giveaway.invalid_duration")), ephemeral=True
             )
 
         channel = salon or interaction.channel
@@ -244,13 +244,13 @@ class Giveaway(commands.Cog):
             message = await channel.send(embed=embed, view=view)
         except discord.Forbidden:
             return await interaction.followup.send(
-                "❌ Je n'ai pas la permission d'envoyer des messages dans ce salon.",
+                embed=error_embed(t(lang, "giveaway.cant_send")),
                 ephemeral=True,
             )
 
         await self.bot.db.set_giveaway_message(giveaway_id, message.id)
         await interaction.followup.send(
-            t(lang, "giveaway.created", channel=channel.mention), ephemeral=True
+            embed=success_embed(t(lang, "giveaway.created", channel=channel.mention)), ephemeral=True
         )
 
     @giveaway_group.command(name="end", description="Termine manuellement un giveaway et tire les gagnants")
@@ -262,16 +262,16 @@ class Giveaway(commands.Cog):
 
         row = await self.bot.db.get_giveaway(id)
         if not row or row["guild_id"] != interaction.guild_id:
-            return await interaction.followup.send(t(lang, "giveaway.not_found"), ephemeral=True)
+            return await interaction.followup.send(embed=error_embed(t(lang, "giveaway.not_found")), ephemeral=True)
         if row["ended"]:
-            return await interaction.followup.send(t(lang, "giveaway.already_ended"), ephemeral=True)
+            return await interaction.followup.send(embed=error_embed(t(lang, "giveaway.already_ended")), ephemeral=True)
 
         winner_ids, _ended_row = await self._draw_and_end(id)
         if winner_ids is None:
             # Raced with background task or already ended — surface a safe error.
-            return await interaction.followup.send(t(lang, "giveaway.already_ended"), ephemeral=True)
+            return await interaction.followup.send(embed=error_embed(t(lang, "giveaway.already_ended")), ephemeral=True)
 
-        await interaction.followup.send(embed=success_embed("✅ Giveaway terminé."), ephemeral=True)
+        await interaction.followup.send(embed=success_embed(t(lang, "giveaway.ended_success")), ephemeral=True)
 
     @giveaway_group.command(name="reroll", description="Relance le tirage au sort pour un giveaway terminé")
     @app_commands.describe(id="ID du giveaway terminé")
@@ -282,16 +282,16 @@ class Giveaway(commands.Cog):
 
         row = await self.bot.db.get_giveaway(id)
         if not row or row["guild_id"] != interaction.guild_id:
-            return await interaction.followup.send(t(lang, "giveaway.not_found"), ephemeral=True)
+            return await interaction.followup.send(embed=error_embed(t(lang, "giveaway.not_found")), ephemeral=True)
         if not row["ended"]:
             return await interaction.followup.send(
-                "❌ Ce giveaway n'est pas encore terminé.", ephemeral=True
+                embed=error_embed(t(lang, "giveaway.not_ended_yet")), ephemeral=True
             )
 
         # Reroll draws from the original participant pool stored separately.
         participants = json.loads(row.get("participants") or "[]")
         if not participants:
-            return await interaction.followup.send(t(lang, "giveaway.no_winner"), ephemeral=True)
+            return await interaction.followup.send(embed=error_embed(t(lang, "giveaway.no_winner")), ephemeral=True)
 
         winner_id = random.choice(participants)
         embed = discord.Embed(

@@ -1,7 +1,7 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
-from utils.embeds import error_embed
+from utils.embeds import error_embed, info_embed, success_embed
 from utils.i18n import t
 
 DEFAULT_MSG = "🚀 {mention} vient de booster **{server}** ! Merci infiniment ! 🎉"
@@ -20,7 +20,7 @@ class BoostView(discord.ui.View):
         booster = interaction.guild.get_member(self.booster_id)
         name    = booster.display_name if booster else t(lang, "boost.this_member")
         await interaction.response.send_message(
-            t(lang, "boost.thanks_msg", user=interaction.user.mention, name=name),
+            embed=info_embed(t(lang, "boost.thanks_msg", user=interaction.user.mention, name=name)),
             allowed_mentions=discord.AllowedMentions(users=False),
         )
 
@@ -111,7 +111,7 @@ class Boost(commands.Cog):
         lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         await self.bot.db.update_boost_config(interaction.guild.id, "message", texte)
         await interaction.response.send_message(
-            t(lang, "boost.message_updated", text=texte), ephemeral=True
+            embed=success_embed(t(lang, "boost.message_updated", text=texte)), ephemeral=True
         )
 
     @boost_group.command(name="status", description="Affiche la configuration des boost rewards")

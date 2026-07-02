@@ -2,6 +2,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from utils.colors import Colors
+from utils.embeds import info_embed
 from utils.i18n import t
 
 
@@ -69,7 +70,7 @@ class AntiGhostping(commands.Cog):
         lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         await self.bot.db.update_guild_setting(interaction.guild.id, "ghostping_enabled", int(activer))
         state = t(lang, "ghost.enabled") if activer else t(lang, "ghost.disabled")
-        await interaction.response.send_message(t(lang, "ghost.toggle_result", state=state))
+        await interaction.response.send_message(embed=info_embed(t(lang, "ghost.toggle_result", state=state)))
 
 
 async def setup(bot: commands.Bot):

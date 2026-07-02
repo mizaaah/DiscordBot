@@ -3,7 +3,7 @@ import json
 from discord import app_commands
 from discord.ext import commands
 from utils.colors import Colors
-from utils.embeds import error_embed, success_embed
+from utils.embeds import error_embed, info_embed, success_embed
 from utils.i18n import t
 
 
@@ -321,7 +321,7 @@ class TempVoiceControlView(discord.ui.View):
         if not await _owner_only(interaction, row, lang): return
         view = discord.ui.View(timeout=30)
         view.add_item(TransferUserSelect(row["channel_id"], lang))
-        await interaction.response.send_message(t(lang, "tv.pick_new_owner"), view=view, ephemeral=True)
+        await interaction.response.send_message(embed=info_embed(t(lang, "tv.pick_new_owner")), view=view, ephemeral=True)
 
     # ── Row 2 : Autoriser | Expulser | Supprimer ──────────────────────────────
 
@@ -333,7 +333,7 @@ class TempVoiceControlView(discord.ui.View):
         if not await _owner_only(interaction, row, lang): return
         view = discord.ui.View(timeout=30)
         view.add_item(AllowUserSelect(row["channel_id"], lang))
-        await interaction.response.send_message(t(lang, "tv.pick_user_allow"), view=view, ephemeral=True)
+        await interaction.response.send_message(embed=info_embed(t(lang, "tv.pick_user_allow")), view=view, ephemeral=True)
 
     @discord.ui.button(label="🚫 Expulser", style=discord.ButtonStyle.danger, custom_id="tv_kick", row=2)
     async def btn_kick(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -343,7 +343,7 @@ class TempVoiceControlView(discord.ui.View):
         if not await _owner_only(interaction, row, lang): return
         view = discord.ui.View(timeout=30)
         view.add_item(KickUserSelect(row["channel_id"], lang))
-        await interaction.response.send_message(t(lang, "tv.pick_user_kick"), view=view, ephemeral=True)
+        await interaction.response.send_message(embed=info_embed(t(lang, "tv.pick_user_kick")), view=view, ephemeral=True)
 
     @discord.ui.button(label="🗑️ Supprimer", style=discord.ButtonStyle.danger, custom_id="tv_delete", row=2)
     async def btn_delete(self, interaction: discord.Interaction, button: discord.ui.Button):

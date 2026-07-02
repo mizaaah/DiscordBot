@@ -2,7 +2,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from utils.colors import Colors
-from utils.embeds import error_embed, success_embed
+from utils.embeds import error_embed, info_embed, success_embed
 from utils.i18n import t
 
 STYLE_MAP = {
@@ -31,7 +31,7 @@ class RoleButton(discord.ui.Button):
             return await interaction.response.send_message(embed=error_embed(t(lang, "rr.role_gone")), ephemeral=True)
         if role >= interaction.guild.me.top_role:
             return await interaction.response.send_message(
-                t(lang, "rr.role_too_high"), ephemeral=True
+                embed=error_embed(t(lang, "rr.role_too_high")), ephemeral=True
             )
         if role in interaction.user.roles:
             await interaction.user.remove_roles(role, reason="Rôle réactif — retrait")
@@ -132,7 +132,7 @@ class ReactionRoles(commands.Cog):
         panel_id = await self.bot.db.create_rr_panel(interaction.guild.id, salon.id, msg.id, titre, description, exclusive=exclusif)
 
         await interaction.response.send_message(
-            t(lang, "rr.create_success", panel_id=panel_id, channel=salon.mention),
+            embed=success_embed(t(lang, "rr.create_success", panel_id=panel_id, channel=salon.mention)),
             ephemeral=True
         )
 
@@ -170,14 +170,14 @@ class ReactionRoles(commands.Cog):
 
         if role >= interaction.guild.me.top_role:
             return await interaction.response.send_message(
-                t(lang, "rr.role_too_high"), ephemeral=True
+                embed=error_embed(t(lang, "rr.role_too_high")), ephemeral=True
             )
 
         btn_id = await self.bot.db.add_rr_button(panel_id, role.id, etiquette, emoji, couleur)
         await self._rebuild_panel(interaction.guild, dict(panel), panel_id, lang)
 
         await interaction.response.send_message(
-            t(lang, "rr.add_success", btn_id=btn_id, panel_id=panel_id, role=role.mention), ephemeral=True
+            embed=success_embed(t(lang, "rr.add_success", btn_id=btn_id, panel_id=panel_id, role=role.mention)), ephemeral=True
         )
 
     # ── /rr remove ────────────────────────────────────────────────────────────
@@ -196,7 +196,7 @@ class ReactionRoles(commands.Cog):
         await self._rebuild_panel(interaction.guild, dict(panel), panel_id, lang)
 
         await interaction.response.send_message(
-            t(lang, "rr.remove_success", btn_id=bouton_id, panel_id=panel_id), ephemeral=True
+            embed=success_embed(t(lang, "rr.remove_success", btn_id=bouton_id, panel_id=panel_id)), ephemeral=True
         )
 
     # ── /rr delete ────────────────────────────────────────────────────────────
@@ -231,7 +231,7 @@ class ReactionRoles(commands.Cog):
         panels = await self.bot.db.get_all_rr_panels(interaction.guild.id)
         if not panels:
             return await interaction.response.send_message(
-                t(lang, "rr.list_empty"), ephemeral=True
+                embed=info_embed(t(lang, "rr.list_empty")), ephemeral=True
             )
 
         embed = discord.Embed(title=t(lang, "rr.list_title"), color=Colors.INFO)

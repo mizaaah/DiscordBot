@@ -48,7 +48,7 @@ class CmdPerms(commands.Cog):
         denied = {p["target_id"] for p in perms if p["type"] == "deny_role"}
         if denied & role_ids:
             await interaction.response.send_message(
-                t(lang, "cmdperm.denied_role"), ephemeral=True
+                embed=error_embed(t(lang, "cmdperm.denied_role")), ephemeral=True
             )
             return False
 
@@ -57,7 +57,7 @@ class CmdPerms(commands.Cog):
         if allowed_ch and interaction.channel_id not in allowed_ch:
             ch_list = " ".join(f"<#{cid}>" for cid in list(allowed_ch)[:5])
             await interaction.response.send_message(
-                t(lang, "cmdperm.wrong_channel", channels=ch_list), ephemeral=True
+                embed=error_embed(t(lang, "cmdperm.wrong_channel", channels=ch_list)), ephemeral=True
             )
             return False
 
@@ -65,7 +65,7 @@ class CmdPerms(commands.Cog):
         allowed_r = {p["target_id"] for p in perms if p["type"] == "allow_role"}
         if allowed_r and not (allowed_r & role_ids):
             await interaction.response.send_message(
-                t(lang, "cmdperm.missing_role"), ephemeral=True
+                embed=error_embed(t(lang, "cmdperm.missing_role")), ephemeral=True
             )
             return False
 
@@ -100,7 +100,7 @@ class CmdPerms(commands.Cog):
         lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         await self.bot.db.add_cmd_permission(interaction.guild.id, commande, "allow_role", role.id)
         await interaction.response.send_message(
-            t(lang, "cmdperm.allow_role_success", command=commande, role=role.mention)
+            embed=success_embed(t(lang, "cmdperm.allow_role_success", command=commande, role=role.mention))
         )
         if logs := get_logs(self.bot):
             await logs.log_config_change(interaction.guild, interaction.user, f"cmdperm allow-role /{commande}", role.mention)
@@ -113,7 +113,7 @@ class CmdPerms(commands.Cog):
         lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         await self.bot.db.add_cmd_permission(interaction.guild.id, commande, "deny_role", role.id)
         await interaction.response.send_message(
-            t(lang, "cmdperm.deny_role_success", role=role.mention, command=commande)
+            embed=success_embed(t(lang, "cmdperm.deny_role_success", role=role.mention, command=commande))
         )
         if logs := get_logs(self.bot):
             await logs.log_config_change(interaction.guild, interaction.user, f"cmdperm deny-role /{commande}", role.mention)
@@ -126,7 +126,7 @@ class CmdPerms(commands.Cog):
         lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         await self.bot.db.add_cmd_permission(interaction.guild.id, commande, "allow_channel", salon.id)
         await interaction.response.send_message(
-            t(lang, "cmdperm.channel_success", command=commande, channel=salon.mention)
+            embed=success_embed(t(lang, "cmdperm.channel_success", command=commande, channel=salon.mention))
         )
         if logs := get_logs(self.bot):
             await logs.log_config_change(interaction.guild, interaction.user, f"cmdperm channel /{commande}", salon.mention)

@@ -88,7 +88,7 @@ class AutoSanctions(commands.Cog):
         if action in ACTION_NEEDS_DURATION:
             if not duree:
                 return await interaction.response.send_message(
-                    t(lang, "asanc.duration_required", action=action), ephemeral=True
+                    embed=error_embed(t(lang, "asanc.duration_required", action=action)), ephemeral=True
                 )
             try:
                 duration, _ = parse_duration(duree)
@@ -98,7 +98,7 @@ class AutoSanctions(commands.Cog):
         await self.bot.db.add_autosanction(interaction.guild.id, warns, action, duration)
         label = _action_label(lang, action, duration)
         await interaction.response.send_message(
-            t(lang, "asanc.add_success", warns=warns, label=label)
+            embed=success_embed(t(lang, "asanc.add_success", warns=warns, label=label))
         )
 
     async def _threshold_autocomplete(self, interaction: discord.Interaction, current: str):

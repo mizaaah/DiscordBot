@@ -127,7 +127,7 @@ class Report(commands.Cog):
         report_ch = interaction.guild.get_channel(settings.get("report_channel_id") or 0)
         if not report_ch:
             return await interaction.response.send_message(
-                t(lang, "report.no_channel_configured"),
+                embed=error_embed(t(lang, "report.no_channel_configured")),
                 ephemeral=True
             )
 
@@ -153,7 +153,7 @@ class Report(commands.Cog):
             interaction.guild.id, msg.id, interaction.user.id, membre.id, raison
         )
         await interaction.response.send_message(
-            t(lang, "report.sent"), ephemeral=True
+            embed=success_embed(t(lang, "report.sent")), ephemeral=True
         )
 
     @app_commands.command(name="setreport", description="Définit le canal de signalement")

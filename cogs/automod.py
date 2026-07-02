@@ -8,6 +8,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from utils.colors import Colors
+from utils.embeds import info_embed, success_embed
 from utils.i18n import t
 
 INVITE_REGEX = re.compile(r"discord(?:\.gg|app\.com/invite)/[a-zA-Z0-9-]+", re.IGNORECASE)
@@ -60,7 +61,7 @@ class AutoMod(commands.Cog):
             total = await self.bot.db.get_warning_count(guild.id, member.id)
             try:
                 await message.channel.send(
-                    t(lang, "automod.warn_msg", member=member.mention, total=total),
+                    embed=info_embed(t(lang, "automod.warn_msg", member=member.mention, total=total)),
                     delete_after=6
                 )
             except discord.Forbidden:
@@ -77,7 +78,7 @@ class AutoMod(commands.Cog):
             try:
                 await member.timeout(until, reason=f"[AutoMod] {reason}")
                 await message.channel.send(
-                    t(lang, "automod.mute_msg", member=member.mention), delete_after=6
+                    embed=info_embed(t(lang, "automod.mute_msg", member=member.mention)), delete_after=6
                 )
             except discord.Forbidden:
                 pass
@@ -253,7 +254,7 @@ class AutoMod(commands.Cog):
         lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         await self.bot.db.update_automod_setting(interaction.guild.id, "enabled", activer)
         state = t(lang, "common.enabled") if activer else t(lang, "common.disabled")
-        await interaction.response.send_message(t(lang, "automod.toggle_result", state=state))
+        await interaction.response.send_message(embed=info_embed(t(lang, "automod.toggle_result", state=state)))
 
     @automod_group.command(name="spam", description="Configure la détection de spam")
     @app_commands.describe(
@@ -274,7 +275,7 @@ class AutoMod(commands.Cog):
         await db.update_automod_setting(gid, "spam_action", action)
         state = t(lang, "common.enabled") if activer else t(lang, "common.disabled")
         await interaction.response.send_message(
-            t(lang, "automod.spam_result", state=state, threshold=seuil, window=fenetre, action=action)
+            embed=info_embed(t(lang, "automod.spam_result", state=state, threshold=seuil, window=fenetre, action=action))
         )
 
     @automod_group.command(name="flood", description="Configure la détection de flood (messages identiques)")
@@ -290,7 +291,7 @@ class AutoMod(commands.Cog):
         await db.update_automod_setting(gid, "flood_action", action)
         state = t(lang, "common.enabled") if activer else t(lang, "common.disabled")
         await interaction.response.send_message(
-            t(lang, "automod.flood_result", state=state, threshold=seuil, action=action)
+            embed=info_embed(t(lang, "automod.flood_result", state=state, threshold=seuil, action=action))
         )
 
     @automod_group.command(name="invites", description="Configure le filtre d'invitations Discord")
@@ -304,7 +305,7 @@ class AutoMod(commands.Cog):
         await db.update_automod_setting(gid, "invite_enabled", activer)
         await db.update_automod_setting(gid, "invite_action", action)
         state = t(lang, "common.enabled") if activer else t(lang, "common.disabled")
-        await interaction.response.send_message(t(lang, "automod.invites_result", state=state, action=action))
+        await interaction.response.send_message(embed=info_embed(t(lang, "automod.invites_result", state=state, action=action)))
 
     @automod_group.command(name="links", description="Configure le filtre anti-liens (bloque toutes les URLs)")
     @app_commands.describe(activer="Activer/désactiver", action="Action à effectuer")
@@ -317,7 +318,7 @@ class AutoMod(commands.Cog):
         await db.update_automod_setting(gid, "link_enabled", activer)
         await db.update_automod_setting(gid, "link_action", action)
         state = t(lang, "common.enabled") if activer else t(lang, "common.disabled")
-        await interaction.response.send_message(t(lang, "automod.links_result", state=state, action=action))
+        await interaction.response.send_message(embed=info_embed(t(lang, "automod.links_result", state=state, action=action)))
 
     @automod_group.command(name="linkwhitelist", description="Ajoute ou retire un domaine autorisé par l'anti-liens")
     @app_commands.describe(domaine="Nom de domaine (ex: youtube.com)", action="Ajouter ou retirer")
@@ -334,12 +335,12 @@ class AutoMod(commands.Cog):
         if action == "add":
             if domaine not in whitelist:
                 whitelist.append(domaine)
-            msg = t(lang, "automod.whitelist_added", domain=domaine)
+            msg = success_embed(t(lang, "automod.whitelist_added", domain=domaine))
         else:
             whitelist = [d for d in whitelist if d != domaine]
-            msg = t(lang, "automod.whitelist_removed", domain=domaine)
+            msg = success_embed(t(lang, "automod.whitelist_removed", domain=domaine))
         await self.bot.db.update_automod_setting(interaction.guild.id, "link_whitelist", whitelist)
-        await interaction.response.send_message(msg)
+        await interaction.response.send_message(embed=msg)
 
     @automod_group.command(name="caps", description="Configure le filtre anti-majuscules")
     @app_commands.describe(
@@ -360,7 +361,7 @@ class AutoMod(commands.Cog):
         await db.update_automod_setting(gid, "caps_action", action)
         state = t(lang, "common.enabled") if activer else t(lang, "common.disabled")
         await interaction.response.send_message(
-            t(lang, "automod.caps_result", state=state, pct=pourcentage, min_length=min_longueur, action=action)
+            embed=info_embed(t(lang, "automod.caps_result", state=state, pct=pourcentage, min_length=min_longueur, action=action))
         )
 
     @automod_group.command(name="mentions", description="Configure le filtre anti-mentions massives")
@@ -376,7 +377,7 @@ class AutoMod(commands.Cog):
         await db.update_automod_setting(gid, "mention_action", action)
         state = t(lang, "common.enabled") if activer else t(lang, "common.disabled")
         await interaction.response.send_message(
-            t(lang, "automod.mentions_result", state=state, threshold=seuil, action=action)
+            embed=info_embed(t(lang, "automod.mentions_result", state=state, threshold=seuil, action=action))
         )
 
     @automod_group.command(name="bypass", description="Ajoute ou retire un rôle ignoré par l'AutoMod")
@@ -393,12 +394,12 @@ class AutoMod(commands.Cog):
         if action == "add":
             if role.id not in bypass:
                 bypass.append(role.id)
-            msg = t(lang, "automod.bypass_added", role=role.mention)
+            msg = success_embed(t(lang, "automod.bypass_added", role=role.mention))
         else:
             bypass = [r for r in bypass if r != role.id]
-            msg = t(lang, "automod.bypass_removed", role=role.mention)
+            msg = success_embed(t(lang, "automod.bypass_removed", role=role.mention))
         await self.bot.db.update_automod_setting(interaction.guild.id, "bypass_roles", bypass)
-        await interaction.response.send_message(msg)
+        await interaction.response.send_message(embed=msg)
 
 
 async def setup(bot: commands.Bot):

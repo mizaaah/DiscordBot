@@ -6,6 +6,7 @@ from discord.ext import commands
 from utils.helpers import xp_for_level, total_xp_for_level
 from utils.i18n import t
 from utils.colors import Colors
+from utils.embeds import error_embed, success_embed
 
 
 XP_COOLDOWNS: dict[tuple[int, int], float] = {}
@@ -167,7 +168,7 @@ class XP(commands.Cog):
         lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         rows = await self.bot.db.get_leaderboard(interaction.guild.id, 100)
         if not rows:
-            return await interaction.response.send_message(t(lang, "xp.lb_empty"), ephemeral=True)
+            return await interaction.response.send_message(embed=error_embed(t(lang, "xp.lb_empty")), ephemeral=True)
 
         view  = LeaderboardView(rows, interaction.guild, lang)
         embed = view._build_embed()
@@ -184,7 +185,7 @@ class XP(commands.Cog):
         while total_xp_for_level(level + 1) <= montant:
             level += 1
         await self.bot.db.set_xp(interaction.guild.id, membre.id, montant, level)
-        await interaction.response.send_message(t(lang, "xp.set_success", member=membre.mention, xp=montant, level=level))
+        await interaction.response.send_message(embed=success_embed(t(lang, "xp.set_success", member=membre.mention, xp=montant, level=level)))
 
     @app_commands.command(name="addxp", description="Ajoute de l'XP à un membre")
     @app_commands.describe(membre="Le membre", montant="Le montant d'XP à ajouter")
@@ -197,7 +198,7 @@ class XP(commands.Cog):
             level += 1
             await self.bot.db.set_xp(interaction.guild.id, membre.id, data["xp"], level)
         await interaction.response.send_message(
-            t(lang, "xp.set_success", member=membre.mention, xp=data["xp"], level=level)
+            embed=success_embed(t(lang, "xp.set_success", member=membre.mention, xp=data["xp"], level=level))
         )
 
     @app_commands.command(name="resetxp", description="Réinitialise l'XP d'un membre")
@@ -206,7 +207,7 @@ class XP(commands.Cog):
     async def resetxp(self, interaction: discord.Interaction, membre: discord.Member):
         lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         await self.bot.db.reset_xp(interaction.guild.id, membre.id)
-        await interaction.response.send_message(t(lang, "xp.reset_success", member=membre.mention))
+        await interaction.response.send_message(embed=success_embed(t(lang, "xp.reset_success", member=membre.mention)))
 
 
 async def setup(bot: commands.Bot):

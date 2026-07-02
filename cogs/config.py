@@ -3,6 +3,7 @@ from discord import app_commands
 from discord.ext import commands
 from utils.i18n import t, SUPPORTED
 from utils.colors import Colors
+from utils.embeds import error_embed, success_embed
 
 
 def get_logs(bot: commands.Bot):
@@ -50,7 +51,7 @@ class SetupRoleSelect(discord.ui.RoleSelect):
         view: SetupView = self.view
         role = self.values[0]
         if role >= interaction.guild.me.top_role:
-            return await interaction.response.send_message(t(view.lang, "cfg.autorole_too_high"), ephemeral=True)
+            return await interaction.response.send_message(embed=error_embed(t(view.lang, "cfg.autorole_too_high")), ephemeral=True)
         await interaction.client.db.update_guild_setting(interaction.guild.id, "autorole_id", role.id)
         await view.refresh(interaction, t(view.lang, "setup.saved_role", role=role.mention))
 
@@ -265,11 +266,11 @@ class Config(commands.Cog):
         if lang not in SUPPORTED:
             cur_lang = await self.bot.db.get_guild_lang(interaction.guild_id)
             return await interaction.response.send_message(
-                t(cur_lang, "cfg.language_invalid", langs=", ".join(sorted(SUPPORTED))),
+                embed=error_embed(t(cur_lang, "cfg.language_invalid", langs=", ".join(sorted(SUPPORTED)))),
                 ephemeral=True
             )
         await self.bot.db.update_guild_setting(interaction.guild.id, "language", lang)
-        await interaction.response.send_message(t(lang, "cfg.language_success", lang=lang))
+        await interaction.response.send_message(embed=success_embed(t(lang, "cfg.language_success", lang=lang)))
         if logs := get_logs(self.bot):
             await logs.log_config_change(interaction.guild, interaction.user, t(lang, "cfg.language_field"), lang)
 
@@ -281,7 +282,7 @@ class Config(commands.Cog):
     async def setlogs(self, interaction: discord.Interaction, salon: discord.TextChannel):
         lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         await self.bot.db.update_guild_setting(interaction.guild.id, "log_channel_id", salon.id)
-        await interaction.response.send_message(t(lang, "cfg.setlogs_success", channel=salon.mention))
+        await interaction.response.send_message(embed=success_embed(t(lang, "cfg.setlogs_success", channel=salon.mention)))
         if logs := get_logs(self.bot):
             await logs.log_config_change(interaction.guild, interaction.user, t(lang, "cfg.log_channel"), salon.mention)
 
@@ -299,7 +300,7 @@ class Config(commands.Cog):
         if message:
             await self.bot.db.update_guild_setting(interaction.guild.id, "welcome_message", message)
         suffix = t(lang, "cfg.setwelcome_msg_suffix", message=message) if message else ""
-        await interaction.response.send_message(t(lang, "cfg.setwelcome_success", channel=salon.mention) + suffix)
+        await interaction.response.send_message(embed=success_embed(t(lang, "cfg.setwelcome_success", channel=salon.mention) + suffix))
         if logs := get_logs(self.bot):
             await logs.log_config_change(interaction.guild, interaction.user, t(lang, "cfg.welcome_channel"), salon.mention)
 
@@ -316,7 +317,7 @@ class Config(commands.Cog):
         await self.bot.db.update_guild_setting(interaction.guild.id, "goodbye_channel_id", salon.id)
         if message:
             await self.bot.db.update_guild_setting(interaction.guild.id, "goodbye_message", message)
-        await interaction.response.send_message(t(lang, "cfg.setgoodbye_success", channel=salon.mention))
+        await interaction.response.send_message(embed=success_embed(t(lang, "cfg.setgoodbye_success", channel=salon.mention)))
         if logs := get_logs(self.bot):
             await logs.log_config_change(interaction.guild, interaction.user, t(lang, "cfg.goodbye_channel"), salon.mention)
 
@@ -328,9 +329,9 @@ class Config(commands.Cog):
     async def setautorole(self, interaction: discord.Interaction, role: discord.Role):
         lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         if role >= interaction.guild.me.top_role:
-            return await interaction.response.send_message(t(lang, "cfg.autorole_too_high"), ephemeral=True)
+            return await interaction.response.send_message(embed=error_embed(t(lang, "cfg.autorole_too_high")), ephemeral=True)
         await self.bot.db.update_guild_setting(interaction.guild.id, "autorole_id", role.id)
-        await interaction.response.send_message(t(lang, "cfg.setautorole_success", role=role.mention))
+        await interaction.response.send_message(embed=success_embed(t(lang, "cfg.setautorole_success", role=role.mention)))
         if logs := get_logs(self.bot):
             await logs.log_config_change(interaction.guild, interaction.user, t(lang, "cfg.autorole"), role.mention)
 

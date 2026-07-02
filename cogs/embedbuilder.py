@@ -2,7 +2,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from utils.colors import Colors
-from utils.embeds import error_embed, success_embed
+from utils.embeds import error_embed, info_embed, success_embed
 from utils.i18n import t
 
 VALID_STYLES = {"primary", "secondary", "success", "danger"}
@@ -177,7 +177,7 @@ class AddLinkButtonModal(discord.ui.Modal, title="Bouton — Lien"):
                      "action_type": "link", "action_data": self.url.value.strip(), "ephemeral": False})
         await self._v.message.edit(embed=self._v._preview(), view=self._v)
         await interaction.response.send_message(
-            t(lang, "eb.link_btn_added", label=self.btn_label.value, count=len(btns)), ephemeral=True
+            embed=success_embed(t(lang, "eb.link_btn_added", label=self.btn_label.value, count=len(btns))), ephemeral=True
         )
 
 
@@ -204,7 +204,7 @@ class RoleButtonConfigModal(discord.ui.Modal, title="Bouton — Rôle"):
                      "action_type": "role", "action_data": str(self._role.id), "ephemeral": True})
         await self._v.message.edit(embed=self._v._preview(), view=self._v)
         await interaction.response.send_message(
-            t(lang, "eb.role_btn_added", label=self.btn_label.value, role=self._role.mention, count=len(btns)),
+            embed=success_embed(t(lang, "eb.role_btn_added", label=self.btn_label.value, role=self._role.mention, count=len(btns))),
             ephemeral=True
         )
 
@@ -244,7 +244,7 @@ class AddMessageButtonModal(discord.ui.Modal, title="Bouton — Message"):
         await self._v.message.edit(embed=self._v._preview(), view=self._v)
         visibility = t(lang, "eb.private") if is_eph else t(lang, "eb.public")
         await interaction.response.send_message(
-            t(lang, "eb.message_btn_added", label=self.btn_label.value, visibility=visibility, count=len(btns)),
+            embed=success_embed(t(lang, "eb.message_btn_added", label=self.btn_label.value, visibility=visibility, count=len(btns))),
             ephemeral=True
         )
 
@@ -283,7 +283,7 @@ class ButtonManagerView(discord.ui.View):
     async def add_role(self, interaction: discord.Interaction, button: discord.ui.Button):
         view = discord.ui.View(timeout=30)
         view.add_item(RoleSelectForButton(self._v))
-        await interaction.response.send_message(t(self._v.lang, "eb.pick_role"), view=view, ephemeral=True)
+        await interaction.response.send_message(embed=info_embed(t(self._v.lang, "eb.pick_role")), view=view, ephemeral=True)
 
     @discord.ui.button(label="💬 Message", style=discord.ButtonStyle.secondary)
     async def add_message(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -297,7 +297,7 @@ class ButtonManagerView(discord.ui.View):
             return await interaction.response.send_message(embed=error_embed(t(lang, "eb.no_buttons_to_remove")), ephemeral=True)
         view = discord.ui.View(timeout=30)
         view.add_item(RemoveButtonSelect(self._v))
-        await interaction.response.send_message(t(lang, "eb.pick_button"), view=view, ephemeral=True)
+        await interaction.response.send_message(embed=info_embed(t(lang, "eb.pick_button")), view=view, ephemeral=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -343,7 +343,7 @@ class EmbedChannelSelect(discord.ui.ChannelSelect):
             return await interaction.response.send_message(embed=error_embed(t(lang, "eb.empty_embed")), ephemeral=True)
         if not channel.permissions_for(interaction.guild.me).send_messages:
             return await interaction.response.send_message(
-                t(lang, "eb.cant_send", channel=channel.mention), ephemeral=True
+                embed=error_embed(t(lang, "eb.cant_send", channel=channel.mention)), ephemeral=True
             )
 
         sent = await channel.send(embed=embed)
@@ -523,7 +523,7 @@ class EmbedBuilderView(discord.ui.View):
             return await interaction.response.send_message(embed=error_embed(t(self.lang, "eb.no_fields_to_remove")), ephemeral=True)
         view = discord.ui.View(timeout=30)
         view.add_item(RemoveFieldSelect(self))
-        await interaction.response.send_message(t(self.lang, "eb.pick_field"), view=view, ephemeral=True)
+        await interaction.response.send_message(embed=info_embed(t(self.lang, "eb.pick_field")), view=view, ephemeral=True)
 
     @discord.ui.button(label="🔘 Boutons", style=discord.ButtonStyle.primary, row=1)
     async def btn_buttons(self, interaction: discord.Interaction, button: discord.ui.Button):

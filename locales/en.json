@@ -733,5 +733,8 @@
   "rr.panel_footer_exclusive": "Click a button to get this role (one at a time).",
   "rr.exclusive_tag": "🔒 *exclusive*",
   "help.moderation.f4.name": "🏷️ Nicknames",
-  "help.moderation.f4.value": "`/nick lock @membre [pseudo]` — Lock the nickname (reverts any change)\n`/nick unlock @membre` — Remove the lock\n`/nick reset @membre` — Reset the nickname"
+  "help.moderation.f4.value": "`/nick lock @membre [pseudo]` — Lock the nickname (reverts any change)\n`/nick unlock @membre` — Remove the lock\n`/nick reset @membre` — Reset the nickname",
+  "giveaway.cant_send": "❌ I don't have permission to send messages in this channel.",
+  "giveaway.not_ended_yet": "❌ This giveaway hasn't ended yet.",
+  "giveaway.ended_success": "✅ Giveaway ended."
 }

@@ -6,6 +6,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from utils.colors import Colors
+from utils.embeds import info_embed
 from utils.i18n import t
 
 ACTION_CHOICES = [
@@ -169,7 +170,7 @@ class AntiRaid(commands.Cog):
         lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         await self.bot.db.update_antiraid_setting(interaction.guild.id, "enabled", activer)
         state = t(lang, "raid.toggle_on") if activer else t(lang, "raid.toggle_off")
-        await interaction.response.send_message(t(lang, "raid.toggle_result", state=state))
+        await interaction.response.send_message(embed=info_embed(t(lang, "raid.toggle_result", state=state)))
 
     @antiraid_group.command(name="config", description="Configure les paramètres anti-raid")
     @app_commands.describe(

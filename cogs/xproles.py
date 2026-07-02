@@ -3,6 +3,7 @@ from discord import app_commands
 from discord.ext import commands
 from utils.i18n import t
 from utils.colors import Colors
+from utils.embeds import error_embed, success_embed
 
 
 class XPRoles(commands.Cog):
@@ -29,11 +30,11 @@ class XPRoles(commands.Cog):
     async def xpr_add(self, interaction: discord.Interaction, niveau: app_commands.Range[int, 1], role: discord.Role):
         lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         if role >= interaction.guild.me.top_role:
-            return await interaction.response.send_message(t(lang, "xproles.role_too_high"), ephemeral=True)
+            return await interaction.response.send_message(embed=error_embed(t(lang, "xproles.role_too_high")), ephemeral=True)
         if role.managed:
-            return await interaction.response.send_message(t(lang, "xproles.role_managed"), ephemeral=True)
+            return await interaction.response.send_message(embed=error_embed(t(lang, "xproles.role_managed")), ephemeral=True)
         await self.bot.db.add_xp_role(interaction.guild.id, niveau, role.id)
-        await interaction.response.send_message(t(lang, "xproles.add_success", role=role.mention, level=niveau))
+        await interaction.response.send_message(embed=success_embed(t(lang, "xproles.add_success", role=role.mention, level=niveau)))
 
     async def _level_autocomplete(self, interaction: discord.Interaction, current: str):
         lang = await self.bot.db.get_guild_lang(interaction.guild_id)
@@ -54,9 +55,9 @@ class XPRoles(commands.Cog):
         lang    = await self.bot.db.get_guild_lang(interaction.guild_id)
         deleted = await self.bot.db.remove_xp_role(interaction.guild.id, niveau)
         if deleted:
-            await interaction.response.send_message(t(lang, "xproles.remove_success", level=niveau))
+            await interaction.response.send_message(embed=success_embed(t(lang, "xproles.remove_success", level=niveau)))
         else:
-            await interaction.response.send_message(t(lang, "xproles.remove_not_found", level=niveau), ephemeral=True)
+            await interaction.response.send_message(embed=error_embed(t(lang, "xproles.remove_not_found", level=niveau)), ephemeral=True)
 
     @xprole_group.command(name="list", description="Liste les rôles attribués par niveau")
     async def xpr_list(self, interaction: discord.Interaction):
