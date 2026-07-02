@@ -359,6 +359,12 @@ class Database:
             guild_id, user_id
         )
 
+    async def get_all_warnings(self, guild_id: int, limit: int = 25) -> list:
+        return await self._rows(
+            "SELECT * FROM warnings WHERE guild_id = ? ORDER BY created_at DESC LIMIT ?",
+            guild_id, limit
+        )
+
     async def get_warning_count(self, guild_id: int, user_id: int) -> int:
         return await self._val(
             "SELECT COUNT(*) FROM warnings WHERE guild_id = ? AND user_id = ?",

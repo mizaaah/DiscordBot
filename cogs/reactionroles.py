@@ -68,6 +68,30 @@ class ReactionRoles(commands.Cog):
 
     rr_group = app_commands.Group(name="rr", description="Gestion des rôles réactifs")
 
+    # ── Autocomplete ──────────────────────────────────────────────────────────
+
+    async def _panel_autocomplete(self, interaction: discord.Interaction, current: str):
+        panels = await self.bot.db.get_all_rr_panels(interaction.guild.id)
+        choices = []
+        for p in panels:
+            label = f"#{p['id']} — {p['title']}"
+            if current.lower() in label.lower():
+                choices.append(app_commands.Choice(name=label[:100], value=p["id"]))
+        return choices[:25]
+
+    async def _button_autocomplete(self, interaction: discord.Interaction, current: str):
+        panel_id = interaction.namespace.panel_id
+        if not panel_id:
+            return []
+        buttons = await self.bot.db.get_rr_buttons(panel_id)
+        choices = []
+        for b in buttons:
+            role = interaction.guild.get_role(b["role_id"])
+            label = f"#{b['id']} — {b['label']} → {role.name if role else '???'}"
+            if current.lower() in label.lower():
+                choices.append(app_commands.Choice(name=label[:100], value=b["id"]))
+        return choices[:25]
+
     # ── /rr create ────────────────────────────────────────────────────────────
 
     @rr_group.command(name="create", description="Crée un panel de rôles réactifs dans un salon")
@@ -110,6 +134,7 @@ class ReactionRoles(commands.Cog):
         app_commands.Choice(name="Vert", value="success"),
         app_commands.Choice(name="Rouge", value="danger"),
     ])
+    @app_commands.autocomplete(panel_id=_panel_autocomplete)
     @app_commands.default_permissions(manage_roles=True)
     async def rr_add(
         self, interaction: discord.Interaction,
@@ -141,6 +166,7 @@ class ReactionRoles(commands.Cog):
 
     @rr_group.command(name="remove", description="Retire un bouton d'un panel")
     @app_commands.describe(panel_id="L'ID du panel", bouton_id="L'ID du bouton à retirer (voir /rr list)")
+    @app_commands.autocomplete(panel_id=_panel_autocomplete, bouton_id=_button_autocomplete)
     @app_commands.default_permissions(manage_roles=True)
     async def rr_remove(self, interaction: discord.Interaction, panel_id: int, bouton_id: int):
         lang = await self.bot.db.get_guild_lang(interaction.guild_id)
@@ -159,6 +185,7 @@ class ReactionRoles(commands.Cog):
 
     @rr_group.command(name="delete", description="Supprime un panel de rôles réactifs")
     @app_commands.describe(panel_id="L'ID du panel à supprimer")
+    @app_commands.autocomplete(panel_id=_panel_autocomplete)
     @app_commands.default_permissions(manage_roles=True)
     async def rr_delete(self, interaction: discord.Interaction, panel_id: int):
         lang = await self.bot.db.get_guild_lang(interaction.guild_id)

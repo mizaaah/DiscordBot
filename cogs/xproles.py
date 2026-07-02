@@ -35,8 +35,20 @@ class XPRoles(commands.Cog):
         await self.bot.db.add_xp_role(interaction.guild.id, niveau, role.id)
         await interaction.response.send_message(t(lang, "xproles.add_success", role=role.mention, level=niveau))
 
+    async def _level_autocomplete(self, interaction: discord.Interaction, current: str):
+        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
+        rows = await self.bot.db.get_xp_roles(interaction.guild.id)
+        choices = []
+        for row in rows:
+            role = interaction.guild.get_role(row["role_id"])
+            label = t(lang, "xproles.autocomplete_entry", level=row["level"], role=role.name if role else "???")
+            if current.lower() in label.lower():
+                choices.append(app_commands.Choice(name=label[:100], value=row["level"]))
+        return choices[:25]
+
     @xprole_group.command(name="remove", description="Supprime un rôle de niveau")
     @app_commands.describe(niveau="Le niveau à supprimer")
+    @app_commands.autocomplete(niveau=_level_autocomplete)
     @app_commands.default_permissions(manage_guild=True)
     async def xpr_remove(self, interaction: discord.Interaction, niveau: int):
         lang    = await self.bot.db.get_guild_lang(interaction.guild_id)

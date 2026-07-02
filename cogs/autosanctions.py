@@ -101,8 +101,19 @@ class AutoSanctions(commands.Cog):
             t(lang, "asanc.add_success", warns=warns, label=label)
         )
 
+    async def _threshold_autocomplete(self, interaction: discord.Interaction, current: str):
+        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
+        rows = await self.bot.db.get_autosanctions(interaction.guild.id)
+        choices = []
+        for r in rows:
+            label = f"{r['warn_count']} warn(s) — {_action_label(lang, r['action'], r['duration'])}"
+            if current.lower() in label.lower():
+                choices.append(app_commands.Choice(name=label[:100], value=r["warn_count"]))
+        return choices[:25]
+
     @as_group.command(name="remove", description="Supprime une sanction automatique")
     @app_commands.describe(warns="Le seuil à supprimer")
+    @app_commands.autocomplete(warns=_threshold_autocomplete)
     @app_commands.default_permissions(manage_guild=True)
     async def as_remove(self, interaction: discord.Interaction, warns: int):
         lang = await self.bot.db.get_guild_lang(interaction.guild_id)

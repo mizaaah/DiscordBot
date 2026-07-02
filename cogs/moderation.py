@@ -22,6 +22,104 @@ def get_logs(bot: commands.Bot):
     return bot.get_cog("Logs")
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+#  Paginated list views (warnings / history)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class _PagedEmbedView(discord.ui.View):
+    PAGE_SIZE = 5
+
+    def __init__(self, items: list, lang: str, page: int = 0):
+        super().__init__(timeout=120)
+        self.items = items
+        self.lang  = lang
+        self.page  = page
+        self.total = max(1, (len(items) + self.PAGE_SIZE - 1) // self.PAGE_SIZE)
+        self._update_buttons()
+
+    def _update_buttons(self):
+        self.children[0].disabled = self.page == 0
+        self.children[1].disabled = self.page >= self.total - 1
+
+    def build_embed(self) -> discord.Embed:
+        raise NotImplementedError
+
+    @discord.ui.button(label="◀", style=discord.ButtonStyle.secondary)
+    async def prev(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.page -= 1
+        self._update_buttons()
+        await interaction.response.edit_message(embed=self.build_embed(), view=self)
+
+    @discord.ui.button(label="▶", style=discord.ButtonStyle.secondary)
+    async def next(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.page += 1
+        self._update_buttons()
+        await interaction.response.edit_message(embed=self.build_embed(), view=self)
+
+    async def on_timeout(self):
+        for item in self.children:
+            item.disabled = True
+
+
+class WarningsView(_PagedEmbedView):
+    def __init__(self, warns: list, member: discord.Member, guild: discord.Guild, lang: str):
+        self.member = member
+        self.guild  = guild
+        super().__init__(warns, lang)
+
+    def build_embed(self) -> discord.Embed:
+        lang  = self.lang
+        embed = discord.Embed(title=t(lang, "mod.warnings_title", member=str(self.member)), color=Colors.CAUTION)
+        if not self.items:
+            embed.description = t(lang, "mod.warnings_empty")
+            return embed
+        start = self.page * self.PAGE_SIZE
+        for w in self.items[start:start + self.PAGE_SIZE]:
+            mod      = self.guild.get_member(w["moderator_id"])
+            mod_name = str(mod) if mod else f"ID:{w['moderator_id']}"
+            dt       = _parse_dt(w["created_at"])
+            date     = discord.utils.format_dt(dt, 'd') if dt else "?"
+            embed.add_field(
+                name=f"#{w['id']} — {date}",
+                value=f"**{t(lang, 'mod.warnings_reason')}:** {w['reason']}\n**{t(lang, 'mod.warnings_moderator')}:** {mod_name}",
+                inline=False
+            )
+        embed.set_footer(text=f"{t(lang, 'mod.warnings_footer', count=len(self.items))} · {t(lang, 'common.page', page=self.page + 1, total=self.total)}")
+        return embed
+
+
+class HistoryView(_PagedEmbedView):
+    TYPE_EMOJI = {"kick": "👢", "ban": "🔨", "tempban": "⏱️", "mute": "🔇", "warn": "⚠️", "unban": "✅"}
+
+    def __init__(self, sanctions: list, member: discord.Member, guild: discord.Guild, lang: str):
+        self.member = member
+        self.guild  = guild
+        super().__init__(sanctions, lang)
+
+    def build_embed(self) -> discord.Embed:
+        lang  = self.lang
+        embed = discord.Embed(title=t(lang, "mod.history_title", member=str(self.member)), color=Colors.DANGER)
+        embed.set_thumbnail(url=self.member.display_avatar.url)
+        if not self.items:
+            embed.description = t(lang, "mod.history_empty")
+            return embed
+        start = self.page * self.PAGE_SIZE
+        for s in self.items[start:start + self.PAGE_SIZE]:
+            mod      = self.guild.get_member(s["moderator_id"])
+            mod_name = str(mod) if mod else f"ID:{s['moderator_id']}"
+            dt       = _parse_dt(s["created_at"])
+            date     = discord.utils.format_dt(dt, 'd') if dt else "?"
+            emoji    = self.TYPE_EMOJI.get(s["type"], "📋")
+            name     = f"{emoji} {s['type'].upper()} — {date}"
+            val      = f"**{t(lang, 'mod.history_reason')}:** {s['reason'] or '—'}"
+            if s.get("duration"):
+                val += f"\n**{t(lang, 'mod.mute_duration')}:** {s['duration']}"
+            val += f"\n**{t(lang, 'mod.history_moderator')}:** {mod_name}"
+            embed.add_field(name=name, value=val, inline=False)
+        embed.set_footer(text=f"{t(lang, 'mod.history_footer', count=len(self.items))} · {t(lang, 'common.page', page=self.page + 1, total=self.total)}")
+        return embed
+
+
 class Moderation(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -239,8 +337,20 @@ class Moderation(commands.Cog):
 
     # ── /unwarn ──────────────────────────────────────────────────────────────
 
+    async def _warn_autocomplete(self, interaction: discord.Interaction, current: str):
+        warns = await self.bot.db.get_all_warnings(interaction.guild.id)
+        choices = []
+        for w in warns:
+            member = interaction.guild.get_member(w["user_id"])
+            name = member.display_name if member else f"ID:{w['user_id']}"
+            label = f"#{w['id']} — {name} — {w['reason'][:60]}"
+            if current.lower() in label.lower():
+                choices.append(app_commands.Choice(name=label[:100], value=w["id"]))
+        return choices[:25]
+
     @app_commands.command(name="unwarn", description="Supprime un avertissement par son ID")
     @app_commands.describe(id_warn="L'ID de l'avertissement à supprimer")
+    @app_commands.autocomplete(id_warn=_warn_autocomplete)
     @app_commands.default_permissions(manage_messages=True)
     async def unwarn(self, interaction: discord.Interaction, id_warn: int):
         lang = await self.bot.db.get_guild_lang(interaction.guild_id)
@@ -258,22 +368,8 @@ class Moderation(commands.Cog):
     async def warnings(self, interaction: discord.Interaction, membre: discord.Member):
         lang  = await self.bot.db.get_guild_lang(interaction.guild_id)
         warns = await self.bot.db.get_warnings(interaction.guild.id, membre.id)
-        embed = discord.Embed(title=t(lang, "mod.warnings_title", member=str(membre)), color=Colors.CAUTION)
-        if not warns:
-            embed.description = t(lang, "mod.warnings_empty")
-        else:
-            for w in warns[:10]:
-                mod      = interaction.guild.get_member(w["moderator_id"])
-                mod_name = str(mod) if mod else f"ID:{w['moderator_id']}"
-                dt       = _parse_dt(w["created_at"])
-                date     = discord.utils.format_dt(dt, 'd') if dt else "?"
-                embed.add_field(
-                    name=f"#{w['id']} — {date}",
-                    value=f"**{t(lang, 'mod.warnings_reason')}:** {w['reason']}\n**{t(lang, 'mod.warnings_moderator')}:** {mod_name}",
-                    inline=False
-                )
-            embed.set_footer(text=t(lang, "mod.warnings_footer", count=len(warns)))
-        await interaction.response.send_message(embed=embed)
+        view  = WarningsView(warns, membre, interaction.guild, lang)
+        await interaction.response.send_message(embed=view.build_embed(), view=view)
 
     # ── /clearwarnings ───────────────────────────────────────────────────────
 
@@ -292,30 +388,9 @@ class Moderation(commands.Cog):
     @app_commands.default_permissions(manage_messages=True)
     async def history(self, interaction: discord.Interaction, membre: discord.Member):
         lang      = await self.bot.db.get_guild_lang(interaction.guild_id)
-        sanctions = await self.bot.db.get_sanctions(interaction.guild.id, membre.id)
-        embed = discord.Embed(
-            title=t(lang, "mod.history_title", member=str(membre)),
-            color=Colors.DANGER
-        )
-        embed.set_thumbnail(url=membre.display_avatar.url)
-        if not sanctions:
-            embed.description = t(lang, "mod.history_empty")
-        else:
-            type_emoji = {"kick": "👢", "ban": "🔨", "tempban": "⏱️", "mute": "🔇", "warn": "⚠️", "unban": "✅"}
-            for s in sanctions[:10]:
-                mod  = interaction.guild.get_member(s["moderator_id"])
-                mod_name = str(mod) if mod else f"ID:{s['moderator_id']}"
-                dt   = _parse_dt(s["created_at"])
-                date = discord.utils.format_dt(dt, 'd') if dt else "?"
-                emoji = type_emoji.get(s["type"], "📋")
-                name  = f"{emoji} {s['type'].upper()} — {date}"
-                val   = f"**{t(lang, 'mod.history_reason')}:** {s['reason'] or '—'}"
-                if s.get("duration"):
-                    val += f"\n**{t(lang, 'mod.mute_duration')}:** {s['duration']}"
-                val += f"\n**{t(lang, 'mod.history_moderator')}:** {mod_name}"
-                embed.add_field(name=name, value=val, inline=False)
-            embed.set_footer(text=t(lang, "mod.history_footer", count=len(sanctions)))
-        await interaction.response.send_message(embed=embed)
+        sanctions = await self.bot.db.get_sanctions(interaction.guild.id, membre.id, limit=100)
+        view      = HistoryView(sanctions, membre, interaction.guild, lang)
+        await interaction.response.send_message(embed=view.build_embed(), view=view)
 
     # ── /clear ───────────────────────────────────────────────────────────────
 
