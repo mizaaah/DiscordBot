@@ -557,9 +557,14 @@ class Database:
     async def get_ticket(self, channel_id: int) -> dict | None:
         return await self._row("SELECT * FROM tickets WHERE channel_id = ?", channel_id)
 
-    async def get_user_open_ticket(self, guild_id: int, user_id: int) -> dict | None:
+    async def get_user_open_ticket(self, guild_id: int, user_id: int, category: str = None) -> dict | None:
+        if category:
+            return await self._row(
+                "SELECT * FROM tickets WHERE guild_id = ? AND user_id = ? AND status = 'open' AND category = ?",
+                guild_id, user_id, category
+            )
         return await self._row(
-            "SELECT * FROM tickets WHERE guild_id = ? AND user_id = ? AND status = 'open'",
+            "SELECT * FROM tickets WHERE guild_id = ? AND user_id = ? AND status = 'open' AND (category IS NULL OR category = '')",
             guild_id, user_id
         )
 

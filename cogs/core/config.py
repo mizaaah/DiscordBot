@@ -310,99 +310,111 @@ class SetupBackButton(discord.ui.Button):
         await view.show_home(interaction)
 
 
-class SetupView(discord.ui.View):
-    def __init__(self, bot: commands.Bot, lang: str, guild_id: int):
+class SetupView(discord.ui.LayoutView):
+    def __init__(self, bot, lang: str, guild_id: int):
         super().__init__(timeout=300)
         self.bot = bot
         self.lang = lang
         self.guild_id = guild_id
         self.automod_module = None
-        self._build_home()
 
-    def _build_home(self):
+    async def init_home(self, guild: discord.Guild):
+        await self._build_home(guild)
+
+    async def _build_home(self, guild: discord.Guild, confirm_text: str = None):
         self.clear_items()
-        self.add_item(SetupCategorySelect(self.lang))
-
-    async def build_home_embed(self, guild: discord.Guild) -> discord.Embed:
         settings = await self.bot.db.get_guild_settings(self.guild_id)
-        lang = self.lang
+        am_cfg = await self.bot.db.get_automod_config(self.guild_id)
+        ar_cfg = await self.bot.db.get_antiraid_config(self.guild_id)
 
         def ch(cid):
-            if not cid:
-                return f"`Non défini`"
+            if not cid: return "Non défini"
             c = guild.get_channel(cid)
-            return c.mention if c else f"`Introuvable`"
+            return c.mention if c else "Introuvable"
 
         def role(rid):
-            if not rid:
-                return f"`Non défini`"
+            if not rid: return "Non défini"
             r = guild.get_role(rid)
-            return r.mention if r else f"`Introuvable`"
+            return r.mention if r else "Introuvable"
 
-        am_cfg = await self.bot.db.get_automod_config(guild.id)
-        ar_cfg = await self.bot.db.get_antiraid_config(guild.id)
+        cont = discord.ui.Container(accent_color=Colors.INFO.value)
+
+        header = f"# Configuration de {guild.name}\nSélectionnez une catégorie ci-dessous pour configurer les fonctionnalités du bot.\n\n"
+        if confirm_text:
+            header = f"✅ **{confirm_text}**\n\n" + header
+        cont.add_item(discord.ui.TextDisplay(header))
+
+        am_status = am_cfg.get("enabled")
+        btn_am = discord.ui.Button(label="Activé" if am_status else "Désactivé", style=discord.ButtonStyle.success if am_status else discord.ButtonStyle.secondary, disabled=True)
+        cont.add_item(discord.ui.Section(discord.ui.TextDisplay("🛡️ **AutoMod**\nModération automatique et protection contre les liens/spams."), accessory=btn_am))
+
+        ar_status = ar_cfg.get("enabled")
+        btn_ar = discord.ui.Button(label="Activé" if ar_status else "Désactivé", style=discord.ButtonStyle.success if ar_status else discord.ButtonStyle.secondary, disabled=True)
+        cont.add_item(discord.ui.Section(discord.ui.TextDisplay("⚔️ **Anti-Raid**\nProtection contre les raids de bots et les arrivées massives."), accessory=btn_ar))
 
         desc = (
-            f"Bienvenue dans le panneau de configuration de **{guild.name}**.\n"
-            "Utilisez le menu déroulant ci-dessous pour gérer les modules.\n\n"
-            "**Vue d'ensemble**\n"
-            f"> 🪵 `Logs` : {ch(settings.get('log_channel_id'))}\n"
-            f"> 👋 `Bienvenue` : {ch(settings.get('welcome_channel_id'))}\n"
-            f"> 👋 `Départ` : {ch(settings.get('goodbye_channel_id'))}\n"
-            f"> 🔰 `Auto-Rôle` : {role(settings.get('autorole_id'))}\n"
-            f"> 🛡️ `AutoMod` : {'✅' if am_cfg.get('enabled') else '❌'}\n"
-            f"> ⚔️ `Anti-Raid` : {'✅' if ar_cfg.get('enabled') else '❌'}\n"
+            "\n\n"
+            f"🪵 `Logs :` {ch(settings.get('log_channel_id'))}\n"
+            f"👋 `Bienvenue :` {ch(settings.get('welcome_channel_id'))}\n"
+            f"👋 `Départ :` {ch(settings.get('goodbye_channel_id'))}\n"
+            f"🔰 `Auto-Rôle :` {role(settings.get('autorole_id'))}\n"
         )
+        cont.add_item(discord.ui.TextDisplay(desc))
 
-        embed = discord.Embed(
-            title="⚙️ Panneau de Configuration", 
-            description=desc, 
-            color=Colors.INVISIBLE
-        )
-        if guild.icon:
-            embed.set_thumbnail(url=guild.icon.url)
-            
-        return embed
+        cont.add_item(discord.ui.ActionRow(SetupCategorySelect(self.lang)))
+        self.add_item(cont)
 
     async def show_home(self, interaction: discord.Interaction):
-        self._build_home()
-        embed = await self.build_home_embed(interaction.guild)
-        await interaction.response.edit_message(embed=embed, view=self)
+        await self._build_home(interaction.guild)
+        await interaction.response.edit_message(view=self, embed=None)
 
     async def show_category(self, interaction: discord.Interaction, category: str):
         settings = await self.bot.db.get_guild_settings(self.guild_id)
         lang = self.lang
         self.clear_items()
-        self.add_item(SetupCategorySelect(lang))
-
-        embed = discord.Embed(
-            title=t(lang, f"setup.opt_{category}") if category not in ["automod", "antiraid"] else "",
-            description=t(lang, f"setup.{category}_desc") if category not in ["automod", "antiraid"] else "",
-            color=Colors.INVISIBLE
-        )
+        
+        cont = discord.ui.Container(accent_color=Colors.INFO.value)
+        title = t(lang, f"setup.opt_{category}") if category not in ["automod", "antiraid"] else ("🛡️ Configuration AutoMod" if category == "automod" else "⚔️ Configuration Anti-Raid")
+        desc = t(lang, f"setup.{category}_desc") if category not in ["automod", "antiraid"] else ("Activez ou désactivez l'AutoMod global.\nChoisissez un sous-module pour affiner la configuration." if category == "automod" else "Configurez les seuils et actions du système Anti-Raid.")
+        
+        cont.add_item(discord.ui.TextDisplay(f"# {title}\n{desc}\n\n"))
 
         if category == "logs":
-            self.add_item(SetupChannelSelect(lang, "log_channel_id", "setup.logs_placeholder"))
+            cont.add_item(discord.ui.TextDisplay("🪵 **Salon des Logs**\nDéfinit le salon où seront envoyés les journaux d'audit du serveur."))
+            cont.add_item(discord.ui.ActionRow(SetupChannelSelect(lang, "log_channel_id", "setup.logs_placeholder")))
+            
         elif category == "welcome":
-            self.add_item(SetupChannelSelect(lang, "welcome_channel_id", "setup.welcome_placeholder"))
-            self.add_item(SetupMessageButton(lang, "welcome_message", t(lang, "setup.welcome_modal_title"), settings.get("welcome_message")))
-            self.add_item(SetupImageButton(lang, "welcome_image", "Bannière de Bienvenue", settings.get("welcome_image")))
+            cont.add_item(discord.ui.TextDisplay("👋 **Salon de Bienvenue**\nDéfinit le salon où envoyer les messages d'arrivée."))
+            cont.add_item(discord.ui.ActionRow(SetupChannelSelect(lang, "welcome_channel_id", "setup.welcome_placeholder")))
+            cont.add_item(discord.ui.ActionRow(
+                SetupMessageButton(lang, "welcome_message", t(lang, "setup.welcome_modal_title"), settings.get("welcome_message")),
+                SetupImageButton(lang, "welcome_image", "Bannière de Bienvenue", settings.get("welcome_image"))
+            ))
+            
         elif category == "goodbye":
-            self.add_item(SetupChannelSelect(lang, "goodbye_channel_id", "setup.goodbye_placeholder"))
-            self.add_item(SetupMessageButton(lang, "goodbye_message", t(lang, "setup.goodbye_modal_title"), settings.get("goodbye_message")))
-            self.add_item(SetupImageButton(lang, "goodbye_image", "Bannière d'Au revoir", settings.get("goodbye_image")))
+            cont.add_item(discord.ui.TextDisplay("👋 **Salon de Départ**\nDéfinit le salon où envoyer les messages de départ."))
+            cont.add_item(discord.ui.ActionRow(SetupChannelSelect(lang, "goodbye_channel_id", "setup.goodbye_placeholder")))
+            cont.add_item(discord.ui.ActionRow(
+                SetupMessageButton(lang, "goodbye_message", t(lang, "setup.goodbye_modal_title"), settings.get("goodbye_message")),
+                SetupImageButton(lang, "goodbye_image", "Bannière d'Au revoir", settings.get("goodbye_image"))
+            ))
+            
         elif category == "autorole":
-            self.add_item(SetupRoleSelect(lang))
+            cont.add_item(discord.ui.TextDisplay("🔰 **Auto-Rôle**\nRôle donné automatiquement aux nouveaux membres."))
+            cont.add_item(discord.ui.ActionRow(SetupRoleSelect(lang)))
+            
         elif category == "report":
-            self.add_item(SetupChannelSelect(lang, "report_channel_id", "setup.report_placeholder"))
+            cont.add_item(discord.ui.TextDisplay("🚨 **Salon des Signalements**\nReçoit les signalements effectués par les membres."))
+            cont.add_item(discord.ui.ActionRow(SetupChannelSelect(lang, "report_channel_id", "setup.report_placeholder")))
+            
         elif category == "language":
-            self.add_item(SetupLanguageSelect(lang))
+            cont.add_item(discord.ui.TextDisplay("🌐 **Langue du bot**\nDéfinit la langue utilisée par le bot sur ce serveur."))
+            cont.add_item(discord.ui.ActionRow(SetupLanguageSelect(lang)))
+            
         elif category == "automod":
             am_cfg = await self.bot.db.get_automod_config(self.guild_id)
-            self.add_item(AutomodToggleButton(bool(am_cfg["enabled"])))
-            self.add_item(AutomodModuleSelect(self.automod_module))
-            
-            embed.title = "🛡️ Configuration AutoMod"
+            btn_am = AutomodToggleButton(bool(am_cfg["enabled"]))
+            cont.add_item(discord.ui.Section(discord.ui.TextDisplay("Système Global AutoMod"), accessory=btn_am))
             
             if self.automod_module:
                 mod = self.automod_module
@@ -410,43 +422,44 @@ class SetupView(discord.ui.View):
                 action = am_cfg[f"{mod}_action"]
                 threshold = am_cfg.get(f"{mod}_threshold", 0)
                 
-                self.add_item(AutomodModuleToggleButton(mod, is_enabled))
+                cont.add_item(discord.ui.TextDisplay(f"\n\n### Module : {mod.capitalize()}\nConfiguration spécifique de ce sous-module."))
+                sec_tog = discord.ui.Section(discord.ui.TextDisplay(f"**État du module {mod}**"), accessory=AutomodModuleToggleButton(mod, is_enabled))
+                cont.add_item(sec_tog)
+                
                 if mod not in ["link", "invite"]:
-                    self.add_item(AutomodThresholdButton(mod, threshold))
-                self.add_item(AutomodActionSelect(mod, action))
-                embed.description = f"**Module : {mod.capitalize()}**\nConfiguration spécifique pour ce module."
-            else:
-                embed.description = "Activez ou désactivez l'AutoMod global.\nChoisissez un module ci-dessous pour affiner la configuration."
+                    sec_thresh = discord.ui.Section(discord.ui.TextDisplay("**Seuil de tolérance**"), accessory=AutomodThresholdButton(mod, threshold))
+                    cont.add_item(sec_thresh)
+            
+            cont.add_item(discord.ui.ActionRow(AutomodModuleSelect(self.automod_module)))
+            if self.automod_module:
+                cont.add_item(discord.ui.ActionRow(AutomodActionSelect(self.automod_module, action if self.automod_module else "warn")))
                 
         elif category == "antiraid":
             ar_cfg = await self.bot.db.get_antiraid_config(self.guild_id)
-            self.add_item(AntiraidToggleButton(bool(ar_cfg["enabled"])))
-            self.add_item(AntiraidActionSelect(ar_cfg["action"]))
-            self.add_item(AntiraidThresholdButton(ar_cfg["join_threshold"], ar_cfg["join_window"]))
-            self.add_item(AntiraidAgeButton(ar_cfg["min_account_age"]))
-            
-            embed.title = "⚔️ Configuration Anti-Raid"
-            embed.description = "Configurez les seuils et les actions du système Anti-Raid.\nIl se déclenchera si trop de membres rejoignent en même temps."
+            cont.add_item(discord.ui.Section(discord.ui.TextDisplay("**État du système Anti-Raid**"), accessory=AntiraidToggleButton(bool(ar_cfg["enabled"]))))
+            cont.add_item(discord.ui.Section(discord.ui.TextDisplay("**Seuil de détection (Joins / Secondes)**"), accessory=AntiraidThresholdButton(ar_cfg["join_threshold"], ar_cfg["join_window"])))
+            cont.add_item(discord.ui.Section(discord.ui.TextDisplay("**Âge minimum du compte (Jours)**"), accessory=AntiraidAgeButton(ar_cfg["min_account_age"])))
+            cont.add_item(discord.ui.ActionRow(AntiraidActionSelect(ar_cfg["action"])))
 
-        self.add_item(SetupBackButton(lang))
+        cont.add_item(discord.ui.ActionRow(SetupCategorySelect(lang)))
+        cont.add_item(discord.ui.ActionRow(SetupBackButton(lang)))
+        self.add_item(cont)
+        
         try:
-            await interaction.response.edit_message(embed=embed, view=self)
+            await interaction.response.edit_message(view=self, embed=None)
         except Exception as e:
             import logging
             logging.error(f"Error in show_category for {category}: {e}", exc_info=True)
             if not interaction.response.is_done():
-                await interaction.response.send_message(f"❌ Erreur interne lors de l'affichage de {category} : {e}", ephemeral=True)
+                await interaction.response.send_message(f"❌ Erreur interne : {e}", ephemeral=True)
 
     async def refresh(self, interaction: discord.Interaction, confirm_text: str):
-        self._build_home()
-        embed = await self.build_home_embed(interaction.guild)
-        embed.add_field(name=t(self.lang, "setup.saved_field"), value=confirm_text, inline=False)
-        await interaction.response.edit_message(embed=embed, view=self)
+        await self._build_home(interaction.guild, confirm_text)
+        await interaction.response.edit_message(view=self, embed=None)
 
     async def on_timeout(self):
         for item in self.children:
             item.disabled = True
-
 
 class Config(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -459,8 +472,8 @@ class Config(commands.Cog):
     async def setup_wizard(self, interaction: discord.Interaction):
         lang  = await self.bot.db.get_guild_lang(interaction.guild_id)
         view  = SetupView(self.bot, lang, interaction.guild.id)
-        embed = await view.build_home_embed(interaction.guild)
-        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+        await view.init_home(interaction.guild)
+        await interaction.response.send_message(view=view, ephemeral=True)
 
     # ── /config ───────────────────────────────────────────────────────────────
 
