@@ -348,6 +348,12 @@ class SetupView(discord.ui.View):
         embed.add_field(name=t(lang, "setup.opt_autorole"), value=role(settings.get("autorole_id")),       inline=True)
         embed.add_field(name=t(lang, "setup.opt_report"),   value=ch(settings.get("report_channel_id")),   inline=True)
         embed.add_field(name=t(lang, "setup.opt_language"), value=f"`{settings.get('language') or 'fr'}`", inline=True)
+        
+        am_cfg = await self.bot.db.get_automod_config(guild.id)
+        ar_cfg = await self.bot.db.get_antiraid_config(guild.id)
+        embed.add_field(name="🛡️ AutoMod", value="✅ Activé" if am_cfg.get("enabled") else "❌ Désactivé", inline=True)
+        embed.add_field(name="⚔️ Anti-Raid", value="✅ Activé" if ar_cfg.get("enabled") else "❌ Désactivé", inline=True)
+        
         return embed
 
     async def show_home(self, interaction: discord.Interaction):
