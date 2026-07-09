@@ -87,6 +87,35 @@ class SetupMessageButton(discord.ui.Button):
         await interaction.response.send_modal(SetupMessageModal(view, self.setting_key, self.modal_title, self.current))
 
 
+class SetupImageModal(discord.ui.Modal):
+    image_url = discord.ui.TextInput(label="URL de l'image (PNG/GIF)", style=discord.TextStyle.short, required=False, max_length=500, placeholder="https://...")
+
+    def __init__(self, setup_view: "SetupView", setting_key: str, title: str, current: str = None):
+        super().__init__(title=title)
+        self._setup_view = setup_view
+        self.setting_key = setting_key
+        if current:
+            self.image_url.default = current
+
+    async def on_submit(self, interaction: discord.Interaction):
+        value = self.image_url.value.strip() or None
+        if value:
+            await interaction.client.db.update_guild_setting(interaction.guild.id, self.setting_key, value)
+        await self._setup_view.refresh(interaction, "L'image a bien été sauvegardée ! 🖼️")
+
+
+class SetupImageButton(discord.ui.Button):
+    def __init__(self, lang: str, setting_key: str, modal_title: str, current: str = None):
+        super().__init__(label="🖼️ Ajouter une Bannière", style=discord.ButtonStyle.secondary, row=2)
+        self.setting_key = setting_key
+        self.modal_title = modal_title
+        self.current = current
+
+    async def callback(self, interaction: discord.Interaction):
+        view: SetupView = self.view
+        await interaction.response.send_modal(SetupImageModal(view, self.setting_key, self.modal_title, self.current))
+
+
 class SetupLanguageSelect(discord.ui.Select):
     def __init__(self, lang: str):
         options = [
@@ -114,9 +143,87 @@ class AutomodToggleButton(discord.ui.Button):
         await interaction.client.db.update_automod_setting(interaction.guild.id, "enabled", new_val)
         await view.refresh(interaction, "AutoMod a été " + ("désactivé" if self.current else "activé"))
 
+class AutomodModuleSelect(discord.ui.Select):
+    def __init__(self, current_module: str = None):
+        options = [
+            discord.SelectOption(label="Anti-Spam", value="spam", emoji="🔁", default=current_module=="spam"),
+            discord.SelectOption(label="Anti-Liens", value="link", emoji="🔗", default=current_module=="link"),
+            discord.SelectOption(label="Anti-Invites", value="invite", emoji="📨", default=current_module=="invite"),
+            discord.SelectOption(label="Anti-Majuscules", value="caps", emoji="🔠", default=current_module=="caps"),
+            discord.SelectOption(label="Anti-Mentions", value="mention", emoji="📢", default=current_module=="mention"),
+            discord.SelectOption(label="Anti-Flood", value="flood", emoji="🌊", default=current_module=="flood"),
+        ]
+        super().__init__(placeholder="Sélectionner un module à configurer...", options=options, row=1)
+
+    async def callback(self, interaction: discord.Interaction):
+        view: SetupView = self.view
+        view.automod_module = self.values[0]
+        await view.show_category(interaction, "automod")
+
+class AutomodModuleToggleButton(discord.ui.Button):
+    def __init__(self, module: str, current: bool):
+        super().__init__(label=f"{'Désactiver' if current else 'Activer'} le module", style=discord.ButtonStyle.danger if current else discord.ButtonStyle.success, row=2)
+        self.module = module
+        self.current = current
+
+    async def callback(self, interaction: discord.Interaction):
+        view: SetupView = self.view
+        new_val = 0 if self.current else 1
+        await interaction.client.db.update_automod_setting(interaction.guild.id, f"{self.module}_enabled", new_val)
+        await view.refresh(interaction, "Module mis à jour !")
+
+class AutomodActionSelect(discord.ui.Select):
+    def __init__(self, module: str, current_action: str):
+        self.module = module
+        options = [
+            discord.SelectOption(label="Warn (Avertissement)", value="warn", emoji="⚠️", default=current_action=="warn"),
+            discord.SelectOption(label="Mute (Exclusion temporaire)", value="mute", emoji="🔇", default=current_action=="mute"),
+            discord.SelectOption(label="Kick (Expulser)", value="kick", emoji="👢", default=current_action=="kick"),
+            discord.SelectOption(label="Ban (Bannir)", value="ban", emoji="🔨", default=current_action=="ban"),
+            discord.SelectOption(label="Delete (Supprimer uniquement)", value="delete", emoji="🗑️", default=current_action=="delete"),
+        ]
+        super().__init__(placeholder="Action en cas d'infraction...", options=options, row=3)
+
+    async def callback(self, interaction: discord.Interaction):
+        view: SetupView = self.view
+        action = self.values[0]
+        await interaction.client.db.update_automod_setting(interaction.guild.id, f"{self.module}_action", action)
+        await view.refresh(interaction, "Action mise à jour !")
+
+class AutomodThresholdModal(discord.ui.Modal):
+    threshold = discord.ui.TextInput(label="Limite", style=discord.TextStyle.short)
+
+    def __init__(self, setup_view: "SetupView", module: str, current: int):
+        super().__init__(title=f"Seuil pour {module.capitalize()}")
+        self._setup_view = setup_view
+        self.module = module
+        self.threshold.default = str(current)
+        if module == "caps":
+            self.threshold.label = "Pourcentage max de majuscules (ex: 70)"
+        else:
+            self.threshold.label = "Nombre max par message/fenêtre"
+
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            val = int(self.threshold.value.strip())
+            await interaction.client.db.update_automod_setting(interaction.guild.id, f"{self.module}_threshold", val)
+            await self._setup_view.refresh(interaction, "Seuil mis à jour !")
+        except ValueError:
+            await interaction.response.send_message("Valeur invalide.", ephemeral=True)
+
+class AutomodThresholdButton(discord.ui.Button):
+    def __init__(self, module: str, current: int):
+        super().__init__(label=f"Seuil actuel : {current}", style=discord.ButtonStyle.secondary, row=2)
+        self.module = module
+        self.current = current
+
+    async def callback(self, interaction: discord.Interaction):
+        view: SetupView = self.view
+        await interaction.response.send_modal(AutomodThresholdModal(view, self.module, self.current))
+
 class AntiraidToggleButton(discord.ui.Button):
     def __init__(self, current: bool):
-        super().__init__(label="Désactiver Anti-Raid" if current else "Activer Anti-Raid", style=discord.ButtonStyle.danger if current else discord.ButtonStyle.success, row=1)
+        super().__init__(label="Désactiver Anti-Raid" if current else "Activer Anti-Raid", style=discord.ButtonStyle.danger if current else discord.ButtonStyle.success, row=0)
         self.current = current
     
     async def callback(self, interaction: discord.Interaction):
@@ -124,6 +231,75 @@ class AntiraidToggleButton(discord.ui.Button):
         new_val = 0 if self.current else 1
         await interaction.client.db.update_antiraid_setting(interaction.guild.id, "enabled", new_val)
         await view.refresh(interaction, "Anti-Raid a été " + ("désactivé" if self.current else "activé"))
+
+class AntiraidActionSelect(discord.ui.Select):
+    def __init__(self, current_action: str):
+        options = [
+            discord.SelectOption(label="Kick (Expulser)", value="kick", emoji="👢", default=current_action=="kick"),
+            discord.SelectOption(label="Ban (Bannir)", value="ban", emoji="🔨", default=current_action=="ban"),
+            discord.SelectOption(label="Warn (Avertissement)", value="warn", emoji="⚠️", default=current_action=="warn"),
+        ]
+        super().__init__(placeholder="Action lors d'un raid...", options=options, row=1)
+
+    async def callback(self, interaction: discord.Interaction):
+        view: SetupView = self.view
+        await interaction.client.db.update_antiraid_setting(interaction.guild.id, "action", self.values[0])
+        await view.refresh(interaction, "Action Anti-Raid mise à jour !")
+
+class AntiraidThresholdModal(discord.ui.Modal, title="Filtre Anti-Raid"):
+    joins = discord.ui.TextInput(label="Membres max", style=discord.TextStyle.short)
+    window = discord.ui.TextInput(label="En combien de secondes ?", style=discord.TextStyle.short)
+
+    def __init__(self, setup_view: "SetupView", current_joins: int, current_window: int):
+        super().__init__()
+        self._setup_view = setup_view
+        self.joins.default = str(current_joins)
+        self.window.default = str(current_window)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            j = int(self.joins.value.strip())
+            w = int(self.window.value.strip())
+            await interaction.client.db.update_antiraid_setting(interaction.guild.id, "join_threshold", j)
+            await interaction.client.db.update_antiraid_setting(interaction.guild.id, "join_window", w)
+            await self._setup_view.refresh(interaction, "Filtre Anti-Raid mis à jour !")
+        except ValueError:
+            await interaction.response.send_message("Valeurs invalides.", ephemeral=True)
+
+class AntiraidThresholdButton(discord.ui.Button):
+    def __init__(self, joins: int, window: int):
+        super().__init__(label=f"Filtre : {joins} joins / {window}s", style=discord.ButtonStyle.secondary, row=2)
+        self.joins = joins
+        self.window = window
+
+    async def callback(self, interaction: discord.Interaction):
+        view: SetupView = self.view
+        await interaction.response.send_modal(AntiraidThresholdModal(view, self.joins, self.window))
+
+class AntiraidAgeModal(discord.ui.Modal, title="Âge minimum du compte"):
+    age = discord.ui.TextInput(label="Jours minimum (0 pour désactiver)", style=discord.TextStyle.short)
+
+    def __init__(self, setup_view: "SetupView", current: int):
+        super().__init__()
+        self._setup_view = setup_view
+        self.age.default = str(current)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            val = int(self.age.value.strip())
+            await interaction.client.db.update_antiraid_setting(interaction.guild.id, "min_account_age", val)
+            await self._setup_view.refresh(interaction, "Âge minimum mis à jour !")
+        except ValueError:
+            await interaction.response.send_message("Valeur invalide.", ephemeral=True)
+
+class AntiraidAgeButton(discord.ui.Button):
+    def __init__(self, age: int):
+        super().__init__(label=f"Âge min : {age} jours" if age > 0 else "Âge min : Désactivé", style=discord.ButtonStyle.secondary, row=2)
+        self.age = age
+
+    async def callback(self, interaction: discord.Interaction):
+        view: SetupView = self.view
+        await interaction.response.send_modal(AntiraidAgeModal(view, self.age))
 
 class SetupBackButton(discord.ui.Button):
     def __init__(self, lang: str):
@@ -140,6 +316,7 @@ class SetupView(discord.ui.View):
         self.bot = bot
         self.lang = lang
         self.guild_id = guild_id
+        self.automod_module = None
         self._build_home()
 
     def _build_home(self):
@@ -195,9 +372,11 @@ class SetupView(discord.ui.View):
         elif category == "welcome":
             self.add_item(SetupChannelSelect(lang, "welcome_channel_id", "setup.welcome_placeholder"))
             self.add_item(SetupMessageButton(lang, "welcome_message", t(lang, "setup.welcome_modal_title"), settings.get("welcome_message")))
+            self.add_item(SetupImageButton(lang, "welcome_image", "Bannière de Bienvenue", settings.get("welcome_image")))
         elif category == "goodbye":
             self.add_item(SetupChannelSelect(lang, "goodbye_channel_id", "setup.goodbye_placeholder"))
             self.add_item(SetupMessageButton(lang, "goodbye_message", t(lang, "setup.goodbye_modal_title"), settings.get("goodbye_message")))
+            self.add_item(SetupImageButton(lang, "goodbye_image", "Bannière d'Au revoir", settings.get("goodbye_image")))
         elif category == "autorole":
             self.add_item(SetupRoleSelect(lang))
         elif category == "report":
@@ -207,16 +386,42 @@ class SetupView(discord.ui.View):
         elif category == "automod":
             am_cfg = await self.bot.db.get_automod_config(self.guild_id)
             self.add_item(AutomodToggleButton(bool(am_cfg["enabled"])))
+            self.add_item(AutomodModuleSelect(self.automod_module))
+            
             embed.title = "🛡️ Configuration AutoMod"
-            embed.description = "Activez ou désactivez l'AutoMod global. Pour la configuration fine, utilisez `/automod status`."
+            
+            if self.automod_module:
+                mod = self.automod_module
+                is_enabled = bool(am_cfg[f"{mod}_enabled"])
+                action = am_cfg[f"{mod}_action"]
+                threshold = am_cfg.get(f"{mod}_threshold", 0)
+                
+                self.add_item(AutomodModuleToggleButton(mod, is_enabled))
+                if mod not in ["link", "invite"]:
+                    self.add_item(AutomodThresholdButton(mod, threshold))
+                self.add_item(AutomodActionSelect(mod, action))
+                embed.description = f"**Module : {mod.capitalize()}**\nConfiguration spécifique pour ce module."
+            else:
+                embed.description = "Activez ou désactivez l'AutoMod global.\nChoisissez un module ci-dessous pour affiner la configuration."
+                
         elif category == "antiraid":
             ar_cfg = await self.bot.db.get_antiraid_config(self.guild_id)
             self.add_item(AntiraidToggleButton(bool(ar_cfg["enabled"])))
+            self.add_item(AntiraidActionSelect(ar_cfg["action"]))
+            self.add_item(AntiraidThresholdButton(ar_cfg["join_threshold"], ar_cfg["join_window"]))
+            self.add_item(AntiraidAgeButton(ar_cfg["min_account_age"]))
+            
             embed.title = "⚔️ Configuration Anti-Raid"
-            embed.description = "Activez ou désactivez l'Anti-Raid global. Pour la configuration fine, utilisez `/antiraid status`."
+            embed.description = "Configurez les seuils et les actions du système Anti-Raid.\nIl se déclenchera si trop de membres rejoignent en même temps."
 
         self.add_item(SetupBackButton(lang))
-        await interaction.response.edit_message(embed=embed, view=self)
+        try:
+            await interaction.response.edit_message(embed=embed, view=self)
+        except Exception as e:
+            import logging
+            logging.error(f"Error in show_category for {category}: {e}", exc_info=True)
+            if not interaction.response.is_done():
+                await interaction.response.send_message(f"❌ Erreur interne lors de l'affichage de {category} : {e}", ephemeral=True)
 
     async def refresh(self, interaction: discord.Interaction, confirm_text: str):
         self._build_home()

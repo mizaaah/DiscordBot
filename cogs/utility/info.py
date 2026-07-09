@@ -47,10 +47,9 @@ COMMAND_PAGE_MAP = {
     "embed": "embeds",
     "giveaway": "giveaways",
     "starboard": "starboard_afk", "afk": "starboard_afk",
-    "boost": "community", "report": "community", "setreport": "community",
+    "boost": "community", "report": "community",
     "cmdperm": "permissions",
-    "setup": "config", "config": "config", "setlanguage": "config", "setlogs": "config",
-    "setwelcome": "config", "setgoodbye": "config", "setautorole": "config",
+    "setup": "config", "config": "config",
     "userinfo": "config", "serverinfo": "config", "botinfo": "config", "avatar": "config", "roleinfo": "config",
 }
 

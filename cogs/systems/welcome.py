@@ -8,6 +8,11 @@ try:
 except ImportError:
     _open_ticket = None
 
+try:
+    from easy_pil import Editor, Canvas, Font, load_image_async
+except ImportError:
+    pass
+
 class WelcomeView(discord.ui.View):
     def __init__(self, lang: str = "fr"):
         super().__init__(timeout=None)
@@ -105,7 +110,32 @@ class Welcome(commands.Cog):
         embed.add_field(name=t(lang, "welcome.account_created_field"), value=discord.utils.format_dt(member.created_at, 'D'), inline=True)
         embed.add_field(name=t(lang, "welcome.members_field"),         value=str(member.guild.member_count),                  inline=True)
 
-        await channel.send(embed=embed, view=WelcomeView(lang))
+        welcome_image = settings.get("welcome_image")
+        if welcome_image:
+            embed.set_image(url=welcome_image)
+            await channel.send(embed=embed, view=WelcomeView(lang))
+        else:
+            try:
+                # Generation of Welcome Card
+                background = Editor(Canvas((900, 300), color="#1A1C1F"))
+                
+                # Default beautiful background if we wanted one, but dark canvas is clean
+                profile_image = await load_image_async(str(member.display_avatar.url))
+                profile = Editor(profile_image).resize((200, 200)).circle_image()
+                background.paste(profile, (50, 50))
+                
+                font_large = Font.poppins(size=50, variant="bold")
+                font_small = Font.poppins(size=30, variant="regular")
+                
+                background.text((280, 100), "BIENVENUE", font=font_large, color="white")
+                background.text((280, 160), str(member), font=font_small, color="#5865F2")
+                background.text((280, 210), f"Membre #{member.guild.member_count}", font=font_small, color="#b3b3b3")
+                
+                file = discord.File(fp=background.image_bytes, filename="welcome.png")
+                embed.set_image(url="attachment://welcome.png")
+                await channel.send(file=file, embed=embed, view=WelcomeView(lang))
+            except Exception:
+                await channel.send(embed=embed, view=WelcomeView(lang))
 
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member):
@@ -132,6 +162,10 @@ class Welcome(commands.Cog):
         embed.set_thumbnail(url=member.display_avatar.url)
         footer_text = t(lang, "welcome.footer_leave", count=member.guild.member_count)
         embed.set_footer(text=footer_text, icon_url=member.guild.icon.url if member.guild.icon else None)
+
+        goodbye_image = settings.get("goodbye_image")
+        if goodbye_image:
+            embed.set_image(url=goodbye_image)
 
         await channel.send(embed=embed)
 

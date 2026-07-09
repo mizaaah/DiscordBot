@@ -8,7 +8,8 @@ DB_PATH = os.getenv("DB_PATH", "bot.db")
 ALLOWED_SETTINGS = {
     "log_channel_id", "welcome_channel_id", "goodbye_channel_id",
     "autorole_id", "welcome_message", "goodbye_message",
-    "report_channel_id", "ghostping_enabled", "language"
+    "report_channel_id", "ghostping_enabled", "language",
+    "welcome_image", "goodbye_image"
 }
 
 ALLOWED_BOOST_SETTINGS = {"reward_role_id", "channel_id", "message"}
@@ -86,7 +87,12 @@ class Database:
                 goodbye_channel_id  INTEGER,
                 autorole_id         INTEGER,
                 welcome_message     TEXT DEFAULT 'Bienvenue {mention} sur **{server}** !',
-                goodbye_message     TEXT DEFAULT 'Au revoir **{name}**, bonne continuation !'
+                goodbye_message     TEXT DEFAULT 'Au revoir **{name}**, bonne continuation !',
+                report_channel_id   INTEGER,
+                ghostping_enabled   INTEGER DEFAULT 0,
+                language            TEXT DEFAULT 'fr',
+                welcome_image       TEXT,
+                goodbye_image       TEXT
             )""",
             """CREATE TABLE IF NOT EXISTS warnings (
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -317,6 +323,23 @@ class Database:
         ]
         for stmt in stmts:
             await self.db.execute(stmt)
+
+        # Migrations pour ajouter les colonnes manquantes (ignorées si elles existent déjà)
+        try: await self.db.execute("ALTER TABLE guild_settings ADD COLUMN report_channel_id INTEGER")
+        except aiosqlite.OperationalError: pass
+        
+        try: await self.db.execute("ALTER TABLE guild_settings ADD COLUMN ghostping_enabled INTEGER DEFAULT 0")
+        except aiosqlite.OperationalError: pass
+        
+        try: await self.db.execute("ALTER TABLE guild_settings ADD COLUMN language TEXT DEFAULT 'fr'")
+        except aiosqlite.OperationalError: pass
+        
+        try: await self.db.execute("ALTER TABLE guild_settings ADD COLUMN welcome_image TEXT")
+        except aiosqlite.OperationalError: pass
+        
+        try: await self.db.execute("ALTER TABLE guild_settings ADD COLUMN goodbye_image TEXT")
+        except aiosqlite.OperationalError: pass
+
         await self.db.commit()
         # Migrations pour installations existantes
         for migration in [
