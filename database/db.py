@@ -183,6 +183,16 @@ class Database:
                 closed_at       TEXT,
                 closed_by       INTEGER
             )""",
+            """CREATE TABLE IF NOT EXISTS whitelist (
+                guild_id INTEGER,
+                user_id INTEGER,
+                PRIMARY KEY (guild_id, user_id)
+            )""",
+            """CREATE TABLE IF NOT EXISTS blacklist (
+                guild_id INTEGER,
+                user_id INTEGER,
+                PRIMARY KEY (guild_id, user_id)
+            )""",
             """CREATE TABLE IF NOT EXISTS rr_panels (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
                 guild_id    INTEGER NOT NULL,
@@ -518,7 +528,8 @@ class Database:
         if not row:
             await self._exec("INSERT OR IGNORE INTO ticket_config (guild_id) VALUES (?)", guild_id)
             row = await self._row("SELECT * FROM ticket_config WHERE guild_id = ?", guild_id)
-        row["categories"] = json.loads(row.get("categories") or "[]")
+        raw_cats = json.loads(row.get("categories") or "[]")
+        row["categories"] = [{"name": c, "category_id": None} if isinstance(c, str) else c for c in raw_cats]
         self._ticket_cache[guild_id] = row
         return row
 
@@ -930,3 +941,31 @@ class Database:
     async def remove_nickname_lock(self, guild_id: int, user_id: int) -> bool:
         cur = await self._exec("DELETE FROM nickname_locks WHERE guild_id = ? AND user_id = ?", guild_id, user_id)
         return cur.rowcount > 0
+
+    # ── Whitelist & Blacklist ─────────────────────────────────────────────────
+
+    async def add_whitelist(self, guild_id: int, user_id: int):
+        await self._exec("INSERT OR IGNORE INTO whitelist (guild_id, user_id) VALUES (?, ?)", guild_id, user_id)
+
+    async def remove_whitelist(self, guild_id: int, user_id: int) -> bool:
+        cur = await self._exec("DELETE FROM whitelist WHERE guild_id = ? AND user_id = ?", guild_id, user_id)
+        return cur.rowcount > 0
+
+    async def get_whitelist(self, guild_id: int) -> list:
+        return await self._rows("SELECT user_id FROM whitelist WHERE guild_id = ?", guild_id)
+
+    async def is_whitelisted(self, guild_id: int, user_id: int) -> bool:
+        return bool(await self._val("SELECT 1 FROM whitelist WHERE guild_id = ? AND user_id = ?", guild_id, user_id))
+
+    async def add_blacklist(self, guild_id: int, user_id: int):
+        await self._exec("INSERT OR IGNORE INTO blacklist (guild_id, user_id) VALUES (?, ?)", guild_id, user_id)
+
+    async def remove_blacklist(self, guild_id: int, user_id: int) -> bool:
+        cur = await self._exec("DELETE FROM blacklist WHERE guild_id = ? AND user_id = ?", guild_id, user_id)
+        return cur.rowcount > 0
+
+    async def get_blacklist(self, guild_id: int) -> list:
+        return await self._rows("SELECT user_id FROM blacklist WHERE guild_id = ?", guild_id)
+
+    async def is_blacklisted(self, guild_id: int, user_id: int) -> bool:
+        return bool(await self._val("SELECT 1 FROM blacklist WHERE guild_id = ? AND user_id = ?", guild_id, user_id))

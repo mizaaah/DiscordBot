@@ -339,25 +339,27 @@ class SetupView(discord.ui.LayoutView):
 
         cont = discord.ui.Container(accent_color=Colors.INFO.value)
 
-        header = f"# Configuration de {guild.name}\nSélectionnez une catégorie ci-dessous pour configurer les fonctionnalités du bot.\n\n"
+        header = f"# Configuration de {guild.name}\nSélectionnez une catégorie ci-dessous pour configurer les fonctionnalités du bot.\n"
         if confirm_text:
             header = f"✅ **{confirm_text}**\n\n" + header
         cont.add_item(discord.ui.TextDisplay(header))
+        cont.add_item(discord.ui.Separator())
 
         am_status = am_cfg.get("enabled")
         btn_am = discord.ui.Button(label="Activé" if am_status else "Désactivé", style=discord.ButtonStyle.success if am_status else discord.ButtonStyle.secondary, disabled=True)
         cont.add_item(discord.ui.Section(discord.ui.TextDisplay("🛡️ **AutoMod**\nModération automatique et protection contre les liens/spams."), accessory=btn_am))
+        cont.add_item(discord.ui.Separator())
 
         ar_status = ar_cfg.get("enabled")
         btn_ar = discord.ui.Button(label="Activé" if ar_status else "Désactivé", style=discord.ButtonStyle.success if ar_status else discord.ButtonStyle.secondary, disabled=True)
         cont.add_item(discord.ui.Section(discord.ui.TextDisplay("⚔️ **Anti-Raid**\nProtection contre les raids de bots et les arrivées massives."), accessory=btn_ar))
+        cont.add_item(discord.ui.Separator())
 
         desc = (
-            "\n\n"
-            f"🪵 `Logs :` {ch(settings.get('log_channel_id'))}\n"
-            f"👋 `Bienvenue :` {ch(settings.get('welcome_channel_id'))}\n"
-            f"👋 `Départ :` {ch(settings.get('goodbye_channel_id'))}\n"
-            f"🔰 `Auto-Rôle :` {role(settings.get('autorole_id'))}\n"
+            f"- **🪵 Logs :** {ch(settings.get('log_channel_id'))}\n"
+            f"- **👋 Bienvenue :** {ch(settings.get('welcome_channel_id'))}\n"
+            f"- **👋 Départ :** {ch(settings.get('goodbye_channel_id'))}\n"
+            f"- **🔰 Auto-Rôle :** {role(settings.get('autorole_id'))}\n"
         )
         cont.add_item(discord.ui.TextDisplay(desc))
 

@@ -49,6 +49,17 @@ class Bot(commands.Bot):
         await self.db.connect()
         logging.info("✅ Base de données connectée.")
 
+        @self.tree.interaction_check
+        async def check_blacklist(interaction: discord.Interaction):
+            if interaction.guild_id and interaction.guild and interaction.user.id != interaction.guild.owner_id:
+                if await self.db.is_blacklisted(interaction.guild_id, interaction.user.id):
+                    try:
+                        await interaction.response.send_message("❌ Tu es sur la Blacklist de ce serveur, tu ne peux pas utiliser le bot.", ephemeral=True)
+                    except discord.HTTPException:
+                        pass
+                    return False
+            return True
+
         cogs_dir = Path("cogs")
         for file in cogs_dir.rglob("*.py"):
             if file.name.startswith("_"):

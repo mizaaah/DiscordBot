@@ -127,6 +127,8 @@ class AutoMod(commands.Cog):
         bypass_roles = config.get("bypass_roles") or []
         if self._should_bypass(message.author, bypass_roles):
             return
+        if await self.bot.db.is_whitelisted(message.guild.id, message.author.id):
+            return
 
         key = (message.guild.id, message.author.id)
         now = time.monotonic()

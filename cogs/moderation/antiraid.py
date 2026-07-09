@@ -97,6 +97,8 @@ class AntiRaid(commands.Cog):
         config = await self.bot.db.get_antiraid_config(member.guild.id)
         if not config.get("enabled"):
             return
+        if await self.bot.db.is_whitelisted(member.guild.id, member.id):
+            return
 
         # — Vérification de l'âge du compte —
         min_age = config.get("min_account_age", 0)
