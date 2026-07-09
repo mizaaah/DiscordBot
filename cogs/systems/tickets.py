@@ -104,12 +104,12 @@ async def _open_ticket(bot: commands.Bot, interaction: discord.Interaction, cate
     staff_str = staff_role.mention if staff_role else "`Non défini`"
     claimer_str = t(lang, 'ticket.not_claimed')
     
-    cat_str = f"- **🏷️ Catégorie :** `{category}`\n" if category else ""
+    cat_str = f"**🏷️ Catégorie :** `{category}`\n" if category else ""
     desc = (
-        f"- **🛠️ Support :** {staff_str}\n"
+        f"**🛠️ Support :** {staff_str}\n"
         f"{cat_str}"
-        f"- **👤 Pris en charge :** {claimer_str}\n"
-        f"- **🆔 Membre ID :** {user.id}\n"
+        f"**👤 Pris en charge :** {claimer_str}\n"
+        f"**🆔 Membre ID :** {user.id}\n"
     )
     cont.add_item(discord.ui.TextDisplay(desc))
 
@@ -629,12 +629,12 @@ class TicketSetupDashboardView(discord.ui.LayoutView):
         close_btn = f"{config.get('close_button_emoji') or '🔒'} {config.get('close_button_label') or 'Fermer le ticket'}".strip()
 
         desc = (
-            f"- **👮 Staff :** {staff_role}\n"
-            f"- **📁 Catégorie :** {category_ch}\n"
-            f"- **🪵 Logs :** {log_ch}\n"
-            f"- **🏷️ Catégories :** {cats_str}\n"
-            f"- **🎨 Bouton Ouvrir :** `{open_btn}`\n"
-            f"- **🎨 Bouton Fermer :** `{close_btn}`\n"
+            f"**👮 Staff :** {staff_role}\n"
+            f"**📁 Catégorie :** {category_ch}\n"
+            f"**🪵 Logs :** {log_ch}\n"
+            f"**🏷️ Catégories :** {cats_str}\n"
+            f"**🎨 Bouton Ouvrir :** `{open_btn}`\n"
+            f"**🎨 Bouton Fermer :** `{close_btn}`\n"
         )
         cont.add_item(discord.ui.Separator())
         cont.add_item(discord.ui.TextDisplay(desc))

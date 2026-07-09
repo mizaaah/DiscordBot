@@ -356,10 +356,10 @@ class SetupView(discord.ui.LayoutView):
         cont.add_item(discord.ui.Separator())
 
         desc = (
-            f"- **🪵 Logs :** {ch(settings.get('log_channel_id'))}\n"
-            f"- **👋 Bienvenue :** {ch(settings.get('welcome_channel_id'))}\n"
-            f"- **👋 Départ :** {ch(settings.get('goodbye_channel_id'))}\n"
-            f"- **🔰 Auto-Rôle :** {role(settings.get('autorole_id'))}\n"
+            f"**🪵 Logs :** {ch(settings.get('log_channel_id'))}\n"
+            f"**👋 Bienvenue :** {ch(settings.get('welcome_channel_id'))}\n"
+            f"**👋 Départ :** {ch(settings.get('goodbye_channel_id'))}\n"
+            f"**🔰 Auto-Rôle :** {role(settings.get('autorole_id'))}\n"
         )
         cont.add_item(discord.ui.TextDisplay(desc))
 
