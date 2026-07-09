@@ -153,7 +153,7 @@ class AutomodModuleSelect(discord.ui.Select):
             discord.SelectOption(label="Anti-Mentions", value="mention", emoji="📢", default=current_module=="mention"),
             discord.SelectOption(label="Anti-Flood", value="flood", emoji="🌊", default=current_module=="flood"),
         ]
-        super().__init__(placeholder="Sélectionner un module à configurer...", options=options, row=1)
+        super().__init__(placeholder="Sélectionner un module à configurer...", options=options, row=2)
 
     async def callback(self, interaction: discord.Interaction):
         view: SetupView = self.view
@@ -162,7 +162,7 @@ class AutomodModuleSelect(discord.ui.Select):
 
 class AutomodModuleToggleButton(discord.ui.Button):
     def __init__(self, module: str, current: bool):
-        super().__init__(label=f"{'Désactiver' if current else 'Activer'} le module", style=discord.ButtonStyle.danger if current else discord.ButtonStyle.success, row=2)
+        super().__init__(label=f"{'Désactiver' if current else 'Activer'} le module", style=discord.ButtonStyle.danger if current else discord.ButtonStyle.success, row=4)
         self.module = module
         self.current = current
 
@@ -213,7 +213,7 @@ class AutomodThresholdModal(discord.ui.Modal):
 
 class AutomodThresholdButton(discord.ui.Button):
     def __init__(self, module: str, current: int):
-        super().__init__(label=f"Seuil actuel : {current}", style=discord.ButtonStyle.secondary, row=2)
+        super().__init__(label=f"Seuil actuel : {current}", style=discord.ButtonStyle.secondary, row=4)
         self.module = module
         self.current = current
 
@@ -223,7 +223,7 @@ class AutomodThresholdButton(discord.ui.Button):
 
 class AntiraidToggleButton(discord.ui.Button):
     def __init__(self, current: bool):
-        super().__init__(label="Désactiver Anti-Raid" if current else "Activer Anti-Raid", style=discord.ButtonStyle.danger if current else discord.ButtonStyle.success, row=0)
+        super().__init__(label="Désactiver Anti-Raid" if current else "Activer Anti-Raid", style=discord.ButtonStyle.danger if current else discord.ButtonStyle.success, row=1)
         self.current = current
     
     async def callback(self, interaction: discord.Interaction):
@@ -239,7 +239,7 @@ class AntiraidActionSelect(discord.ui.Select):
             discord.SelectOption(label="Ban (Bannir)", value="ban", emoji="🔨", default=current_action=="ban"),
             discord.SelectOption(label="Warn (Avertissement)", value="warn", emoji="⚠️", default=current_action=="warn"),
         ]
-        super().__init__(placeholder="Action lors d'un raid...", options=options, row=1)
+        super().__init__(placeholder="Action lors d'un raid...", options=options, row=2)
 
     async def callback(self, interaction: discord.Interaction):
         view: SetupView = self.view
@@ -268,7 +268,7 @@ class AntiraidThresholdModal(discord.ui.Modal, title="Filtre Anti-Raid"):
 
 class AntiraidThresholdButton(discord.ui.Button):
     def __init__(self, joins: int, window: int):
-        super().__init__(label=f"Filtre : {joins} joins / {window}s", style=discord.ButtonStyle.secondary, row=2)
+        super().__init__(label=f"Filtre : {joins} joins / {window}s", style=discord.ButtonStyle.secondary, row=3)
         self.joins = joins
         self.window = window
 
@@ -294,7 +294,7 @@ class AntiraidAgeModal(discord.ui.Modal, title="Âge minimum du compte"):
 
 class AntiraidAgeButton(discord.ui.Button):
     def __init__(self, age: int):
-        super().__init__(label=f"Âge min : {age} jours" if age > 0 else "Âge min : Désactivé", style=discord.ButtonStyle.secondary, row=2)
+        super().__init__(label=f"Âge min : {age} jours" if age > 0 else "Âge min : Désactivé", style=discord.ButtonStyle.secondary, row=3)
         self.age = age
 
     async def callback(self, interaction: discord.Interaction):
@@ -303,7 +303,7 @@ class AntiraidAgeButton(discord.ui.Button):
 
 class SetupBackButton(discord.ui.Button):
     def __init__(self, lang: str):
-        super().__init__(label=t(lang, "setup.back_btn"), style=discord.ButtonStyle.danger, row=3)
+        super().__init__(label=t(lang, "setup.back_btn"), style=discord.ButtonStyle.danger, row=4)
 
     async def callback(self, interaction: discord.Interaction):
         view: SetupView = self.view
