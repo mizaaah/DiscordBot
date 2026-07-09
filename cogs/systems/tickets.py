@@ -86,14 +86,14 @@ async def _open_ticket(bot: commands.Bot, interaction: discord.Interaction, cate
     if category:
         title += f" — {category}"
 
-    embed = discord.Embed(title=title, description=welcome, color=color)
+    embed = discord.Embed(title=title, description=f"> {welcome.replace('\n', '\n> ')}", color=color)
     if staff_role:
-        embed.add_field(name=t(lang, "ticket.support_field"), value=staff_role.mention, inline=True)
+        embed.add_field(name=t(lang, "ticket.support_field"), value=f"> {staff_role.mention}", inline=True)
     if category:
-        embed.add_field(name=t(lang, "ticket.category_field"), value=category, inline=True)
-    embed.add_field(name=t(lang, "ticket.claimed_by_field"), value=t(lang, "ticket.not_claimed"), inline=True)
+        embed.add_field(name=t(lang, "ticket.category_field"), value=f"> `{category}`", inline=True)
+    embed.add_field(name=t(lang, "ticket.claimed_by_field"), value=f"> {t(lang, 'ticket.not_claimed')}", inline=True)
     embed.set_thumbnail(url=user.display_avatar.url)
-    embed.set_footer(text=t(lang, "ticket.member_id_footer", id=user.id))
+    embed.set_footer(text=t(lang, "ticket.member_id_footer", id=user.id), icon_url=user.display_avatar.url)
 
     await channel.send(embed=embed, view=TicketCloseView(bot, config.get("close_button_label"), config.get("close_button_emoji")))
     await channel.send(user.mention, delete_after=1)
@@ -101,11 +101,11 @@ async def _open_ticket(bot: commands.Bot, interaction: discord.Interaction, cate
 
     if logs := bot.get_cog("Logs"):
         log_embed = discord.Embed(title=t(lang, "ticket.log_opened_title"), color=Colors.SUCCESS)
-        log_embed.add_field(name=t(lang, "ticket.log_member"), value=f"{user.mention} (`{user.id}`)", inline=True)
-        log_embed.add_field(name=t(lang, "ticket.log_channel"), value=channel.mention, inline=True)
-        log_embed.add_field(name=t(lang, "ticket.log_number"), value=f"#{ticket_num:04d}", inline=True)
+        log_embed.add_field(name=t(lang, "ticket.log_member"), value=f"> {user.mention} (`{user.id}`)", inline=True)
+        log_embed.add_field(name=t(lang, "ticket.log_channel"), value=f"> {channel.mention}", inline=True)
+        log_embed.add_field(name=t(lang, "ticket.log_number"), value=f"> `#{ticket_num:04d}`", inline=True)
         if category:
-            log_embed.add_field(name=t(lang, "ticket.category_field"), value=category, inline=True)
+            log_embed.add_field(name=t(lang, "ticket.category_field"), value=f"> `{category}`", inline=True)
         await logs.send_log(guild, log_embed)
 
 
@@ -266,19 +266,19 @@ class TicketCloseConfirmView(discord.ui.View):
                 )
                 embed.add_field(
                     name=t(lang, "ticket.opened_by"),
-                    value=owner.mention if owner else str(self.ticket["user_id"]),
+                    value=f"> {owner.mention if owner else str(self.ticket['user_id'])}",
                     inline=True
                 )
-                embed.add_field(name=t(lang, "ticket.closed_by"), value=interaction.user.mention, inline=True)
+                embed.add_field(name=t(lang, "ticket.closed_by"), value=f"> {interaction.user.mention}", inline=True)
                 if self.ticket.get("category"):
-                    embed.add_field(name=t(lang, "ticket.category_field"), value=self.ticket["category"], inline=True)
+                    embed.add_field(name=t(lang, "ticket.category_field"), value=f"> `{self.ticket['category']}`", inline=True)
                 if duration:
-                    embed.add_field(name=t(lang, "ticket.duration_field"), value=duration, inline=True)
+                    embed.add_field(name=t(lang, "ticket.duration_field"), value=f"> `{duration}`", inline=True)
                 if self.ticket.get("claimed_by"):
                     claimer = guild.get_member(self.ticket["claimed_by"])
                     embed.add_field(
                         name=t(lang, "ticket.claimed_by_field"),
-                        value=claimer.mention if claimer else str(self.ticket["claimed_by"]),
+                        value=f"> {claimer.mention if claimer else str(self.ticket['claimed_by'])}",
                         inline=True
                     )
                 file = discord.File(
@@ -358,12 +358,13 @@ class Tickets(commands.Cog):
 
         embed = discord.Embed(
             title=t(lang, "ticket.panel_title"),
-            description=t(lang, "ticket.panel_desc"),
+            description=f"> {t(lang, 'ticket.panel_desc').replace('\n', '\n> ')}\n\n*Cliquez sur le bouton ci-dessous pour contacter l'équipe.*",
             color=color
         )
         if interaction.guild.icon:
-            embed.set_thumbnail(url=interaction.guild.icon.url)
-        embed.set_footer(text=interaction.guild.name)
+            embed.set_author(name=interaction.guild.name, icon_url=interaction.guild.icon.url)
+        else:
+            embed.set_author(name=interaction.guild.name)
 
         view  = TicketOpenView(self.bot, config.get("open_button_label"), config.get("open_button_emoji"))
         panel = await salon.send(embed=embed, view=view)
@@ -505,19 +506,19 @@ class Tickets(commands.Cog):
         log_ch      = interaction.guild.get_channel(config["log_channel_id"]) if config.get("log_channel_id")  else None
 
         embed = discord.Embed(title=t(lang, "ticket.config_title"), color=color)
-        embed.add_field(name=t(lang, "ticket.staff_role_field"), value=staff_role.mention    if staff_role   else t(lang, "ticket.not_configured_f"),  inline=True)
-        embed.add_field(name=t(lang, "ticket.discord_category_field"), value=category_ch.mention  if category_ch  else t(lang, "ticket.not_configured_f"), inline=True)
-        embed.add_field(name=t(lang, "ticket.log_channel_field"), value=log_ch.mention       if log_ch       else t(lang, "ticket.not_configured_f"),  inline=True)
-        embed.add_field(name=t(lang, "ticket.color_field"), value=f"`#{config.get('embed_color', Colors.INFO.value):06X}`", inline=True)
-        embed.add_field(name=t(lang, "ticket.opened_count_field"), value=str(config.get("ticket_counter", 0)), inline=True)
-        embed.add_field(name=t(lang, "ticket.channel_name_format_field"), value=f"`{config.get('channel_name_format') or '{category}-{number}'}`", inline=True)
-        embed.add_field(name=t(lang, "ticket.open_button_field"), value=f"{config.get('open_button_emoji') or ''} {config.get('open_button_label') or 'Ouvrir un ticket'}".strip(), inline=True)
-        embed.add_field(name=t(lang, "ticket.close_button_field"), value=f"{config.get('close_button_emoji') or ''} {config.get('close_button_label') or 'Fermer le ticket'}".strip(), inline=True)
+        embed.add_field(name=t(lang, "ticket.staff_role_field"), value=f"> {staff_role.mention    if staff_role   else t(lang, 'ticket.not_configured_f')}",  inline=True)
+        embed.add_field(name=t(lang, "ticket.discord_category_field"), value=f"> {category_ch.mention  if category_ch  else t(lang, 'ticket.not_configured_f')}", inline=True)
+        embed.add_field(name=t(lang, "ticket.log_channel_field"), value=f"> {log_ch.mention       if log_ch       else t(lang, 'ticket.not_configured_f')}",  inline=True)
+        embed.add_field(name=t(lang, "ticket.color_field"), value=f"> `#{config.get('embed_color', Colors.INFO.value):06X}`", inline=True)
+        embed.add_field(name=t(lang, "ticket.opened_count_field"), value=f"> `{config.get('ticket_counter', 0)}`", inline=True)
+        embed.add_field(name=t(lang, "ticket.channel_name_format_field"), value=f"> `{config.get('channel_name_format') or '{category}-{number}'}`", inline=True)
+        embed.add_field(name=t(lang, "ticket.open_button_field"), value=f"> {config.get('open_button_emoji') or ''} {config.get('open_button_label') or 'Ouvrir un ticket'}".strip(), inline=True)
+        embed.add_field(name=t(lang, "ticket.close_button_field"), value=f"> {config.get('close_button_emoji') or ''} {config.get('close_button_label') or 'Fermer le ticket'}".strip(), inline=True)
 
         cats = [c for c in (config.get("categories") or []) if c]
         embed.add_field(
             name=t(lang, "ticket.categories_field", count=len(cats)),
-            value="\n".join(f"🏷️ {c}" for c in cats) or t(lang, "ticket.no_categories"),
+            value="\n".join(f"> 🏷️ `{c}`" for c in cats) or f"> {t(lang, 'ticket.no_categories')}",
             inline=False
         )
         welcome = config.get("welcome_message")

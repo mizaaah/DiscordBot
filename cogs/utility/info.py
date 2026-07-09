@@ -92,14 +92,18 @@ HELP_PAGE_COLORS = {
 def _build_help_embed(lang: str, page_key: str, guild: discord.Guild) -> discord.Embed:
     pages = _build_help_pages(lang)
     page = pages.get(page_key, pages["home"])
+    desc = page.get("description", "")
+    if desc:
+        desc = "> " + desc.replace("\n", "\n> ") + "\n\n"
     embed = discord.Embed(
         title=page["title"],
-        description=page.get("description", ""),
+        description=desc,
         color=page["color"],
     )
     for name, value, inline in page.get("fields", []):
         embed.add_field(name=name, value=value, inline=inline)
     if guild and guild.icon:
+        embed.set_author(name=f"Centre d'Aide | {guild.name}", icon_url=guild.icon.url)
         embed.set_thumbnail(url=guild.icon.url)
     embed.set_footer(text=t(lang, "help.footer"), icon_url=guild.icon.url if guild and guild.icon else None)
     return embed
@@ -163,12 +167,12 @@ class Info(commands.Cog):
         embed.set_thumbnail(url=member.display_avatar.url)
         embed.set_author(name=str(member), icon_url=member.display_avatar.url)
 
-        embed.add_field(name=t(lang, "info.id"),          value=str(member.id),                                    inline=True)
-        embed.add_field(name=t(lang, "info.bot"),          value="✅" if member.bot else "❌",                      inline=True)
-        embed.add_field(name="​",           value="​",                                         inline=True)
-        embed.add_field(name=t(lang, "info.account_created"),  value=discord.utils.format_dt(member.created_at, 'D'),  inline=True)
-        embed.add_field(name=t(lang, "info.joined"),     value=discord.utils.format_dt(member.joined_at, 'D'),   inline=True)
-        embed.add_field(name="​",           value="​",                                         inline=True)
+        embed.add_field(name=t(lang, "info.id"),               value=f"> `{member.id}`",                                    inline=True)
+        embed.add_field(name=t(lang, "info.bot"),              value="> ✅" if member.bot else "> ❌",                      inline=True)
+        embed.add_field(name="​",                              value="​",                                         inline=True)
+        embed.add_field(name=t(lang, "info.account_created"),  value=f"> {discord.utils.format_dt(member.created_at, 'D')}",  inline=True)
+        embed.add_field(name=t(lang, "info.joined"),           value=f"> {discord.utils.format_dt(member.joined_at, 'D')}",   inline=True)
+        embed.add_field(name="​",                              value="​",                                         inline=True)
 
         if member.is_timed_out():
             embed.add_field(
@@ -183,9 +187,10 @@ class Info(commands.Cog):
             discord.Status.dnd:     t(lang, "info.status_dnd"),
             discord.Status.offline: t(lang, "info.status_offline"),
         }
-        embed.add_field(name=t(lang, "info.status"), value=status_map.get(member.status, t(lang, "info.status_unknown")), inline=True)
-        embed.add_field(name=t(lang, "info.top_role"),   value=member.top_role.mention, inline=True)
-        embed.add_field(name=t(lang, "info.key_perms"), value=self._key_perms(lang, member), inline=False)
+        embed.add_field(name=t(lang, "info.status"),     value=f"> {status_map.get(member.status, t(lang, 'info.status_unknown'))}", inline=True)
+        embed.add_field(name=t(lang, "info.top_role"),   value=f"> {member.top_role.mention}", inline=True)
+        embed.add_field(name="​",                        value="​", inline=True)
+        embed.add_field(name=t(lang, "info.key_perms"),  value=f"> {self._key_perms(lang, member)}", inline=False)
 
         roles = [r.mention for r in reversed(member.roles) if r != interaction.guild.default_role]
         if roles:
@@ -226,17 +231,17 @@ class Info(commands.Cog):
         if guild.banner:
             embed.set_image(url=guild.banner.url)
 
-        embed.add_field(name=t(lang, "info.id"),          value=str(guild.id),                                       inline=True)
-        embed.add_field(name=t(lang, "info.owner"), value=guild.owner.mention if guild.owner else t(lang, "info.unknown"),   inline=True)
-        embed.add_field(name=t(lang, "info.created_on"),      value=discord.utils.format_dt(guild.created_at, 'D'),      inline=True)
+        embed.add_field(name=t(lang, "info.id"),          value=f"> `{guild.id}`",                                       inline=True)
+        embed.add_field(name=t(lang, "info.owner"),       value=f"> {guild.owner.mention if guild.owner else t(lang, 'info.unknown')}",   inline=True)
+        embed.add_field(name=t(lang, "info.created_on"),  value=f"> {discord.utils.format_dt(guild.created_at, 'D')}",      inline=True)
 
         total = guild.member_count
         bots  = sum(1 for m in guild.members if m.bot)
-        embed.add_field(name=t(lang, "info.members"),  value=t(lang, "info.members_value", total=total, humans=total - bots, bots=bots),  inline=True)
-        embed.add_field(name=t(lang, "info.channels"),   value=t(lang, "info.channels_value", text=len(guild.text_channels), voice=len(guild.voice_channels)), inline=True)
-        embed.add_field(name=t(lang, "info.roles"),    value=str(len(guild.roles)),                                   inline=True)
-        embed.add_field(name=t(lang, "info.emojis"),   value=f"{len(guild.emojis)}/{guild.emoji_limit}",              inline=True)
-        embed.add_field(name=t(lang, "info.boosts"),   value=t(lang, "info.boosts_value", count=guild.premium_subscription_count, tier=guild.premium_tier), inline=True)
+        embed.add_field(name=t(lang, "info.members"),  value=f"> {t(lang, 'info.members_value', total=total, humans=total - bots, bots=bots)}",  inline=True)
+        embed.add_field(name=t(lang, "info.channels"), value=f"> {t(lang, 'info.channels_value', text=len(guild.text_channels), voice=len(guild.voice_channels))}", inline=True)
+        embed.add_field(name=t(lang, "info.roles"),    value=f"> `{len(guild.roles)}`",                                   inline=True)
+        embed.add_field(name=t(lang, "info.emojis"),   value=f"> `{len(guild.emojis)}/{guild.emoji_limit}`",              inline=True)
+        embed.add_field(name=t(lang, "info.boosts"),   value=f"> {t(lang, 'info.boosts_value', count=guild.premium_subscription_count, tier=guild.premium_tier)}", inline=True)
 
         level_map = {
             discord.VerificationLevel.none:    t(lang, "info.verif_none"),
@@ -245,7 +250,7 @@ class Info(commands.Cog):
             discord.VerificationLevel.high:    t(lang, "info.verif_high"),
             discord.VerificationLevel.highest: t(lang, "info.verif_highest"),
         }
-        embed.add_field(name=t(lang, "info.verification"), value=level_map.get(guild.verification_level, t(lang, "info.unknown")), inline=True)
+        embed.add_field(name=t(lang, "info.verification"), value=f"> {level_map.get(guild.verification_level, t(lang, 'info.unknown'))}", inline=True)
         await interaction.response.send_message(embed=embed)
 
     # ── /botinfo ──────────────────────────────────────────────────────────────
@@ -260,12 +265,12 @@ class Info(commands.Cog):
             timestamp=discord.utils.utcnow(),
         )
         embed.set_thumbnail(url=bot.user.display_avatar.url)
-        embed.add_field(name=t(lang, "info.id"),               value=str(bot.user.id),                        inline=True)
-        embed.add_field(name=t(lang, "info.servers"),          value=str(len(bot.guilds)),                    inline=True)
-        embed.add_field(name=t(lang, "info.total_members"),    value=str(sum(g.member_count for g in bot.guilds)), inline=True)
-        embed.add_field(name=t(lang, "info.latency"),           value=f"{round(bot.latency * 1000)} ms",       inline=True)
-        embed.add_field(name=t(lang, "info.discordpy"),        value=discord.__version__,                     inline=True)
-        embed.add_field(name=t(lang, "info.commands"),         value=str(len(bot.tree.get_commands())),        inline=True)
+        embed.add_field(name=t(lang, "info.id"),               value=f"> `{bot.user.id}`",                        inline=True)
+        embed.add_field(name=t(lang, "info.servers"),          value=f"> `{len(bot.guilds)}`",                    inline=True)
+        embed.add_field(name=t(lang, "info.total_members"),    value=f"> `{sum(g.member_count for g in bot.guilds)}`", inline=True)
+        embed.add_field(name=t(lang, "info.latency"),          value=f"> `{round(bot.latency * 1000)} ms`",       inline=True)
+        embed.add_field(name=t(lang, "info.discordpy"),        value=f"> `{discord.__version__}`",                inline=True)
+        embed.add_field(name=t(lang, "info.commands"),         value=f"> `{len(bot.tree.get_commands())}`",        inline=True)
         await interaction.response.send_message(embed=embed)
 
     # ── /avatar ───────────────────────────────────────────────────────────────
@@ -301,14 +306,14 @@ class Info(commands.Cog):
             color=role.color,
             timestamp=discord.utils.utcnow(),
         )
-        embed.add_field(name=t(lang, "info.id"),              value=str(role.id),          inline=True)
-        embed.add_field(name=t(lang, "info.color"),          value=str(role.color),       inline=True)
-        embed.add_field(name=t(lang, "info.position"),         value=str(role.position),    inline=True)
-        embed.add_field(name=t(lang, "info.mentionable"),     value="✅" if role.mentionable else "❌", inline=True)
-        embed.add_field(name=t(lang, "info.hoisted"),   value="✅" if role.hoist     else "❌", inline=True)
-        embed.add_field(name=t(lang, "info.managed"),     value="✅" if role.managed   else "❌", inline=True)
-        embed.add_field(name=t(lang, "info.members"),           value=str(len(role.members)), inline=True)
-        embed.add_field(name=t(lang, "info.created_on"),           value=discord.utils.format_dt(role.created_at, 'D'), inline=True)
+        embed.add_field(name=t(lang, "info.id"),              value=f"> `{role.id}`",          inline=True)
+        embed.add_field(name=t(lang, "info.color"),          value=f"> `{role.color}`",       inline=True)
+        embed.add_field(name=t(lang, "info.position"),         value=f"> `{role.position}`",    inline=True)
+        embed.add_field(name=t(lang, "info.mentionable"),     value="> ✅" if role.mentionable else "> ❌", inline=True)
+        embed.add_field(name=t(lang, "info.hoisted"),   value="> ✅" if role.hoist     else "> ❌", inline=True)
+        embed.add_field(name=t(lang, "info.managed"),     value="> ✅" if role.managed   else "> ❌", inline=True)
+        embed.add_field(name=t(lang, "info.members"),           value=f"> `{len(role.members)}`", inline=True)
+        embed.add_field(name=t(lang, "info.created_on"),           value=f"> {discord.utils.format_dt(role.created_at, 'D')}", inline=True)
         await interaction.response.send_message(embed=embed)
 
     # ── /help ─────────────────────────────────────────────────────────────────

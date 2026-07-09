@@ -74,14 +74,14 @@ class AntiRaid(commands.Cog):
         lang = await self.bot.db.get_guild_lang(guild.id)
         embed = discord.Embed(
             title=t(lang, "raid.alert_title"),
-            description=t(lang, "raid.alert_desc", count=count, reason=reason, action=action),
+            description=f"> {t(lang, 'raid.alert_desc', count=count, reason=reason, action=action).replace('\n', '\n> ')}",
             color=Colors.ERROR,
             timestamp=datetime.now(timezone.utc)
         )
         if action == "lockdown":
             embed.add_field(
                 name=t(lang, "raid.lockdown_active_field"),
-                value=t(lang, "raid.lockdown_active_hint"),
+                value=f"> {t(lang, 'raid.lockdown_active_hint')}",
                 inline=False
             )
         embed.set_footer(text=t(lang, "raid.footer"))

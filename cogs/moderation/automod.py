@@ -68,8 +68,8 @@ class AutoMod(commands.Cog):
                 pass
             if logs := self.bot.get_cog("Logs"):
                 embed = discord.Embed(title=t(lang, "automod.log_warn_title"), color=Colors.CAUTION)
-                embed.add_field(name=t(lang, "automod.log_member"), value=f"{member.mention} (`{member.id}`)", inline=True)
-                embed.add_field(name=t(lang, "automod.log_reason"), value=reason, inline=False)
+                embed.add_field(name=t(lang, "automod.log_member"), value=f"> {member.mention} (`{member.id}`)", inline=True)
+                embed.add_field(name=t(lang, "automod.log_reason"), value=f"> {reason}", inline=False)
                 embed.set_footer(text=t(lang, "automod.warn_footer", id=warn_id))
                 await logs.send_log(guild, embed)
 
@@ -84,9 +84,9 @@ class AutoMod(commands.Cog):
                 pass
             if logs := self.bot.get_cog("Logs"):
                 embed = discord.Embed(title=t(lang, "automod.log_mute_title"), color=Colors.WARNING)
-                embed.add_field(name=t(lang, "automod.log_member"), value=f"{member.mention} (`{member.id}`)", inline=True)
-                embed.add_field(name=t(lang, "automod.log_duration"), value=t(lang, "automod.mute_duration_value"), inline=True)
-                embed.add_field(name=t(lang, "automod.log_reason"), value=reason, inline=False)
+                embed.add_field(name=t(lang, "automod.log_member"), value=f"> {member.mention} (`{member.id}`)", inline=True)
+                embed.add_field(name=t(lang, "automod.log_duration"), value=f"> {t(lang, 'automod.mute_duration_value')}", inline=True)
+                embed.add_field(name=t(lang, "automod.log_reason"), value=f"> {reason}", inline=False)
                 await logs.send_log(guild, embed)
 
         elif action == "kick":
@@ -96,8 +96,8 @@ class AutoMod(commands.Cog):
                 pass
             if logs := self.bot.get_cog("Logs"):
                 embed = discord.Embed(title=t(lang, "automod.log_kick_title"), color=Colors.ERROR)
-                embed.add_field(name=t(lang, "automod.log_member"), value=f"{member.mention} (`{member.id}`)", inline=True)
-                embed.add_field(name=t(lang, "automod.log_reason"), value=reason, inline=False)
+                embed.add_field(name=t(lang, "automod.log_member"), value=f"> {member.mention} (`{member.id}`)", inline=True)
+                embed.add_field(name=t(lang, "automod.log_reason"), value=f"> {reason}", inline=False)
                 await logs.send_log(guild, embed)
 
         elif action == "ban":
@@ -107,8 +107,8 @@ class AutoMod(commands.Cog):
                 pass
             if logs := self.bot.get_cog("Logs"):
                 embed = discord.Embed(title=t(lang, "automod.log_ban_title"), color=Colors.DANGER)
-                embed.add_field(name=t(lang, "automod.log_member"), value=f"{member.mention} (`{member.id}`)", inline=True)
-                embed.add_field(name=t(lang, "automod.log_reason"), value=reason, inline=False)
+                embed.add_field(name=t(lang, "automod.log_member"), value=f"> {member.mention} (`{member.id}`)", inline=True)
+                embed.add_field(name=t(lang, "automod.log_reason"), value=f"> {reason}", inline=False)
                 await logs.send_log(guild, embed)
 
     # ── Listener ──────────────────────────────────────────────────────────────
