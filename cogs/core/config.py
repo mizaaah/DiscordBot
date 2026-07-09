@@ -23,6 +23,8 @@ class SetupCategorySelect(discord.ui.Select):
             discord.SelectOption(label=t(lang, "setup.opt_autorole"), value="autorole", emoji="🎭"),
             discord.SelectOption(label=t(lang, "setup.opt_report"),   value="report",   emoji="🚨"),
             discord.SelectOption(label=t(lang, "setup.opt_language"), value="language", emoji="🌐"),
+            discord.SelectOption(label="AutoMod",                     value="automod",  emoji="🛡️"),
+            discord.SelectOption(label="Anti-Raid",                   value="antiraid", emoji="⚔️"),
         ]
         super().__init__(placeholder=t(lang, "setup.select_placeholder"), options=options, row=0)
 
@@ -101,6 +103,28 @@ class SetupLanguageSelect(discord.ui.Select):
         await view.refresh(interaction, t(new_lang, "setup.saved_language"))
 
 
+class AutomodToggleButton(discord.ui.Button):
+    def __init__(self, current: bool):
+        super().__init__(label="Désactiver AutoMod" if current else "Activer AutoMod", style=discord.ButtonStyle.danger if current else discord.ButtonStyle.success, row=1)
+        self.current = current
+    
+    async def callback(self, interaction: discord.Interaction):
+        view: SetupView = self.view
+        new_val = 0 if self.current else 1
+        await interaction.client.db.update_automod_setting(interaction.guild.id, "enabled", new_val)
+        await view.refresh(interaction, "AutoMod a été " + ("désactivé" if self.current else "activé"))
+
+class AntiraidToggleButton(discord.ui.Button):
+    def __init__(self, current: bool):
+        super().__init__(label="Désactiver Anti-Raid" if current else "Activer Anti-Raid", style=discord.ButtonStyle.danger if current else discord.ButtonStyle.success, row=1)
+        self.current = current
+    
+    async def callback(self, interaction: discord.Interaction):
+        view: SetupView = self.view
+        new_val = 0 if self.current else 1
+        await interaction.client.db.update_antiraid_setting(interaction.guild.id, "enabled", new_val)
+        await view.refresh(interaction, "Anti-Raid a été " + ("désactivé" if self.current else "activé"))
+
 class SetupBackButton(discord.ui.Button):
     def __init__(self, lang: str):
         super().__init__(label=t(lang, "setup.back_btn"), style=discord.ButtonStyle.danger, row=3)
@@ -160,6 +184,12 @@ class SetupView(discord.ui.View):
         self.clear_items()
         self.add_item(SetupCategorySelect(lang))
 
+        embed = discord.Embed(
+            title=t(lang, f"setup.opt_{category}") if category not in ["automod", "antiraid"] else "",
+            description=t(lang, f"setup.{category}_desc") if category not in ["automod", "antiraid"] else "",
+            color=Colors.INFO
+        )
+
         if category == "logs":
             self.add_item(SetupChannelSelect(lang, "log_channel_id", "setup.logs_placeholder"))
         elif category == "welcome":
@@ -174,13 +204,18 @@ class SetupView(discord.ui.View):
             self.add_item(SetupChannelSelect(lang, "report_channel_id", "setup.report_placeholder"))
         elif category == "language":
             self.add_item(SetupLanguageSelect(lang))
+        elif category == "automod":
+            am_cfg = await self.bot.db.get_automod_config(self.guild_id)
+            self.add_item(AutomodToggleButton(bool(am_cfg["enabled"])))
+            embed.title = "🛡️ Configuration AutoMod"
+            embed.description = "Activez ou désactivez l'AutoMod global. Pour la configuration fine, utilisez `/automod status`."
+        elif category == "antiraid":
+            ar_cfg = await self.bot.db.get_antiraid_config(self.guild_id)
+            self.add_item(AntiraidToggleButton(bool(ar_cfg["enabled"])))
+            embed.title = "⚔️ Configuration Anti-Raid"
+            embed.description = "Activez ou désactivez l'Anti-Raid global. Pour la configuration fine, utilisez `/antiraid status`."
 
         self.add_item(SetupBackButton(lang))
-        embed = discord.Embed(
-            title=t(lang, f"setup.opt_{category}"),
-            description=t(lang, f"setup.{category}_desc"),
-            color=Colors.INFO
-        )
         await interaction.response.edit_message(embed=embed, view=self)
 
     async def refresh(self, interaction: discord.Interaction, confirm_text: str):
@@ -252,89 +287,7 @@ class Config(commands.Cog):
         embed.set_footer(text=t(lang, "cfg.footer"))
         await interaction.response.send_message(embed=embed)
 
-    # ── /setlanguage ──────────────────────────────────────────────────────────
-
-    @app_commands.command(name="setlanguage", description="Définit la langue du bot / Set the bot language")
-    @app_commands.describe(langue="Langue / Language")
-    @app_commands.choices(langue=[
-        app_commands.Choice(name="Français", value="fr"),
-        app_commands.Choice(name="English", value="en"),
-    ])
-    @app_commands.default_permissions(manage_guild=True)
-    async def setlanguage(self, interaction: discord.Interaction, langue: str):
-        lang = langue.lower().strip()
-        if lang not in SUPPORTED:
-            cur_lang = await self.bot.db.get_guild_lang(interaction.guild_id)
-            return await interaction.response.send_message(
-                embed=error_embed(t(cur_lang, "cfg.language_invalid", langs=", ".join(sorted(SUPPORTED)))),
-                ephemeral=True
-            )
-        await self.bot.db.update_guild_setting(interaction.guild.id, "language", lang)
-        await interaction.response.send_message(embed=success_embed(t(lang, "cfg.language_success", lang=lang)))
-        if logs := get_logs(self.bot):
-            await logs.log_config_change(interaction.guild, interaction.user, t(lang, "cfg.language_field"), lang)
-
-    # ── /setlogs ──────────────────────────────────────────────────────────────
-
-    @app_commands.command(name="setlogs", description="Définit le salon de logs de modération")
-    @app_commands.describe(salon="Le salon où envoyer les logs")
-    @app_commands.default_permissions(manage_guild=True)
-    async def setlogs(self, interaction: discord.Interaction, salon: discord.TextChannel):
-        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
-        await self.bot.db.update_guild_setting(interaction.guild.id, "log_channel_id", salon.id)
-        await interaction.response.send_message(embed=success_embed(t(lang, "cfg.setlogs_success", channel=salon.mention)))
-        if logs := get_logs(self.bot):
-            await logs.log_config_change(interaction.guild, interaction.user, t(lang, "cfg.log_channel"), salon.mention)
-
-    # ── /setwelcome ───────────────────────────────────────────────────────────
-
-    @app_commands.command(name="setwelcome", description="Définit le salon et le message de bienvenue")
-    @app_commands.describe(
-        salon="Le salon de bienvenue",
-        message="Le message (variables: {mention}, {name}, {server}, {count})"
-    )
-    @app_commands.default_permissions(manage_guild=True)
-    async def setwelcome(self, interaction: discord.Interaction, salon: discord.TextChannel, message: str = None):
-        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
-        await self.bot.db.update_guild_setting(interaction.guild.id, "welcome_channel_id", salon.id)
-        if message:
-            await self.bot.db.update_guild_setting(interaction.guild.id, "welcome_message", message)
-        suffix = t(lang, "cfg.setwelcome_msg_suffix", message=message) if message else ""
-        await interaction.response.send_message(embed=success_embed(t(lang, "cfg.setwelcome_success", channel=salon.mention) + suffix))
-        if logs := get_logs(self.bot):
-            await logs.log_config_change(interaction.guild, interaction.user, t(lang, "cfg.welcome_channel"), salon.mention)
-
-    # ── /setgoodbye ───────────────────────────────────────────────────────────
-
-    @app_commands.command(name="setgoodbye", description="Définit le salon et le message d'au revoir")
-    @app_commands.describe(
-        salon="Le salon d'au revoir",
-        message="Le message (variables: {name}, {server})"
-    )
-    @app_commands.default_permissions(manage_guild=True)
-    async def setgoodbye(self, interaction: discord.Interaction, salon: discord.TextChannel, message: str = None):
-        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
-        await self.bot.db.update_guild_setting(interaction.guild.id, "goodbye_channel_id", salon.id)
-        if message:
-            await self.bot.db.update_guild_setting(interaction.guild.id, "goodbye_message", message)
-        await interaction.response.send_message(embed=success_embed(t(lang, "cfg.setgoodbye_success", channel=salon.mention)))
-        if logs := get_logs(self.bot):
-            await logs.log_config_change(interaction.guild, interaction.user, t(lang, "cfg.goodbye_channel"), salon.mention)
-
-    # ── /setautorole ──────────────────────────────────────────────────────────
-
-    @app_commands.command(name="setautorole", description="Définit le rôle automatique donné aux nouveaux membres")
-    @app_commands.describe(role="Le rôle à attribuer automatiquement")
-    @app_commands.default_permissions(manage_guild=True)
-    async def setautorole(self, interaction: discord.Interaction, role: discord.Role):
-        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
-        if role >= interaction.guild.me.top_role:
-            return await interaction.response.send_message(embed=error_embed(t(lang, "cfg.autorole_too_high")), ephemeral=True)
-        await self.bot.db.update_guild_setting(interaction.guild.id, "autorole_id", role.id)
-        await interaction.response.send_message(embed=success_embed(t(lang, "cfg.setautorole_success", role=role.mention)))
-        if logs := get_logs(self.bot):
-            await logs.log_config_change(interaction.guild, interaction.user, t(lang, "cfg.autorole"), role.mention)
-
+    # (Standalone config commands removed in favor of /setup)
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(Config(bot))

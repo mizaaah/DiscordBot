@@ -156,14 +156,64 @@ class Report(commands.Cog):
             embed=success_embed(t(lang, "report.sent")), ephemeral=True
         )
 
-    @app_commands.command(name="setreport", description="Définit le canal de signalement")
-    @app_commands.describe(salon="Canal où envoyer les signalements")
-    @app_commands.default_permissions(manage_guild=True)
-    async def setreport(self, interaction: discord.Interaction, salon: discord.TextChannel):
+    # (Standalone config commands like /setreport removed in favor of /setup)
+
+class ReportMessageModal(discord.ui.Modal, title="Signaler ce message"):
+    reason = discord.ui.TextInput(
+        label="Raison du signalement",
+        style=discord.TextStyle.paragraph,
+        placeholder="Décrivez pourquoi ce message enfreint les règles...",
+        required=True,
+        max_length=1000
+    )
+
+    def __init__(self, bot: commands.Bot, message: discord.Message):
+        super().__init__()
+        self.bot = bot
+        self.target_message = message
+
+    async def on_submit(self, interaction: discord.Interaction):
         lang = await self.bot.db.get_guild_lang(interaction.guild_id)
-        await self.bot.db.update_guild_setting(interaction.guild.id, "report_channel_id", salon.id)
-        await interaction.response.send_message(embed=success_embed(t(lang, "report.channel_set", channel=salon.mention)))
+        if self.target_message.author == interaction.user:
+            return await interaction.response.send_message(embed=error_embed(t(lang, "report.cant_self")), ephemeral=True)
+        if self.target_message.author.bot:
+            return await interaction.response.send_message(embed=error_embed(t(lang, "report.cant_bot")), ephemeral=True)
+
+        settings = await self.bot.db.get_guild_settings(interaction.guild.id)
+        report_ch = interaction.guild.get_channel(settings.get("report_channel_id") or 0)
+        if not report_ch:
+            return await interaction.response.send_message(embed=error_embed(t(lang, "report.no_channel_configured")), ephemeral=True)
+
+        embed = discord.Embed(
+            title="Nouveau Signalement (Message)",
+            color=Colors.ERROR,
+            timestamp=discord.utils.utcnow()
+        )
+        embed.add_field(name="Auteur", value=f"{self.target_message.author.mention}", inline=True)
+        embed.add_field(name="Signalé par", value=interaction.user.mention, inline=True)
+        embed.add_field(name="Lien", value=f"[Voir le message]({self.target_message.jump_url})", inline=True)
+        embed.add_field(name="Raison", value=self.reason.value, inline=False)
+        embed.add_field(name="Contenu", value=self.target_message.content[:1024] or "*Aucun texte*", inline=False)
+        embed.set_thumbnail(url=self.target_message.author.display_avatar.url)
+        embed.set_footer(text=f"ID: {self.target_message.author.id}")
+
+        view = ReportView(self.bot)
+        try:
+            msg = await report_ch.send(embed=embed, view=view)
+        except discord.Forbidden:
+            return await interaction.response.send_message(embed=error_embed(t(lang, "report.cant_send")), ephemeral=True)
+
+        await self.bot.db.create_report(
+            interaction.guild.id, msg.id, interaction.user.id, self.target_message.author.id, self.reason.value
+        )
+        await interaction.response.send_message(embed=success_embed(t(lang, "report.sent")), ephemeral=True)
 
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(Report(bot))
+    
+    @app_commands.context_menu(name="Signaler le message")
+    async def report_message_context(interaction: discord.Interaction, message: discord.Message):
+        await interaction.response.send_modal(ReportMessageModal(bot, message))
+        
+    bot.tree.add_command(report_message_context)

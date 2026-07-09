@@ -42,6 +42,10 @@ ALLOWED_TEMPVOICE_SETTINGS = {
 class Database:
     def __init__(self):
         self.db: aiosqlite.Connection = None
+        self._guild_settings_cache = {}
+        self._automod_cache = {}
+        self._ticket_cache = {}
+        self._antiraid_cache = {}
 
     # ── Internal helpers ──────────────────────────────────────────────────────
 
@@ -343,15 +347,20 @@ class Database:
     # ── Guild settings ────────────────────────────────────────────────────────
 
     async def get_guild_settings(self, guild_id: int) -> dict:
+        if guild_id in self._guild_settings_cache:
+            return self._guild_settings_cache[guild_id]
         row = await self._row("SELECT * FROM guild_settings WHERE guild_id = ?", guild_id)
         if not row:
             await self._exec("INSERT OR IGNORE INTO guild_settings (guild_id) VALUES (?)", guild_id)
             row = await self._row("SELECT * FROM guild_settings WHERE guild_id = ?", guild_id)
+        self._guild_settings_cache[guild_id] = row
         return row
 
     async def update_guild_setting(self, guild_id: int, setting: str, value):
         if setting not in ALLOWED_SETTINGS:
             raise ValueError(f"Paramètre '{setting}' non autorisé.")
+        if guild_id in self._guild_settings_cache:
+            self._guild_settings_cache[guild_id][setting] = value
         await self._exec(
             f"INSERT INTO guild_settings (guild_id, {setting}) VALUES (?, ?)"
             f" ON CONFLICT(guild_id) DO UPDATE SET {setting} = excluded.{setting}",
@@ -453,17 +462,22 @@ class Database:
     # ── AutoMod ───────────────────────────────────────────────────────────────
 
     async def get_automod_config(self, guild_id: int) -> dict:
+        if guild_id in self._automod_cache:
+            return self._automod_cache[guild_id]
         row = await self._row("SELECT * FROM automod_config WHERE guild_id = ?", guild_id)
         if not row:
             await self._exec("INSERT OR IGNORE INTO automod_config (guild_id) VALUES (?)", guild_id)
             row = await self._row("SELECT * FROM automod_config WHERE guild_id = ?", guild_id)
         row["bypass_roles"]   = json.loads(row.get("bypass_roles") or "[]")
         row["link_whitelist"] = json.loads(row.get("link_whitelist") or "[]")
+        self._automod_cache[guild_id] = row
         return row
 
     async def update_automod_setting(self, guild_id: int, setting: str, value):
         if setting not in ALLOWED_AUTOMOD_SETTINGS:
             raise ValueError(f"Paramètre '{setting}' non autorisé.")
+        if guild_id in self._automod_cache:
+            self._automod_cache[guild_id][setting] = value
         if isinstance(value, list):
             value = json.dumps(value)
         await self._exec(
@@ -475,16 +489,21 @@ class Database:
     # ── Tickets ───────────────────────────────────────────────────────────────
 
     async def get_ticket_config(self, guild_id: int) -> dict:
+        if guild_id in self._ticket_cache:
+            return self._ticket_cache[guild_id]
         row = await self._row("SELECT * FROM ticket_config WHERE guild_id = ?", guild_id)
         if not row:
             await self._exec("INSERT OR IGNORE INTO ticket_config (guild_id) VALUES (?)", guild_id)
             row = await self._row("SELECT * FROM ticket_config WHERE guild_id = ?", guild_id)
         row["categories"] = json.loads(row.get("categories") or "[]")
+        self._ticket_cache[guild_id] = row
         return row
 
     async def update_ticket_config(self, guild_id: int, setting: str, value):
         if setting not in ALLOWED_TICKET_SETTINGS:
             raise ValueError(f"Paramètre '{setting}' non autorisé.")
+        if guild_id in self._ticket_cache:
+            self._ticket_cache[guild_id][setting] = value
         if isinstance(value, list):
             value = json.dumps(value)
         await self._exec(
@@ -596,15 +615,20 @@ class Database:
     # ── Anti-Raid ─────────────────────────────────────────────────────────────
 
     async def get_antiraid_config(self, guild_id: int) -> dict:
+        if guild_id in self._antiraid_cache:
+            return self._antiraid_cache[guild_id]
         row = await self._row("SELECT * FROM antiraid_config WHERE guild_id = ?", guild_id)
         if not row:
             await self._exec("INSERT OR IGNORE INTO antiraid_config (guild_id) VALUES (?)", guild_id)
             row = await self._row("SELECT * FROM antiraid_config WHERE guild_id = ?", guild_id)
+        self._antiraid_cache[guild_id] = row
         return row
 
     async def update_antiraid_setting(self, guild_id: int, setting: str, value):
         if setting not in ALLOWED_ANTIRAID_SETTINGS:
             raise ValueError(f"Paramètre '{setting}' non autorisé.")
+        if guild_id in self._antiraid_cache:
+            self._antiraid_cache[guild_id][setting] = value
         await self._exec(
             f"INSERT INTO antiraid_config (guild_id, {setting}) VALUES (?, ?)"
             f" ON CONFLICT(guild_id) DO UPDATE SET {setting} = excluded.{setting}",

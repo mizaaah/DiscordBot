@@ -583,5 +583,61 @@ class Moderation(commands.Cog):
         await self.bot.wait_until_ready()
 
 
+class WarnMemberModal(discord.ui.Modal, title="Avertir ce membre"):
+    reason = discord.ui.TextInput(
+        label="Raison de l'avertissement",
+        style=discord.TextStyle.paragraph,
+        placeholder="Décrivez l'infraction...",
+        required=True,
+        max_length=500
+    )
+
+    def __init__(self, bot: commands.Bot, member: discord.Member):
+        super().__init__()
+        self.bot = bot
+        self.target_member = member
+
+    async def on_submit(self, interaction: discord.Interaction):
+        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
+        if self.target_member.bot:
+            return await interaction.response.send_message(embed=error_embed(t(lang, "mod.warn_bot")), ephemeral=True)
+        if self.target_member.top_role >= interaction.user.top_role and interaction.user != interaction.guild.owner:
+            return await interaction.response.send_message(embed=error_embed(t(lang, "mod.cant_act")), ephemeral=True)
+
+        raison = self.reason.value
+        case_id = await self.bot.db.next_case_id(interaction.guild.id)
+        warn_id = await self.bot.db.add_warning(interaction.guild.id, self.target_member.id, interaction.user.id, raison)
+        total   = await self.bot.db.get_warning_count(interaction.guild.id, self.target_member.id)
+
+        embed = discord.Embed(
+            title=t(lang, "mod.warn_title"),
+            description=t(lang, "mod.warn_desc", member=self.target_member.mention),
+            color=Colors.CAUTION
+        )
+        embed.add_field(name=t(lang, "mod.warn_reason"), value=raison, inline=False)
+        embed.add_field(name=t(lang, "mod.warn_total"),  value=str(total), inline=True)
+        embed.set_footer(text=t(lang, "mod.warn_footer_combined", case_id=case_id, warn_id=warn_id))
+        
+        await interaction.response.send_message(embed=embed)
+
+        try:
+            await self.target_member.send(t(lang, "mod.warn_dm", server=interaction.guild.name, reason=raison, total=total))
+        except discord.Forbidden:
+            pass
+
+        await self.bot.db.add_sanction(interaction.guild.id, self.target_member.id, interaction.user.id, "warn", raison, case_id=case_id)
+        if logs := get_logs(self.bot):
+            await logs.log_warn(interaction.guild, self.target_member, interaction.user, raison, warn_id, total)
+
+        self.bot.dispatch("warn_added", interaction.guild, self.target_member, total)
+
+
 async def setup(bot: commands.Bot):
     await bot.add_cog(Moderation(bot))
+
+    @app_commands.context_menu(name="⚠️ Avertir (Warn)")
+    @app_commands.default_permissions(manage_messages=True)
+    async def warn_user_context(interaction: discord.Interaction, member: discord.Member):
+        await interaction.response.send_modal(WarnMemberModal(bot, member))
+        
+    bot.tree.add_command(warn_user_context)
