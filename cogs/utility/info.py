@@ -98,7 +98,7 @@ def _build_help_embed(lang: str, page_key: str, guild: discord.Guild) -> discord
     embed = discord.Embed(
         title=page["title"],
         description=desc,
-        color=page["color"],
+        color=Colors.INVISIBLE if page_key == "home" else page["color"],
     )
     for name, value, inline in page.get("fields", []):
         embed.add_field(name=name, value=value, inline=inline)

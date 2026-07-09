@@ -12,3 +12,4 @@ class Colors:
     INFO    = discord.Color(0x5865F2)   # blurple, neutre/informatif
     GOLD    = discord.Color(0xFFD700)   # XP, giveaways, starboard
     NEUTRAL = discord.Color(0x95A5A6)   # gris, secondaire
+    INVISIBLE = discord.Color(0x2B2D31) # couleur de fond discord sombre

@@ -329,41 +329,39 @@ class SetupView(discord.ui.View):
 
         def ch(cid):
             if not cid:
-                return f"**{t(lang, 'cfg.not_set')}**"
+                return f"`Non défini`"
             c = guild.get_channel(cid)
-            return c.mention if c else f"**{t(lang, 'cfg.channel_missing', id=cid)}**"
+            return c.mention if c else f"`Introuvable`"
 
         def role(rid):
             if not rid:
-                return f"**{t(lang, 'cfg.not_set')}**"
+                return f"`Non défini`"
             r = guild.get_role(rid)
-            return r.mention if r else f"**{t(lang, 'cfg.role_missing', id=rid)}**"
+            return r.mention if r else f"`Introuvable`"
 
-        embed = discord.Embed(
-            title=t(lang, "setup.home_title"), 
-            description=f"> {t(lang, 'setup.home_desc')}\n\n**Statut des Modules**", 
-            color=Colors.INFO
-        )
-        if guild.icon:
-            embed.set_author(name=f"Paramètres du serveur : {guild.name}", icon_url=guild.icon.url)
-            embed.set_thumbnail(url=guild.icon.url)
-        else:
-            embed.set_author(name=f"Paramètres du serveur : {guild.name}")
-            
-        embed.add_field(name=t(lang, "setup.opt_logs"),     value=f"> {ch(settings.get('log_channel_id'))}",      inline=True)
-        embed.add_field(name=t(lang, "setup.opt_welcome"),  value=f"> {ch(settings.get('welcome_channel_id'))}",  inline=True)
-        embed.add_field(name=t(lang, "setup.opt_goodbye"),  value=f"> {ch(settings.get('goodbye_channel_id'))}",  inline=True)
-        
-        embed.add_field(name=t(lang, "setup.opt_autorole"), value=f"> {role(settings.get('autorole_id'))}",       inline=True)
-        embed.add_field(name=t(lang, "setup.opt_report"),   value=f"> {ch(settings.get('report_channel_id'))}",   inline=True)
-        embed.add_field(name=t(lang, "setup.opt_language"), value=f"> `{settings.get('language') or 'fr'}`", inline=True)
-        
         am_cfg = await self.bot.db.get_automod_config(guild.id)
         ar_cfg = await self.bot.db.get_antiraid_config(guild.id)
-        embed.add_field(name="🛡️ AutoMod", value="> ✅ Activé" if am_cfg.get("enabled") else "> ❌ Désactivé", inline=True)
-        embed.add_field(name="⚔️ Anti-Raid", value="> ✅ Activé" if ar_cfg.get("enabled") else "> ❌ Désactivé", inline=True)
-        embed.add_field(name="\u200b", value="\u200b", inline=True) # Empty field for alignment
-        
+
+        desc = (
+            f"Bienvenue dans le panneau de configuration de **{guild.name}**.\n"
+            "Utilisez le menu déroulant ci-dessous pour gérer les modules.\n\n"
+            "**Vue d'ensemble**\n"
+            f"> 🪵 `Logs` : {ch(settings.get('log_channel_id'))}\n"
+            f"> 👋 `Bienvenue` : {ch(settings.get('welcome_channel_id'))}\n"
+            f"> 👋 `Départ` : {ch(settings.get('goodbye_channel_id'))}\n"
+            f"> 🔰 `Auto-Rôle` : {role(settings.get('autorole_id'))}\n"
+            f"> 🛡️ `AutoMod` : {'✅' if am_cfg.get('enabled') else '❌'}\n"
+            f"> ⚔️ `Anti-Raid` : {'✅' if ar_cfg.get('enabled') else '❌'}\n"
+        )
+
+        embed = discord.Embed(
+            title="⚙️ Panneau de Configuration", 
+            description=desc, 
+            color=Colors.INVISIBLE
+        )
+        if guild.icon:
+            embed.set_thumbnail(url=guild.icon.url)
+            
         return embed
 
     async def show_home(self, interaction: discord.Interaction):
@@ -380,7 +378,7 @@ class SetupView(discord.ui.View):
         embed = discord.Embed(
             title=t(lang, f"setup.opt_{category}") if category not in ["automod", "antiraid"] else "",
             description=t(lang, f"setup.{category}_desc") if category not in ["automod", "antiraid"] else "",
-            color=Colors.INFO
+            color=Colors.INVISIBLE
         )
 
         if category == "logs":
