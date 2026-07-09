@@ -15,6 +15,23 @@ from database.db import Database
 from utils.i18n import t
 
 load_dotenv()
+
+try:
+    from cogs.systems.tickets import _open_ticket
+except ImportError:
+    _open_ticket = None
+
+class ErrorHelpView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=120)
+
+    @discord.ui.button(label="🆘 Demander de l'aide", style=discord.ButtonStyle.danger, custom_id="error_help_ticket")
+    async def help_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if _open_ticket:
+            await _open_ticket(interaction.client, interaction, category="Support")
+        else:
+            await interaction.response.send_message("Le système de tickets n'est pas disponible pour le moment.", ephemeral=True)
+
 class Bot(commands.Bot):
     def __init__(self):
         intents = discord.Intents.all()
@@ -90,7 +107,7 @@ class Bot(commands.Bot):
         lang = await self.db.get_guild_lang(interaction.guild_id) if interaction.guild_id else "fr"
 
         if isinstance(error, app_commands.MissingPermissions):
-            await send(t(lang, "err.missing_permissions"), ephemeral=True)
+            await send(t(lang, "err.missing_permissions"), view=ErrorHelpView(), ephemeral=True)
         elif isinstance(error, app_commands.BotMissingPermissions):
             missing = ", ".join(error.missing_permissions)
             await send(t(lang, "err.bot_missing_permissions", missing=missing), ephemeral=True)

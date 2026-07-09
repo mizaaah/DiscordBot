@@ -7,6 +7,10 @@ from utils.helpers import xp_for_level, total_xp_for_level
 from utils.i18n import t
 from utils.colors import Colors
 from utils.embeds import error_embed, success_embed
+try:
+    from easy_pil import Editor, Canvas, Font, load_image_async
+except ImportError:
+    pass
 
 
 XP_COOLDOWNS: dict[tuple[int, int], float] = {}
@@ -135,11 +139,9 @@ class XP(commands.Cog):
 
     # ── /rank ─────────────────────────────────────────────────────────────────
 
-    @app_commands.command(name="rank", description="Affiche ton rang et ton XP")
-    @app_commands.describe(membre="Le membre dont voir le rang (toi-même si vide)")
-    async def rank(self, interaction: discord.Interaction, membre: discord.Member = None):
+    async def _send_rank(self, interaction: discord.Interaction, member: discord.Member, ephemeral: bool = False):
+        await interaction.response.defer(ephemeral=ephemeral)
         lang   = await self.bot.db.get_guild_lang(interaction.guild_id)
-        member = membre or interaction.user
         data   = await self.bot.db.get_xp(interaction.guild.id, member.id)
         rank_pos = await self.bot.db.get_rank(interaction.guild.id, member.id)
 
@@ -149,17 +151,47 @@ class XP(commands.Cog):
         xp_end   = total_xp_for_level(level + 1)
         progress = cur_xp - xp_start
         needed   = xp_end - xp_start
-        filled   = int(20 * progress / needed) if needed > 0 else 0
-        bar      = "█" * filled + "░" * (20 - filled)
+        
+        try:
+            background = Editor(Canvas((900, 300), color="#23272A"))
+            profile_image = await load_image_async(str(member.display_avatar.url))
+            profile = Editor(profile_image).resize((200, 200)).circle_image()
+            background.paste(profile, (50, 50))
+            
+            font_large = Font.poppins(size=50, variant="bold")
+            font_small = Font.poppins(size=30, variant="regular")
+            
+            background.text((280, 70), member.display_name, font=font_large, color="white")
+            background.text((280, 130), f"Niveau {level} | Rang #{rank_pos}", font=font_small, color="#b3b3b3")
+            
+            percentage = (progress / needed) * 100 if needed > 0 else 0
+            # Outline
+            background.bar((280, 190), max_width=550, height=40, percentage=100, color="#121415", radius=20)
+            # Progress
+            background.bar((280, 190), max_width=550, height=40, percentage=max(5, percentage), color="#5865F2", radius=20)
+            
+            background.text((280, 240), f"{progress} / {needed} XP", font=font_small, color="white")
+            
+            file = discord.File(fp=background.image_bytes, filename="rankcard.png")
+            await interaction.followup.send(file=file)
+        except Exception as e:
+            # Fallback to text embed
+            filled   = int(20 * progress / needed) if needed > 0 else 0
+            bar      = "█" * filled + "░" * (20 - filled)
+            color = member.color if member.color != discord.Color.default() else Colors.GOLD
+            embed = discord.Embed(title=t(lang, "xp.rank_title", member=member.display_name), color=color)
+            embed.set_thumbnail(url=member.display_avatar.url)
+            embed.add_field(name=t(lang, "xp.rank_field"),      value=f"#{rank_pos}",                      inline=True)
+            embed.add_field(name=t(lang, "xp.level_field"),     value=str(level),                           inline=True)
+            embed.add_field(name=t(lang, "xp.messages_label"),  value=str(data["messages"]),                inline=True)
+            embed.add_field(name=t(lang, "xp.xp_field"),        value=f"`{bar}` {progress}/{needed} XP",   inline=False)
+            await interaction.followup.send(embed=embed)
 
-        color = member.color if member.color != discord.Color.default() else Colors.GOLD
-        embed = discord.Embed(title=t(lang, "xp.rank_title", member=member.display_name), color=color)
-        embed.set_thumbnail(url=member.display_avatar.url)
-        embed.add_field(name=t(lang, "xp.rank_field"),      value=f"#{rank_pos}",                      inline=True)
-        embed.add_field(name=t(lang, "xp.level_field"),     value=str(level),                           inline=True)
-        embed.add_field(name=t(lang, "xp.messages_label"),  value=str(data["messages"]),                inline=True)
-        embed.add_field(name=t(lang, "xp.xp_field"),        value=f"`{bar}` {progress}/{needed} XP",   inline=False)
-        await interaction.response.send_message(embed=embed)
+    @app_commands.command(name="rank", description="Affiche ton rang et ton XP")
+    @app_commands.describe(membre="Le membre dont voir le rang (toi-même si vide)")
+    async def rank(self, interaction: discord.Interaction, membre: discord.Member = None):
+        member = membre or interaction.user
+        await self._send_rank(interaction, member)
 
     # ── /leaderboard ──────────────────────────────────────────────────────────
 
@@ -211,4 +243,11 @@ class XP(commands.Cog):
 
 
 async def setup(bot: commands.Bot):
-    await bot.add_cog(XP(bot))
+    cog = XP(bot)
+    await bot.add_cog(cog)
+
+    @app_commands.context_menu(name="📊 Voir le profil (XP)")
+    async def view_xp_profile_context(interaction: discord.Interaction, member: discord.Member):
+        await cog._send_rank(interaction, member, ephemeral=True)
+        
+    bot.tree.add_command(view_xp_profile_context)

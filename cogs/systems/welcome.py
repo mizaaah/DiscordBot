@@ -2,13 +2,16 @@ import discord
 from discord.ext import commands
 from utils.i18n import t
 from utils.colors import Colors
-
+from utils.embeds import info_embed
+try:
+    from cogs.systems.tickets import _open_ticket
+except ImportError:
+    _open_ticket = None
 
 class WelcomeView(discord.ui.View):
     def __init__(self, lang: str = "fr"):
         super().__init__(timeout=None)
         self.lang = lang
-        self.children[0].label = t(lang, "welcome.profile_btn")
 
     @discord.ui.button(label="👤 Mon profil", style=discord.ButtonStyle.secondary, custom_id="welcome_profile_persistent")
     async def show_profile(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -24,6 +27,27 @@ class WelcomeView(discord.ui.View):
         if roles:
             embed.add_field(name=t(lang, "welcome.roles", count=len(roles)), value=" ".join(roles[:10]), inline=False)
         await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @discord.ui.button(label="📜 Règles", style=discord.ButtonStyle.primary, custom_id="welcome_rules_persistent")
+    async def show_rules(self, interaction: discord.Interaction, button: discord.ui.Button):
+        lang = await interaction.client.db.get_guild_lang(interaction.guild_id)
+        rules_text = (
+            "**1.** Soyez respectueux envers tous les membres.\n"
+            "**2.** Pas de spam, de contenu NSFW ou de publicités.\n"
+            "**3.** Utilisez les bons salons pour vos discussions.\n"
+            "**4.** Écoutez les directives de l'équipe de modération.\n\n"
+            "*Merci de votre compréhension et bon séjour parmi nous !*"
+        )
+        embed = info_embed(rules_text)
+        embed.title = "📜 Règles du serveur"
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @discord.ui.button(label="🎫 Contacter le Staff", style=discord.ButtonStyle.danger, custom_id="welcome_ticket_persistent")
+    async def contact_staff(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if _open_ticket:
+            await _open_ticket(interaction.client, interaction, category="Support")
+        else:
+            await interaction.response.send_message("Le système de tickets n'est pas disponible pour le moment.", ephemeral=True)
 
 
 class Welcome(commands.Cog):
