@@ -74,11 +74,11 @@ async def build_ticket_container(bot, guild, channel_id, lang):
     
     if thumb:
         cont.add_item(discord.ui.Section(
-            discord.ui.TextDisplay(f"# 🎫 {title}\n> {welcome.replace('\n', '\n> ')}"),
+            discord.ui.TextDisplay(f"# {title}\n> {welcome.replace('\n', '\n> ')}"),
             accessory=thumb
         ))
     else:
-        cont.add_item(discord.ui.TextDisplay(f"# 🎫 {title}\n> {welcome.replace('\n', '\n> ')}"))
+        cont.add_item(discord.ui.TextDisplay(f"# {title}\n> {welcome.replace('\n', '\n> ')}"))
         
     cont.add_item(discord.ui.Separator())
     cont.add_item(discord.ui.TextDisplay(info_text))
