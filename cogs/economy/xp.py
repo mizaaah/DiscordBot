@@ -193,26 +193,37 @@ class XP(commands.Cog):
             import os
             bg_path = "assets/rank_bg.png"
             if os.path.exists(bg_path):
-                background = Editor(bg_path).resize((900, 300))
+                background = Editor(bg_path).resize((900, 250))
             else:
-                background = Editor(Canvas((900, 300), color="#23272A"))
+                background = Editor(Canvas((900, 250), color="#1e1e24"))
+
+            overlay = Editor(Canvas((900, 250), color=(0, 0, 0, 100)))
+            background.paste(overlay, (0, 0))
+
             profile_image = await load_image_async(str(member.display_avatar.url))
-            profile = Editor(profile_image).resize((200, 200)).circle_image()
-            background.paste(profile, (50, 50))
+            profile = Editor(profile_image).resize((160, 160)).circle_image()
+            background.ellipse((40, 45), width=170, height=170, outline="#5865F2", stroke_width=5)
+            background.paste(profile, (45, 50))
             
-            font_large = Font.poppins(size=50, variant="bold")
-            font_small = Font.poppins(size=30, variant="regular")
+            font_name = Font.poppins(size=40, variant="bold")
+            font_level = Font.poppins(size=50, variant="bold")
+            font_rank = Font.poppins(size=35, variant="bold")
+            font_small = Font.poppins(size=25, variant="regular")
             
-            background.text((280, 70), member.display_name, font=font_large, color="white")
-            background.text((280, 130), f"Niveau {level} | Rang #{rank_pos}", font=font_small, color="#b3b3b3")
+            background.text((240, 60), member.display_name, font=font_name, color="white")
             
+            background.text((850, 60), f"#{rank_pos}", font=font_rank, color="white", align="right")
+            background.text((790, 65), "RANG ", font=font_small, color="#b3b3b3", align="right")
+
+            background.text((680, 60), f"{level}", font=font_level, color="#5865F2", align="right")
+            background.text((630, 65), "NIVEAU ", font=font_small, color="#5865F2", align="right")
+
+            background.text((850, 140), f"{progress} / {needed} XP", font=font_small, color="#b3b3b3", align="right")
+
             percentage = (progress / needed) * 100 if needed > 0 else 0
-            # Outline
-            background.bar((280, 190), max_width=550, height=40, percentage=100, color="#121415", radius=20)
-            # Progress
-            background.bar((280, 190), max_width=550, height=40, percentage=max(5, percentage), color="#5865F2", radius=20)
             
-            background.text((280, 240), f"{progress} / {needed} XP", font=font_small, color="white")
+            background.bar((240, 175), max_width=610, height=35, percentage=100, color="#2b2b36", radius=17)
+            background.bar((240, 175), max_width=610, height=35, percentage=max(2, percentage), color="#5865F2", radius=17)
             
             file = discord.File(fp=background.image_bytes, filename="rankcard.png")
             await interaction.followup.send(file=file)
