@@ -105,7 +105,7 @@ class HelpViewV2(discord.ui.View):
         embed = discord.Embed(
             title=data['title'],
             description=data['desc'],
-            color=Colors.PRIMARY.value
+            color=Colors.INFO.value
         )
         embed.set_thumbnail(url=bot.user.display_avatar.url if bot.user else None)
         embed.set_footer(text=f"Aide interactive • {bot.user.name if bot.user else 'Bot'}")
