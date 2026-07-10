@@ -362,32 +362,32 @@ class SetupView(discord.ui.LayoutView):
         cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"⚔️ **Anti-Raid**\nÉtat : **{'Activé' if ar_status else 'Désactivé'}**\nProtection contre les raids de bots."), accessory=btn_ar))
         cont.add_item(discord.ui.Separator())
 
-        btn_logs = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.primary)
+        btn_logs = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.secondary)
         btn_logs.callback = make_nav("logs")
         cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🪵 **Logs**\nSalon actuel : {ch(settings.get('log_channel_id'))}"), accessory=btn_logs))
         cont.add_item(discord.ui.Separator())
 
-        btn_welc = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.primary)
+        btn_welc = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.secondary)
         btn_welc.callback = make_nav("welcome")
         cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"👋 **Bienvenue**\nSalon actuel : {ch(settings.get('welcome_channel_id'))}"), accessory=btn_welc))
         cont.add_item(discord.ui.Separator())
 
-        btn_good = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.primary)
+        btn_good = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.secondary)
         btn_good.callback = make_nav("goodbye")
         cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🚪 **Départ**\nSalon actuel : {ch(settings.get('goodbye_channel_id'))}"), accessory=btn_good))
         cont.add_item(discord.ui.Separator())
 
-        btn_auto = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.primary)
+        btn_auto = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.secondary)
         btn_auto.callback = make_nav("autorole")
         cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🎭 **Auto-Rôle**\nRôle actuel : {role(settings.get('autorole_id'))}"), accessory=btn_auto))
         cont.add_item(discord.ui.Separator())
 
-        btn_rep = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.primary)
+        btn_rep = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.secondary)
         btn_rep.callback = make_nav("report")
         cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🚨 **Signalement**\nConfiguration des reports de messages."), accessory=btn_rep))
         cont.add_item(discord.ui.Separator())
 
-        btn_lang = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.primary)
+        btn_lang = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.secondary)
         btn_lang.callback = make_nav("language")
         cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🌐 **Langue**\nLangue actuelle : `{self.lang.upper()}`"), accessory=btn_lang))
 
@@ -493,16 +493,6 @@ class SetupView(discord.ui.LayoutView):
 class Config(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-
-    # ── /setup ────────────────────────────────────────────────────────────────
-
-    @app_commands.command(name="setup", description="Assistant de configuration interactif du bot")
-    @app_commands.default_permissions(manage_guild=True)
-    async def setup_wizard(self, interaction: discord.Interaction):
-        lang  = await self.bot.db.get_guild_lang(interaction.guild_id)
-        view  = SetupView(self.bot, lang, interaction.guild.id)
-        await view.init_home(interaction.guild)
-        await interaction.response.send_message(view=view, ephemeral=True)
 
     # ── /config ───────────────────────────────────────────────────────────────
 

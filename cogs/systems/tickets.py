@@ -162,7 +162,7 @@ class TicketOpenView(discord.ui.LayoutView):
         btn = discord.ui.Button(
             label=label or "Ouvrir un ticket",
             emoji=emoji or "📩",
-            style=discord.ButtonStyle.primary,
+            style=discord.ButtonStyle.secondary,
             custom_id="ticket_open_persistent"
         )
         btn.callback = self.open_ticket
@@ -601,21 +601,21 @@ class TicketSetupDashboardView(discord.ui.LayoutView):
 
         # Staff
         staff_role = role(config.get("staff_role_id"))
-        btn_staff = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.primary)
+        btn_staff = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.secondary)
         btn_staff.callback = make_nav("staff")
         cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"👮 **Staff**\nRôle actuel : {staff_role}\nRôle pouvant gérer les tickets."), accessory=btn_staff))
         cont.add_item(discord.ui.Separator())
 
         # Catégorie Mère
         category_ch = ch(config.get("category_id"))
-        btn_cat = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.primary)
+        btn_cat = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.secondary)
         btn_cat.callback = make_nav("category")
         cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"📁 **Catégorie Mère**\nDossier actuel : {category_ch}\nDossier par défaut où s'ouvrent les tickets."), accessory=btn_cat))
         cont.add_item(discord.ui.Separator())
 
         # Logs
         log_ch = ch(config.get("log_channel_id"))
-        btn_logs = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.primary)
+        btn_logs = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.secondary)
         btn_logs.callback = make_nav("logs")
         cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🪵 **Logs**\nSalon actuel : {log_ch}\nTranscriptions des tickets fermés."), accessory=btn_logs))
         cont.add_item(discord.ui.Separator())
@@ -634,12 +634,12 @@ class TicketSetupDashboardView(discord.ui.LayoutView):
                     parts.append(f"`{c['name']}`")
             cats_str = ", ".join(parts)
             
-        btn_choices = discord.ui.Button(label="Modifier les choix", style=discord.ButtonStyle.primary)
+        btn_choices = discord.ui.Button(label="Modifier les choix", style=discord.ButtonStyle.secondary)
         btn_choices.callback = make_nav("categories_list")
         cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🏷️ **Choix de Catégories**\nActuels : {cats_str}\nBoutons affichés sur le panel."), accessory=btn_choices))
         cont.add_item(discord.ui.Separator())
 
-        btn_link = discord.ui.Button(label="Lier une catégorie", style=discord.ButtonStyle.primary)
+        btn_link = discord.ui.Button(label="Lier une catégorie", style=discord.ButtonStyle.secondary)
         btn_link.callback = make_nav("link_category")
         cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🔗 **Lier à un Dossier**\nPermet d'ouvrir un choix spécifique dans un dossier différent de la catégorie mère."), accessory=btn_link))
         cont.add_item(discord.ui.Separator())
@@ -647,7 +647,7 @@ class TicketSetupDashboardView(discord.ui.LayoutView):
         # Personnalisation
         open_btn = f"{config.get('open_button_emoji') or '📩'} {config.get('open_button_label') or 'Ouvrir un ticket'}".strip()
         close_btn = f"{config.get('close_button_emoji') or '🔒'} {config.get('close_button_label') or 'Fermer le ticket'}".strip()
-        btn_cust = discord.ui.Button(label="Personnaliser", style=discord.ButtonStyle.primary)
+        btn_cust = discord.ui.Button(label="Personnaliser", style=discord.ButtonStyle.secondary)
         btn_cust.callback = make_nav("buttons")
         cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🎨 **Personnalisation**\nOuvrir : `{open_btn}` | Fermer : `{close_btn}`"), accessory=btn_cust))
         cont.add_item(discord.ui.Separator())
