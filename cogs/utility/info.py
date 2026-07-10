@@ -89,58 +89,54 @@ class HelpCategorySelect(discord.ui.Select):
                 default=(key == current_page)
             ) for key, data in HELP_CATEGORIES.items()
         ]
-        super().__init__(placeholder="Choisissez une catégorie d'aide...", options=options)
+        super().__init__(placeholder="Sélectionnez une catégorie...", options=options)
 
     async def callback(self, interaction: discord.Interaction):
         await self.view.show_page(interaction, self.values[0])
 
-class HelpViewV2(discord.ui.LayoutView):
+class HelpViewV2(discord.ui.View):
     def __init__(self, default_page="home"):
         super().__init__(timeout=300)
         self.current_page = default_page
+        self.add_item(HelpCategorySelect(default_page))
+
+    def _generate_embed(self, page_key: str, bot: discord.Client) -> discord.Embed:
+        data = HELP_CATEGORIES.get(page_key, HELP_CATEGORIES["home"])
+        embed = discord.Embed(
+            title=data['title'],
+            description=data['desc'],
+            color=Colors.PRIMARY.value
+        )
+        embed.set_thumbnail(url=bot.user.display_avatar.url if bot.user else None)
+        embed.set_footer(text=f"Aide interactive • {bot.user.name if bot.user else 'Bot'}")
+        
+        if page_key == "home":
+            embed.add_field(
+                name="Comment naviguer ?", 
+                value="Utilisez le **menu déroulant** ci-dessous pour explorer les différentes catégories de commandes. Chaque catégorie regroupe les commandes par thème pour vous aider à mieux configurer le serveur.",
+                inline=False
+            )
+            embed.set_image(url="https://i.imgur.com/vH1O1uO.png") # Example placeholder for a nice banner
+            
+        return embed
 
     async def show_page(self, interaction: discord.Interaction, page_key: str):
         self.current_page = page_key
+        
+        # Mettre à jour le select
         self.clear_items()
+        self.add_item(HelpCategorySelect(page_key))
         
-        cont = discord.ui.Container(accent_color=Colors.INFO.value)
-        
-        # Build Section
-        data = HELP_CATEGORIES.get(page_key, HELP_CATEGORIES["home"])
-        cont.add_item(discord.ui.TextDisplay(f"# {data['title']}\n{data['desc']}"))
-        
-        cont.add_item(discord.ui.ActionRow(HelpCategorySelect(page_key)))
-        
-        row2 = discord.ui.ActionRow(
-            discord.ui.Button(label="Serveur Support", url="https://discord.gg/support", emoji="🛠️", style=discord.ButtonStyle.link),
-            discord.ui.Button(label="Inviter le Bot", url="https://discord.com/api/oauth2/authorize?client_id=123456789&permissions=8&scope=bot%20applications.commands", emoji="🔗", style=discord.ButtonStyle.link)
-        )
-        cont.add_item(row2)
-        
-        self.add_item(cont)
+        embed = self._generate_embed(page_key, interaction.client)
         
         if interaction.response.is_done():
-            await interaction.edit_original_response(view=self, embed=None)
+            await interaction.edit_original_response(embed=embed, view=self)
         else:
-            await interaction.response.edit_message(view=self, embed=None)
+            await interaction.response.edit_message(embed=embed, view=self)
 
     async def send_initial(self, interaction: discord.Interaction):
-        self.clear_items()
-        
-        cont = discord.ui.Container(accent_color=Colors.INFO.value)
-        data = HELP_CATEGORIES.get(self.current_page, HELP_CATEGORIES["home"])
-        cont.add_item(discord.ui.TextDisplay(f"# {data['title']}\n{data['desc']}"))
-        cont.add_item(discord.ui.ActionRow(HelpCategorySelect(self.current_page)))
-        
-        row2 = discord.ui.ActionRow(
-            discord.ui.Button(label="Serveur Support", url="https://discord.gg/support", emoji="🛠️", style=discord.ButtonStyle.link),
-            discord.ui.Button(label="Inviter le Bot", url="https://discord.com/api/oauth2/authorize?client_id=123456789&permissions=8&scope=bot%20applications.commands", emoji="🔗", style=discord.ButtonStyle.link)
-        )
-        cont.add_item(row2)
-        
-        self.add_item(cont)
-        
-        await interaction.response.send_message(view=self, ephemeral=True)
+        embed = self._generate_embed(self.current_page, interaction.client)
+        await interaction.response.send_message(embed=embed, view=self, ephemeral=True)
 
     async def on_timeout(self):
         for item in self.children:
