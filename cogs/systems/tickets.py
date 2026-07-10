@@ -101,27 +101,24 @@ async def _open_ticket(bot: commands.Bot, interaction: discord.Interaction, cate
     if category:
         title += f" — {category}"
 
-    cont = discord.ui.Container(accent_color=color.value)
+    embed = discord.Embed(title=f"🎫 {title}", description=welcome, color=color)
     
-    header = f"# {title}\n> {welcome.replace('\n', '\n> ')}\n"
-    cont.add_item(discord.ui.TextDisplay(header))
-    cont.add_item(discord.ui.Separator())
-
     staff_str = staff_role.mention if staff_role else "`Non défini`"
     claimer_str = t(lang, 'ticket.not_claimed')
     
-    cat_str = f"**🏷️ Catégorie :** `{category}`\n" if category else ""
-    desc = (
-        f"**🛠️ Support :** {staff_str}\n"
+    cat_str = f"└ **Catégorie :** {category}\n" if category else ""
+    info_text = (
+        f"**Informations du ticket**\n"
+        f"└ **Support :** {staff_str}\n"
         f"{cat_str}"
-        f"**👤 Pris en charge :** {claimer_str}\n"
-        f"**🆔 Membre ID :** {user.id}\n"
+        f"└ **Pris en charge :** {claimer_str}\n"
+        f"└ **Membre :** {user.mention}"
     )
-    cont.add_item(discord.ui.TextDisplay(desc))
+    embed.add_field(name="\u200b", value=info_text, inline=False)
 
-    view = TicketCloseView(bot, cont, config.get("close_button_label"), config.get("close_button_emoji"))
+    view = TicketCloseView(bot, config.get("close_button_label"), config.get("close_button_emoji"))
     
-    await channel.send(view=view)
+    await channel.send(embed=embed, view=view)
     await channel.send(user.mention, delete_after=1)
     await reply(embed=success_embed(t(lang, "ticket.created", channel=channel.mention)), ephemeral=True)
 
@@ -182,7 +179,7 @@ class TicketOpenView(discord.ui.LayoutView):
         
         if cont:
             cont.add_item(discord.ui.Section(
-                discord.ui.TextDisplay("📞 **Nous Contacter**\nCliquez sur le bouton ci-contre pour ouvrir un ticket."),
+                discord.ui.TextDisplay("# 📩 Support et Assistance\nBesoin d'aide ? Cliquez sur le bouton ci-contre pour ouvrir un ticket."),
                 accessory=btn
             ))
             self.add_item(cont)
@@ -242,7 +239,7 @@ class TicketRemoveUserSelect(discord.ui.UserSelect):
         await interaction.response.send_message(embed=embed)
 
 class TicketCloseView(discord.ui.LayoutView):
-    def __init__(self, bot: commands.Bot, cont=None, label: str = None, emoji: str = None):
+    def __init__(self, bot: commands.Bot, label: str = None, emoji: str = None):
         super().__init__(timeout=None)
         self.bot = bot
         
@@ -254,43 +251,63 @@ class TicketCloseView(discord.ui.LayoutView):
         )
         btn_close.callback = self.close_ticket
         
-        btn_claim = discord.ui.Button(
-            label="Prendre en charge",
-            emoji="✋",
-            style=discord.ButtonStyle.success,
-            custom_id="ticket_claim_persistent"
+        manage_select = discord.ui.Select(
+            placeholder="⚙️ Gérer le ticket...",
+            options=[
+                discord.SelectOption(label="Prendre en charge", emoji="✋", value="claim"),
+                discord.SelectOption(label="Se retirer (Unclaim)", emoji="👋", value="unclaim"),
+                discord.SelectOption(label="Ajouter un membre", emoji="➕", value="add"),
+                discord.SelectOption(label="Retirer un membre", emoji="➖", value="remove"),
+            ],
+            custom_id="ticket_manage_persistent"
         )
-        btn_claim.callback = self.claim_ticket
+        manage_select.callback = self.manage_action
         
-        btn_add = discord.ui.Button(
-            label="Ajouter un membre",
-            emoji="➕",
-            style=discord.ButtonStyle.secondary,
-            custom_id="ticket_add_persistent"
-        )
-        btn_add.callback = self.add_member
+        self.add_item(discord.ui.ActionRow(manage_select))
+        self.add_item(discord.ui.ActionRow(btn_close))
+
+    async def manage_action(self, interaction: discord.Interaction):
+        # We handle the select menu actions
+        action = interaction.data["values"][0]
+        # Clear the select menu visual selection immediately
+        for child in self.children:
+            if isinstance(child, discord.ui.ActionRow):
+                for item in child.children:
+                    if isinstance(item, discord.ui.Select):
+                        item.values = []
+        # Not strictly necessary to edit message to clear selection if we just respond, but good practice.
         
-        btn_remove = discord.ui.Button(
-            label="Retirer un membre",
-            emoji="➖",
-            style=discord.ButtonStyle.secondary,
-            custom_id="ticket_remove_persistent"
-        )
-        btn_remove.callback = self.remove_member
+        if action == "claim":
+            await self.claim_ticket(interaction)
+        elif action == "unclaim":
+            await self.unclaim_ticket(interaction)
+        elif action == "add":
+            await self.add_member(interaction)
+        elif action == "remove":
+            await self.remove_member(interaction)
 
-        if cont:
-            cont.add_item(discord.ui.Separator())
-            cont.add_item(discord.ui.Section(discord.ui.TextDisplay("🔒 **Fermeture**\nFermer définitivement ce ticket."), accessory=btn_close))
-            cont.add_item(discord.ui.Section(discord.ui.TextDisplay("✋ **Prise en charge**\nAssignez-vous la gestion de ce ticket."), accessory=btn_claim))
-            cont.add_item(discord.ui.Section(discord.ui.TextDisplay("👥 **Gestion des membres**\nAjoutez ou retirez des membres du ticket."), accessory=btn_add))
-            # Wait, we can only have one accessory. We can't put Add and Remove in the same section unless it's an ActionRow... but accessories must be single items.
-            # So we make two sections.
-            cont.add_item(discord.ui.Section(discord.ui.TextDisplay("🚫 **Retirer un membre**\nRetirez l'accès d'un membre à ce ticket."), accessory=btn_remove))
-            self.add_item(cont)
-        else:
-            # When loaded from cog_load without cont, we must add the buttons to self to register the persistent callbacks!
-            self.add_item(discord.ui.ActionRow(btn_close, btn_claim, btn_add, btn_remove))
-
+    async def unclaim_ticket(self, interaction: discord.Interaction):
+        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
+        ticket = await self.bot.db.get_ticket(interaction.channel.id)
+        if not ticket:
+            return await interaction.response.send_message(embed=error_embed(t(lang, "ticket.not_a_ticket")), ephemeral=True)
+            
+        if ticket.get("claimed_by") != interaction.user.id:
+            return await interaction.response.send_message(embed=error_embed("Vous n'êtes pas en charge de ce ticket !"), ephemeral=True)
+            
+        await self.bot.db.unclaim_ticket(interaction.channel.id)
+        embed = discord.Embed(description=t(lang, "ticket.unclaimed", member=interaction.user.mention), color=Colors.WARNING)
+        await interaction.response.send_message(embed=embed)
+        
+        # Update control message
+        if interaction.message and interaction.message.embeds:
+            em = interaction.message.embeds[0]
+            if len(em.fields) > 0:
+                field = em.fields[0]
+                new_val = field.value.replace(f"└ **Pris en charge :** {interaction.user.mention}", f"└ **Pris en charge :** {t(lang, 'ticket.not_claimed')}")
+                em.set_field_at(0, name=field.name, value=new_val, inline=field.inline)
+                await interaction.message.edit(embed=em)
+                
     async def claim_ticket(self, interaction: discord.Interaction):
         lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         ticket = await self.bot.db.get_ticket(interaction.channel.id)
@@ -304,23 +321,10 @@ class TicketCloseView(discord.ui.LayoutView):
             return await interaction.response.send_message(embed=error_embed("Seul le staff peut prendre en charge un ticket."), ephemeral=True)
 
         if ticket.get("claimed_by"):
-            if ticket["claimed_by"] == interaction.user.id:
-                # Unclaim
-                await self.bot.db.unclaim_ticket(interaction.channel.id)
-                embed = discord.Embed(description=t(lang, "ticket.unclaimed", member=interaction.user.mention), color=Colors.WARNING)
-                await interaction.response.send_message(embed=embed)
-                
-                # Update control message
-                if interaction.message and interaction.message.embeds:
-                    em = interaction.message.embeds[0]
-                    em.description = em.description.replace(f"**👤 Pris en charge :** {interaction.user.mention}", f"**👤 Pris en charge :** {t(lang, 'ticket.not_claimed')}")
-                    await interaction.message.edit(embed=em)
-                return
-            else:
-                claimer = interaction.guild.get_member(ticket["claimed_by"])
-                return await interaction.response.send_message(
-                    embed=error_embed(t(lang, "ticket.already_claimed", claimer=claimer.mention if claimer else t(lang, "ticket.unknown"))), ephemeral=True
-                )
+            claimer = interaction.guild.get_member(ticket["claimed_by"])
+            return await interaction.response.send_message(
+                embed=error_embed(t(lang, "ticket.already_claimed", claimer=claimer.mention if claimer else t(lang, "ticket.unknown"))), ephemeral=True
+            )
                 
         # Claim
         await self.bot.db.claim_ticket(interaction.channel.id, interaction.user.id)
@@ -330,8 +334,11 @@ class TicketCloseView(discord.ui.LayoutView):
         # Update control message
         if interaction.message and interaction.message.embeds:
             em = interaction.message.embeds[0]
-            em.description = em.description.replace(f"**👤 Pris en charge :** {t(lang, 'ticket.not_claimed')}", f"**👤 Pris en charge :** {interaction.user.mention}")
-            await interaction.message.edit(embed=em)
+            if len(em.fields) > 0:
+                field = em.fields[0]
+                new_val = field.value.replace(f"└ **Pris en charge :** {t(lang, 'ticket.not_claimed')}", f"└ **Pris en charge :** {interaction.user.mention}")
+                em.set_field_at(0, name=field.name, value=new_val, inline=field.inline)
+                await interaction.message.edit(embed=em)
 
     async def add_member(self, interaction: discord.Interaction):
         lang = await self.bot.db.get_guild_lang(interaction.guild_id)
