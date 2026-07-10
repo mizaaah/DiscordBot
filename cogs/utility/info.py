@@ -129,6 +129,187 @@ class HelpViewV2(discord.ui.LayoutView):
         self.add_item(cont)
         
         await interaction.response.send_message(view=self, ephemeral=True)
+
+    async def on_timeout(self):
+        for item in self.children:
+            item.disabled = True
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  Cog
+# ══════════════════════════════════════════════════════════════════════════════
+
+class Info(commands.Cog):
+    def __init__(self, bot: commands.Bot):
+        self.bot = bot
+
+    # ── /userinfo ─────────────────────────────────────────────────────────────
+
+    @app_commands.command(name="userinfo", description="Affiche les informations d'un membre")
+    @app_commands.describe(membre="Le membre dont voir les infos (toi-même si vide)")
+    async def userinfo(self, interaction: discord.Interaction, membre: discord.Member = None):
+        lang   = await self.bot.db.get_guild_lang(interaction.guild_id)
+        member = membre or interaction.user
+        color  = member.color if member.color != discord.Color.default() else Colors.INFO
+        embed  = discord.Embed(
+            title=f"👤 {member.display_name}",
+            color=color,
+            timestamp=discord.utils.utcnow(),
+        )
+        embed.set_thumbnail(url=member.display_avatar.url)
+        embed.set_author(name=str(member), icon_url=member.display_avatar.url)
+
+        embed.add_field(name=t(lang, "info.id"),               value=f"> `{member.id}`",                                    inline=True)
+        embed.add_field(name=t(lang, "info.bot"),              value="> ✅" if member.bot else "> ❌",                      inline=True)
+        embed.add_field(name="​",                              value="​",                                         inline=True)
+        embed.add_field(name=t(lang, "info.account_created"),  value=f"> {discord.utils.format_dt(member.created_at, 'D')}",  inline=True)
+        embed.add_field(name=t(lang, "info.joined"),           value=f"> {discord.utils.format_dt(member.joined_at, 'D')}",   inline=True)
+        embed.add_field(name="​",                              value="​",                                         inline=True)
+
+        if member.is_timed_out():
+            embed.add_field(
+                name=t(lang, "info.muted_until"),
+                value=discord.utils.format_dt(member.communication_disabled_until, 'R'),
+                inline=False,
+            )
+
+        status_map = {
+            discord.Status.online:  t(lang, "info.status_online"),
+            discord.Status.idle:    t(lang, "info.status_idle"),
+            discord.Status.dnd:     t(lang, "info.status_dnd"),
+            discord.Status.offline: t(lang, "info.status_offline"),
+        }
+        embed.add_field(name=t(lang, "info.status"),     value=f"> {status_map.get(member.status, t(lang, 'info.status_unknown'))}", inline=True)
+        embed.add_field(name=t(lang, "info.top_role"),   value=f"> {member.top_role.mention}", inline=True)
+        embed.add_field(name="​",                        value="​", inline=True)
+        embed.add_field(name=t(lang, "info.key_perms"),  value=f"> {self._key_perms(lang, member)}", inline=False)
+
+        roles = [r.mention for r in reversed(member.roles) if r != interaction.guild.default_role]
+        if roles:
+            roles_str = " ".join(roles[:15])
+            if len(roles) > 15:
+                roles_str += t(lang, "info.roles_more", count=len(roles) - 15)
+            embed.add_field(name=t(lang, "info.roles_field", count=len(roles)), value=roles_str, inline=False)
+
+        await interaction.response.send_message(embed=embed)
+
+    def _key_perms(self, lang: str, member: discord.Member) -> str:
+        perms = member.guild_permissions
+        checks = {
+            t(lang, "info.perm_admin"): perms.administrator,
+            t(lang, "info.perm_manage_guild"): perms.manage_guild,
+            t(lang, "info.perm_ban"): perms.ban_members,
+            t(lang, "info.perm_kick"): perms.kick_members,
+            t(lang, "info.perm_manage_messages"): perms.manage_messages,
+            t(lang, "info.perm_manage_roles"): perms.manage_roles,
+            t(lang, "info.perm_mention_everyone"): perms.mention_everyone,
+        }
+        active = [name for name, has in checks.items() if has]
+        return ", ".join(active) if active else t(lang, "info.no_key_perms")
+
+    # ── /serverinfo ───────────────────────────────────────────────────────────
+
+    @app_commands.command(name="serverinfo", description="Affiche les informations du serveur")
+    async def serverinfo(self, interaction: discord.Interaction):
+        lang  = await self.bot.db.get_guild_lang(interaction.guild_id)
+        guild = interaction.guild
+        embed = discord.Embed(
+            title=f"🏰 {guild.name}",
+            color=Colors.INFO,
+            timestamp=discord.utils.utcnow(),
+        )
+        if guild.icon:
+            embed.set_thumbnail(url=guild.icon.url)
+        if guild.banner:
+            embed.set_image(url=guild.banner.url)
+
+        embed.add_field(name=t(lang, "info.id"),          value=f"> `{guild.id}`",                                       inline=True)
+        embed.add_field(name=t(lang, "info.owner"),       value=f"> {guild.owner.mention if guild.owner else t(lang, 'info.unknown')}",   inline=True)
+        embed.add_field(name=t(lang, "info.created_on"),  value=f"> {discord.utils.format_dt(guild.created_at, 'D')}",      inline=True)
+
+        total = guild.member_count
+        bots  = sum(1 for m in guild.members if m.bot)
+        embed.add_field(name=t(lang, "info.members"),  value=f"> {t(lang, 'info.members_value', total=total, humans=total - bots, bots=bots)}",  inline=True)
+        embed.add_field(name=t(lang, "info.channels"), value=f"> {t(lang, 'info.channels_value', text=len(guild.text_channels), voice=len(guild.voice_channels))}", inline=True)
+        embed.add_field(name=t(lang, "info.roles"),    value=f"> `{len(guild.roles)}`",                                   inline=True)
+        embed.add_field(name=t(lang, "info.emojis"),   value=f"> `{len(guild.emojis)}/{guild.emoji_limit}`",              inline=True)
+        embed.add_field(name=t(lang, "info.boosts"),   value=f"> {t(lang, 'info.boosts_value', count=guild.premium_subscription_count, tier=guild.premium_tier)}", inline=True)
+
+        level_map = {
+            discord.VerificationLevel.none:    t(lang, "info.verif_none"),
+            discord.VerificationLevel.low:     t(lang, "info.verif_low"),
+            discord.VerificationLevel.medium:  t(lang, "info.verif_medium"),
+            discord.VerificationLevel.high:    t(lang, "info.verif_high"),
+            discord.VerificationLevel.highest: t(lang, "info.verif_highest"),
+        }
+        embed.add_field(name=t(lang, "info.verification"), value=f"> {level_map.get(guild.verification_level, t(lang, 'info.unknown'))}", inline=True)
+        await interaction.response.send_message(embed=embed)
+
+    # ── /botinfo ──────────────────────────────────────────────────────────────
+
+    @app_commands.command(name="botinfo", description="Affiche les informations du bot")
+    async def botinfo(self, interaction: discord.Interaction):
+        lang  = await self.bot.db.get_guild_lang(interaction.guild_id)
+        bot   = self.bot
+        embed = discord.Embed(
+            title=f"🤖 {bot.user.name}",
+            color=Colors.INFO,
+            timestamp=discord.utils.utcnow(),
+        )
+        embed.set_thumbnail(url=bot.user.display_avatar.url)
+        embed.add_field(name=t(lang, "info.id"),               value=f"> `{bot.user.id}`",                        inline=True)
+        embed.add_field(name=t(lang, "info.servers"),          value=f"> `{len(bot.guilds)}`",                    inline=True)
+        embed.add_field(name=t(lang, "info.total_members"),    value=f"> `{sum(g.member_count for g in bot.guilds)}`", inline=True)
+        embed.add_field(name=t(lang, "info.latency"),          value=f"> `{round(bot.latency * 1000)} ms`",       inline=True)
+        embed.add_field(name=t(lang, "info.discordpy"),        value=f"> `{discord.__version__}`",                inline=True)
+        embed.add_field(name=t(lang, "info.commands"),         value=f"> `{len(bot.tree.get_commands())}`",        inline=True)
+        await interaction.response.send_message(embed=embed)
+
+    # ── /avatar ───────────────────────────────────────────────────────────────
+
+    @app_commands.command(name="avatar", description="Affiche l'avatar d'un membre")
+    @app_commands.describe(membre="Le membre dont voir l'avatar (toi-même si vide)")
+    async def avatar(self, interaction: discord.Interaction, membre: discord.Member = None):
+        lang   = await self.bot.db.get_guild_lang(interaction.guild_id)
+        member = membre or interaction.user
+        embed  = discord.Embed(
+            title=t(lang, "info.avatar_title", member=member.display_name),
+            color=member.color if member.color != discord.Color.default() else Colors.INFO,
+        )
+        embed.set_image(url=member.display_avatar.url)
+        embed.add_field(
+            name=t(lang, "info.links"),
+            value=(
+                f"[PNG]({member.display_avatar.with_format('png').url}) · "
+                f"[JPG]({member.display_avatar.with_format('jpg').url}) · "
+                f"[WebP]({member.display_avatar.with_format('webp').url})"
+            ),
+        )
+        await interaction.response.send_message(embed=embed)
+
+    # ── /roleinfo ─────────────────────────────────────────────────────────────
+
+    @app_commands.command(name="roleinfo", description="Affiche les informations d'un rôle")
+    @app_commands.describe(role="Le rôle dont voir les infos")
+    async def roleinfo(self, interaction: discord.Interaction, role: discord.Role):
+        lang  = await self.bot.db.get_guild_lang(interaction.guild_id)
+        embed = discord.Embed(
+            title=f"🎭 @{role.name}",
+            color=role.color,
+            timestamp=discord.utils.utcnow(),
+        )
+        embed.add_field(name=t(lang, "info.id"),              value=f"> `{role.id}`",          inline=True)
+        embed.add_field(name=t(lang, "info.color"),          value=f"> `{role.color}`",       inline=True)
+        embed.add_field(name=t(lang, "info.position"),         value=f"> `{role.position}`",    inline=True)
+        embed.add_field(name=t(lang, "info.mentionable"),     value="> ✅" if role.mentionable else "> ❌", inline=True)
+        embed.add_field(name=t(lang, "info.hoisted"),   value="> ✅" if role.hoist     else "> ❌", inline=True)
+        embed.add_field(name=t(lang, "info.managed"),     value="> ✅" if role.managed   else "> ❌", inline=True)
+        embed.add_field(name=t(lang, "info.members"),           value=f"> `{len(role.members)}`", inline=True)
+        embed.add_field(name=t(lang, "info.created_on"),           value=f"> {discord.utils.format_dt(role.created_at, 'D')}", inline=True)
+        await interaction.response.send_message(embed=embed)
+
+    # ── /help ─────────────────────────────────────────────────────────────────
+
     async def _cmd_autocomplete(self, interaction: discord.Interaction, current: str):
         names = []
         for cmd in self.bot.tree.get_commands():
