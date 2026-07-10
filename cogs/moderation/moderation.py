@@ -440,7 +440,7 @@ class Moderation(commands.Cog):
             return True
 
         limit   = min(nombre * 5, 500) if has_filter else nombre
-        deleted = await interaction.channel.purge(limit=limit, check=check if has_filter else None,
+        deleted = await interaction.channel.purge(limit=limit, check=check,
                                                    before=interaction.created_at)
         if len(deleted) > nombre:
             deleted = deleted[:nombre]

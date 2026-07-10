@@ -238,7 +238,7 @@ class TicketRemoveUserSelect(discord.ui.UserSelect):
         embed = discord.Embed(description=t(lang, "ticket.member_removed", member=membre.mention), color=Colors.WARNING)
         await interaction.response.send_message(embed=embed)
 
-class TicketCloseView(discord.ui.LayoutView):
+class TicketCloseView(discord.ui.View):
     def __init__(self, bot: commands.Bot, label: str = None, emoji: str = None):
         super().__init__(timeout=None)
         self.bot = bot
@@ -263,18 +263,16 @@ class TicketCloseView(discord.ui.LayoutView):
         )
         manage_select.callback = self.manage_action
         
-        self.add_item(discord.ui.ActionRow(manage_select))
-        self.add_item(discord.ui.ActionRow(btn_close))
+        self.add_item(manage_select)
+        self.add_item(btn_close)
 
     async def manage_action(self, interaction: discord.Interaction):
         # We handle the select menu actions
         action = interaction.data["values"][0]
         # Clear the select menu visual selection immediately
         for child in self.children:
-            if isinstance(child, discord.ui.ActionRow):
-                for item in child.children:
-                    if isinstance(item, discord.ui.Select):
-                        item.values = []
+            if isinstance(child, discord.ui.Select):
+                child.values = []
         # Not strictly necessary to edit message to clear selection if we just respond, but good practice.
         
         if action == "claim":
