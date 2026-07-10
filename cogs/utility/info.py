@@ -116,7 +116,7 @@ class HelpViewV2(discord.ui.View):
                 value="Utilisez le **menu déroulant** ci-dessous pour explorer les différentes catégories de commandes. Chaque catégorie regroupe les commandes par thème pour vous aider à mieux configurer le serveur.",
                 inline=False
             )
-            embed.set_image(url="https://i.imgur.com/vH1O1uO.png") # Example placeholder for a nice banner
+            embed.set_image(url="https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExMXpzazZoZnVpOXRjanM1NmxzaXZpNWg2dmZ0OWY4enVxZDc1MnZlNyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/TrVla4Z2PYEkU/giphy.gif")
             
         return embed
 
