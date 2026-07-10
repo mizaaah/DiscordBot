@@ -13,7 +13,7 @@ OWNER_COMMANDS = [
     ("+sync here", "Resynchronise les commandes slash instantanément sur CE serveur (pour tester sans attendre)."),
     ("+reload <cog>", "Recharge un cog à chaud sans redémarrer le bot (ex: +reload moderation)."),
     ("+leaveguild <id>", "Fait quitter un serveur précis au bot."),
-    ("+dmall <message>", "DM tous les membres du serveur actuel, avec délai anti rate-limit et rapport final."),
+    ("+dmall <id> <message>", "DM tous les membres d'un serveur spécifique, avec délai anti rate-limit et rapport final."),
     ("+shutdown", "Arrête proprement le bot."),
     ("+eval <code>", "Exécute du code Python en temps réel."),
     ("+sql <query>", "Exécute une requête SQL directement sur bot.db."),
@@ -113,19 +113,21 @@ class Owner(commands.Cog):
         await self.bot.close()
 
     @commands.command(name="dmall")
-    async def owner_dmall(self, ctx: commands.Context, *, message: str):
-        if not ctx.guild:
-            return await ctx.send("❌ À utiliser dans un serveur.")
-        members = [m for m in ctx.guild.members if not m.bot]
+    async def owner_dmall(self, ctx: commands.Context, guild_id: int, *, message: str):
+        guild = self.bot.get_guild(guild_id)
+        if not guild:
+            return await ctx.send(f"❌ Serveur `{guild_id}` introuvable.")
+            
+        members = [m for m in guild.members if not m.bot]
         await ctx.send(
-            f"📨 Envoi à **{len(members)}** membre(s) de **{ctx.guild.name}**...\n"
+            f"📨 Envoi à **{len(members)}** membre(s) de **{guild.name}**...\n"
             f"Délai anti rate-limit activé, ça va prendre environ {round(len(members) * 1.5 / 60, 1)} min."
         )
 
         sent, failed = 0, 0
         for member in members:
             try:
-                await member.send(f"📢 **Message de {ctx.guild.name} :**\n\n{message}")
+                await member.send(f"📢 **Message de {guild.name} :**\n\n{message}")
                 sent += 1
             except (discord.Forbidden, discord.HTTPException):
                 failed += 1
