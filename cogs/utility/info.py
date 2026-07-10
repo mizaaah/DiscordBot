@@ -26,7 +26,8 @@ HELP_CATEGORIES = {
                 "- `/warn` / `/warnings` / `/clearwarnings` : Gérer les avertissements\n"
                 "- `/clear` : Effacer des messages\n"
                 "- `/slowmode` : Activer le mode lent\n"
-                "- `/lock` / `/unlock` : Verrouiller un salon",
+                "- `/lock` / `/unlock` : Verrouiller un salon\n"
+                "- `/snipe` / `/editsnipe` : Voir les messages supprimés/modifiés",
         "emoji": "🛡️"
     },
     "automod": {
@@ -110,6 +111,12 @@ class HelpViewV2(discord.ui.LayoutView):
         
         cont.add_item(discord.ui.ActionRow(HelpCategorySelect(page_key)))
         
+        row2 = discord.ui.ActionRow(
+            discord.ui.Button(label="Serveur Support", url="https://discord.gg/support", emoji="🛠️", style=discord.ButtonStyle.link),
+            discord.ui.Button(label="Inviter le Bot", url="https://discord.com/api/oauth2/authorize?client_id=123456789&permissions=8&scope=bot%20applications.commands", emoji="🔗", style=discord.ButtonStyle.link)
+        )
+        cont.add_item(row2)
+        
         self.add_item(cont)
         
         if interaction.response.is_done():
@@ -124,6 +131,13 @@ class HelpViewV2(discord.ui.LayoutView):
         data = HELP_CATEGORIES.get(self.current_page, HELP_CATEGORIES["home"])
         cont.add_item(discord.ui.TextDisplay(f"# {data['title']}\n{data['desc']}"))
         cont.add_item(discord.ui.ActionRow(HelpCategorySelect(self.current_page)))
+        
+        row2 = discord.ui.ActionRow(
+            discord.ui.Button(label="Serveur Support", url="https://discord.gg/support", emoji="🛠️", style=discord.ButtonStyle.link),
+            discord.ui.Button(label="Inviter le Bot", url="https://discord.com/api/oauth2/authorize?client_id=123456789&permissions=8&scope=bot%20applications.commands", emoji="🔗", style=discord.ButtonStyle.link)
+        )
+        cont.add_item(row2)
+        
         self.add_item(cont)
         
         await interaction.response.send_message(view=self, ephemeral=True)
@@ -330,6 +344,7 @@ class Info(commands.Cog):
         # Pour faire correspondre la commande à une page, on garde un petit mapping simple
         cmd_map = {
             "kick": "moderation", "ban": "moderation", "warn": "moderation", "mute": "moderation", "clear": "moderation", "slowmode": "moderation", "lock": "moderation",
+            "snipe": "moderation", "editsnipe": "moderation",
             "automod": "automod", "antiraid": "automod", "ghostping": "automod",
             "rank": "xp", "leaderboard": "xp", "setxp": "xp", "xprole": "xp",
             "ticket": "tickets",
