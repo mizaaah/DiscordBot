@@ -89,6 +89,9 @@ async def _open_ticket(bot: commands.Bot, interaction: discord.Interaction, cate
     guild = interaction.guild
     user = interaction.user
     lang = await bot.db.get_guild_lang(guild.id)
+    
+    if not interaction.response.is_done():
+        await interaction.response.defer(ephemeral=True)
 
     async def reply(msg: str = None, **kwargs):
         if interaction.response.is_done():
