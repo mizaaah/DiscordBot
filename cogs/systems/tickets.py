@@ -134,7 +134,7 @@ async def _open_ticket(bot: commands.Bot, interaction: discord.Interaction, cate
 class TicketCategorySelect(discord.ui.Select):
     def __init__(self, bot: commands.Bot, categories: list):
         self.bot = bot
-        options = [discord.SelectOption(label=c, value=c, emoji="🏷️") for c in categories[:25]]
+        options = [discord.SelectOption(label=c["name"], value=c["name"], emoji="🏷️") for c in categories[:25]]
         super().__init__(placeholder="📂 Choisis une catégorie...", options=options)
 
     async def callback(self, interaction: discord.Interaction):
