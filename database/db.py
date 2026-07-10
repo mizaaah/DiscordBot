@@ -379,6 +379,8 @@ class Database:
         except aiosqlite.OperationalError: pass
         try: await self.db.execute("ALTER TABLE guild_settings ADD COLUMN log_voice_id INTEGER")
         except aiosqlite.OperationalError: pass
+        try: await self.db.execute("ALTER TABLE guild_settings ADD COLUMN levelup_channel_id INTEGER")
+        except aiosqlite.OperationalError: pass
 
         await self.db.commit()
         # Migrations pour installations existantes
