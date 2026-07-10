@@ -394,6 +394,7 @@ class SetupView(discord.ui.LayoutView):
         self.lang = lang
         self.guild_id = guild_id
         self.automod_module = None
+        self.current_category = None
 
     async def init_home(self, guild: discord.Guild):
         await self._build_home(guild)
@@ -471,10 +472,12 @@ class SetupView(discord.ui.LayoutView):
         self.add_item(cont)
 
     async def show_home(self, interaction: discord.Interaction):
+        self.current_category = None
         await self._build_home(interaction.guild)
         await interaction.response.edit_message(view=self, embed=None)
 
-    async def show_category(self, interaction: discord.Interaction, category: str):
+    async def show_category(self, interaction: discord.Interaction, category: str, confirm_text: str = None):
+        self.current_category = category
         settings = await self.bot.db.get_guild_settings(self.guild_id)
         lang = self.lang
         self.clear_items()
@@ -483,7 +486,11 @@ class SetupView(discord.ui.LayoutView):
         title = t(lang, f"setup.opt_{category}") if category not in ["automod", "antiraid"] else ("🛡️ Configuration AutoMod" if category == "automod" else "⚔️ Configuration Anti-Raid")
         desc = t(lang, f"setup.{category}_desc") if category not in ["automod", "antiraid"] else ("Activez ou désactivez l'AutoMod global.\nChoisissez un sous-module pour affiner la configuration." if category == "automod" else "Configurez les seuils et actions du système Anti-Raid.")
         
-        cont.add_item(discord.ui.TextDisplay(f"# {title}\n{desc}\n\n"))
+        header_text = f"# {title}\n{desc}\n\n"
+        if confirm_text:
+            header_text = f"✅ **{confirm_text}**\n\n" + header_text
+        
+        cont.add_item(discord.ui.TextDisplay(header_text))
 
         if category == "logs":
             cont.add_item(discord.ui.TextDisplay("🪵 **Catégorie des Logs**\nDéfinit la catégorie Discord où le bot créera automatiquement les salons de logs avancés (messages, vocal, modération, serveur)."))
@@ -562,8 +569,11 @@ class SetupView(discord.ui.LayoutView):
                 await interaction.response.send_message(f"❌ Erreur interne : {e}", ephemeral=True)
 
     async def refresh(self, interaction: discord.Interaction, confirm_text: str):
-        await self._build_home(interaction.guild, confirm_text)
-        await interaction.response.edit_message(view=self, embed=None)
+        if self.current_category:
+            await self.show_category(interaction, self.current_category, confirm_text)
+        else:
+            await self._build_home(interaction.guild, confirm_text)
+            await interaction.response.edit_message(view=self, embed=None)
 
     async def on_timeout(self):
         for item in self.children:
