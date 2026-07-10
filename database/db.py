@@ -263,7 +263,7 @@ class Database:
                 control_channel_id  INTEGER,
                 category_id         INTEGER,
                 default_limit       INTEGER DEFAULT 0,
-                name_format         TEXT DEFAULT '{user} • Salon'
+                name_format         TEXT DEFAULT '✨ | Salon de {user}'
             )""",
             """CREATE TABLE IF NOT EXISTS tempvoice_channels (
                 channel_id      INTEGER PRIMARY KEY,
