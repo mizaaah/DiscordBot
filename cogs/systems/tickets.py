@@ -12,6 +12,79 @@ from utils.i18n import t
 
 # ── Shared ticket-creation logic ──────────────────────────────────────────────
 
+
+async def build_ticket_container(bot, guild, channel_id, lang):
+    ticket = await bot.db.get_ticket(channel_id)
+    if not ticket:
+        return None
+        
+    config = await bot.db.get_ticket_config(guild.id)
+    
+    user_id = ticket["user_id"]
+    user = guild.get_member(user_id)
+    user_mention = user.mention if user else f"<@{user_id}>"
+    user_avatar = user.avatar.url if user and user.avatar else (user.default_avatar.url if user else None)
+    
+    category = ticket.get("category")
+    ticket_num = ticket.get("ticket_number")
+    claimed_by = ticket.get("claimed_by")
+    
+    color = discord.Color(config.get("embed_color") or Colors.INFO.value)
+    
+    if category and "partenariat" in category.lower():
+        welcome = f"Salut {user_mention} ! Merci de l'intérêt que tu portes à notre serveur.\nPrécise-nous ta demande de partenariat avec d'autres serveurs et un membre du staff te répondra vite."
+    elif category and "staff" in category.lower():
+        welcome = f"Salut {user_mention} ! Tu souhaites rejoindre notre équipe ?\nPrésente-toi et explique tes motivations pour recruter des gens / rejoindre le staff."
+    else:
+        template = config.get("welcome_message") or t(lang, "ticket.default_welcome")
+        user_name = user.display_name if user else "Membre"
+        welcome = (
+            template
+            .replace("{mention}", user_mention)
+            .replace("{name}", user_name)
+            .replace("{ticket_number}", f"{ticket_num:04d}")
+            .replace("{category}", category or t(lang, "ticket.default_category"))
+        )
+        
+    title = t(lang, "ticket.title_num", num=f"{ticket_num:04d}")
+    if category:
+        title += f" — {category}"
+        
+    cont = discord.ui.Container(accent_color=color.value)
+    
+    staff_id = config.get("staff_role_id")
+    staff_role = guild.get_role(staff_id) if staff_id else None
+    staff_str = staff_role.mention if staff_role else "`Non défini`"
+    
+    claimer_str = t(lang, 'ticket.not_claimed')
+    if claimed_by:
+        claimer = guild.get_member(claimed_by)
+        if claimer: claimer_str = claimer.mention
+        
+    cat_str = f"\n└ **Catégorie :** `{category}`" if category else ""
+    info_text = (
+        f"**Informations du ticket**\n"
+        f"└ **Support :** {staff_str}"
+        f"{cat_str}\n"
+        f"└ **Pris en charge :** {claimer_str}\n"
+        f"└ **Membre :** {user_mention}"
+    )
+    
+    thumb = discord.ui.Thumbnail(media=user_avatar) if user_avatar else None
+    
+    if thumb:
+        cont.add_item(discord.ui.Section(
+            discord.ui.TextDisplay(f"# 🎫 {title}\n> {welcome.replace('\n', '\n> ')}"),
+            accessory=thumb
+        ))
+    else:
+        cont.add_item(discord.ui.TextDisplay(f"# 🎫 {title}\n> {welcome.replace('\n', '\n> ')}"))
+        
+    cont.add_item(discord.ui.Separator())
+    cont.add_item(discord.ui.TextDisplay(info_text))
+    
+    return cont
+    
 async def _open_ticket(bot: commands.Bot, interaction: discord.Interaction, category: str = None):
     guild = interaction.guild
     user = interaction.user
@@ -80,45 +153,10 @@ async def _open_ticket(bot: commands.Bot, interaction: discord.Interaction, cate
 
     await bot.db.create_ticket(guild.id, channel.id, user.id, ticket_num, category)
 
-    # ── Build welcome LayoutView ──────────────────────────────────────────────────
-    color = discord.Color(config.get("embed_color") or Colors.INFO.value)
+    cont = await build_ticket_container(bot, guild, channel.id, lang)
+    view = TicketCloseView(bot, cont, config.get("close_button_label"), config.get("close_button_emoji"))
     
-    if category and "partenariat" in category.lower():
-        welcome = f"Salut {user.mention} ! Merci de l'intérêt que tu portes à notre serveur.\nPrécise-nous ta demande de partenariat avec d'autres serveurs et un membre du staff te répondra vite."
-    elif category and "staff" in category.lower():
-        welcome = f"Salut {user.mention} ! Tu souhaites rejoindre notre équipe ?\nPrésente-toi et explique tes motivations pour recruter des gens / rejoindre le staff."
-    else:
-        template = config.get("welcome_message") or t(lang, "ticket.default_welcome")
-        welcome = (
-            template
-            .replace("{mention}", user.mention)
-            .replace("{name}", user.display_name)
-            .replace("{ticket_number}", f"{ticket_num:04d}")
-            .replace("{category}", category or t(lang, "ticket.default_category"))
-        )
-
-    title = t(lang, "ticket.title_num", num=f"{ticket_num:04d}")
-    if category:
-        title += f" — {category}"
-
-    embed = discord.Embed(title=f"🎫 {title}", description=welcome, color=color)
-    
-    staff_str = staff_role.mention if staff_role else "`Non défini`"
-    claimer_str = t(lang, 'ticket.not_claimed')
-    
-    cat_str = f"└ **Catégorie :** {category}\n" if category else ""
-    info_text = (
-        f"**Informations du ticket**\n"
-        f"└ **Support :** {staff_str}\n"
-        f"{cat_str}"
-        f"└ **Pris en charge :** {claimer_str}\n"
-        f"└ **Membre :** {user.mention}"
-    )
-    embed.add_field(name="\u200b", value=info_text, inline=False)
-
-    view = TicketCloseView(bot, config.get("close_button_label"), config.get("close_button_emoji"))
-    
-    await channel.send(embed=embed, view=view)
+    await channel.send(view=view)
     await channel.send(user.mention, delete_after=1)
     await reply(embed=success_embed(t(lang, "ticket.created", channel=channel.mention)), ephemeral=True)
 
@@ -238,8 +276,8 @@ class TicketRemoveUserSelect(discord.ui.UserSelect):
         embed = discord.Embed(description=t(lang, "ticket.member_removed", member=membre.mention), color=Colors.WARNING)
         await interaction.response.send_message(embed=embed)
 
-class TicketCloseView(discord.ui.View):
-    def __init__(self, bot: commands.Bot, label: str = None, emoji: str = None):
+class TicketCloseView(discord.ui.LayoutView):
+    def __init__(self, bot: commands.Bot, cont=None, label: str = None, emoji: str = None):
         super().__init__(timeout=None)
         self.bot = bot
         
@@ -263,17 +301,15 @@ class TicketCloseView(discord.ui.View):
         )
         manage_select.callback = self.manage_action
         
-        self.add_item(manage_select)
-        self.add_item(btn_close)
+        if cont:
+            self.add_item(cont)
+            
+        self.add_item(discord.ui.ActionRow(manage_select))
+        self.add_item(discord.ui.ActionRow(btn_close))
 
     async def manage_action(self, interaction: discord.Interaction):
         # We handle the select menu actions
         action = interaction.data["values"][0]
-        # Clear the select menu visual selection immediately
-        for child in self.children:
-            if isinstance(child, discord.ui.Select):
-                child.values = []
-        # Not strictly necessary to edit message to clear selection if we just respond, but good practice.
         
         if action == "claim":
             await self.claim_ticket(interaction)
@@ -297,14 +333,12 @@ class TicketCloseView(discord.ui.View):
         embed = discord.Embed(description=t(lang, "ticket.unclaimed", member=interaction.user.mention), color=Colors.WARNING)
         await interaction.response.send_message(embed=embed)
         
-        # Update control message
-        if interaction.message and interaction.message.embeds:
-            em = interaction.message.embeds[0]
-            if len(em.fields) > 0:
-                field = em.fields[0]
-                new_val = field.value.replace(f"└ **Pris en charge :** {interaction.user.mention}", f"└ **Pris en charge :** {t(lang, 'ticket.not_claimed')}")
-                em.set_field_at(0, name=field.name, value=new_val, inline=field.inline)
-                await interaction.message.edit(embed=em)
+        # Rebuild view
+        cont = await build_ticket_container(self.bot, interaction.guild, interaction.channel.id, lang)
+        config = await self.bot.db.get_ticket_config(interaction.guild.id)
+        new_view = TicketCloseView(self.bot, cont, config.get("close_button_label"), config.get("close_button_emoji"))
+        if interaction.message:
+            await interaction.message.edit(view=new_view)
                 
     async def claim_ticket(self, interaction: discord.Interaction):
         lang = await self.bot.db.get_guild_lang(interaction.guild_id)
@@ -329,14 +363,12 @@ class TicketCloseView(discord.ui.View):
         embed = discord.Embed(description=t(lang, "ticket.claimed", member=interaction.user.mention), color=Colors.SUCCESS)
         await interaction.response.send_message(embed=embed)
         
-        # Update control message
-        if interaction.message and interaction.message.embeds:
-            em = interaction.message.embeds[0]
-            if len(em.fields) > 0:
-                field = em.fields[0]
-                new_val = field.value.replace(f"└ **Pris en charge :** {t(lang, 'ticket.not_claimed')}", f"└ **Pris en charge :** {interaction.user.mention}")
-                em.set_field_at(0, name=field.name, value=new_val, inline=field.inline)
-                await interaction.message.edit(embed=em)
+        # Rebuild view
+        cont = await build_ticket_container(self.bot, interaction.guild, interaction.channel.id, lang)
+        config = await self.bot.db.get_ticket_config(interaction.guild.id)
+        new_view = TicketCloseView(self.bot, cont, config.get("close_button_label"), config.get("close_button_emoji"))
+        if interaction.message:
+            await interaction.message.edit(view=new_view)
 
     async def add_member(self, interaction: discord.Interaction):
         lang = await self.bot.db.get_guild_lang(interaction.guild_id)
