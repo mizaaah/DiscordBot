@@ -48,9 +48,7 @@ HELP_CATEGORIES = {
     "tickets": {
         "title": "🎟️ Système de Tickets",
         "desc": "Commandes pour le support et les tickets.\n\n"
-                "- `/ticket setup` : Créer un panel de tickets (V2)\n"
-                "- `/tadd` / `/tremove` : Ajouter/Retirer un membre d'un ticket\n"
-                "- `/tclaim` / `/tunclaim` : Gérer la prise en charge d'un ticket",
+                "- `/ticket setup` : Créer un panel de tickets (V2)",
         "emoji": "🎟️"
     },
     "roles": {
@@ -334,7 +332,7 @@ class Info(commands.Cog):
             "kick": "moderation", "ban": "moderation", "warn": "moderation", "mute": "moderation", "clear": "moderation", "slowmode": "moderation", "lock": "moderation",
             "automod": "automod", "antiraid": "automod", "ghostping": "automod",
             "rank": "xp", "leaderboard": "xp", "setxp": "xp", "xprole": "xp",
-            "ticket": "tickets", "tadd": "tickets",
+            "ticket": "tickets",
             "rr": "roles", "autosanction": "roles",
             "tempvoice": "community", "giveaway": "community", "starboard": "community", "afk": "community",
             "config": "config", "embed": "config", "cmdperm": "config", "userinfo": "config", "serverinfo": "config"

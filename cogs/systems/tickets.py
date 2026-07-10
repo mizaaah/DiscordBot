@@ -182,6 +182,44 @@ class TicketOpenView(discord.ui.LayoutView):
             await _open_ticket(self.bot, interaction)
 
 
+
+class TicketAddUserSelect(discord.ui.UserSelect):
+    def __init__(self, lang: str):
+        super().__init__(placeholder="Sélectionnez un membre à ajouter...", min_values=1, max_values=1)
+        self.lang = lang
+
+    async def callback(self, interaction: discord.Interaction):
+        lang = self.lang
+        membre = self.values[0]
+        if not await interaction.client.db.get_ticket(interaction.channel.id):
+            return await interaction.response.send_message(embed=error_embed(t(lang, "ticket.not_a_ticket")), ephemeral=True)
+        await interaction.channel.set_permissions(
+            membre, view_channel=True, send_messages=True,
+            read_message_history=True, attach_files=True
+        )
+        embed = discord.Embed(description=t(lang, "ticket.member_added", member=membre.mention), color=Colors.SUCCESS)
+        await interaction.response.send_message(embed=embed)
+
+
+class TicketRemoveUserSelect(discord.ui.UserSelect):
+    def __init__(self, lang: str):
+        super().__init__(placeholder="Sélectionnez un membre à retirer...", min_values=1, max_values=1)
+        self.lang = lang
+
+    async def callback(self, interaction: discord.Interaction):
+        lang = self.lang
+        membre = self.values[0]
+        ticket = await interaction.client.db.get_ticket(interaction.channel.id)
+        if not ticket:
+            return await interaction.response.send_message(embed=error_embed(t(lang, "ticket.not_a_ticket")), ephemeral=True)
+        if ticket["user_id"] == membre.id:
+            return await interaction.response.send_message(
+                embed=error_embed(t(lang, "ticket.cant_remove_creator")), ephemeral=True
+            )
+        await interaction.channel.set_permissions(membre, overwrite=None)
+        embed = discord.Embed(description=t(lang, "ticket.member_removed", member=membre.mention), color=Colors.WARNING)
+        await interaction.response.send_message(embed=embed)
+
 class TicketCloseView(discord.ui.LayoutView):
     def __init__(self, bot: commands.Bot, cont=None, label: str = None, emoji: str = None):
         super().__init__(timeout=None)
@@ -189,14 +227,110 @@ class TicketCloseView(discord.ui.LayoutView):
         if cont:
             self.add_item(cont)
             
-        btn = discord.ui.Button(
+        btn_close = discord.ui.Button(
             label=label or "Fermer le ticket",
             emoji=emoji or "🔒",
             style=discord.ButtonStyle.danger,
-            custom_id="ticket_close_persistent"
+            custom_id="ticket_close_persistent",
+            row=0
         )
-        btn.callback = self.close_ticket
-        self.add_item(discord.ui.ActionRow(btn))
+        btn_close.callback = self.close_ticket
+        
+        btn_claim = discord.ui.Button(
+            label="Prendre en charge",
+            emoji="✋",
+            style=discord.ButtonStyle.success,
+            custom_id="ticket_claim_persistent",
+            row=0
+        )
+        btn_claim.callback = self.claim_ticket
+        
+        btn_add = discord.ui.Button(
+            label="Ajouter",
+            emoji="➕",
+            style=discord.ButtonStyle.secondary,
+            custom_id="ticket_add_persistent",
+            row=1
+        )
+        btn_add.callback = self.add_member
+        
+        btn_remove = discord.ui.Button(
+            label="Retirer",
+            emoji="➖",
+            style=discord.ButtonStyle.secondary,
+            custom_id="ticket_remove_persistent",
+            row=1
+        )
+        btn_remove.callback = self.remove_member
+
+        self.add_item(discord.ui.ActionRow(btn_close, btn_claim))
+        self.add_item(discord.ui.ActionRow(btn_add, btn_remove))
+
+    async def claim_ticket(self, interaction: discord.Interaction):
+        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
+        ticket = await self.bot.db.get_ticket(interaction.channel.id)
+        if not ticket:
+            return await interaction.response.send_message(embed=error_embed(t(lang, "ticket.not_a_ticket")), ephemeral=True)
+            
+        config = await self.bot.db.get_ticket_config(interaction.guild.id)
+        staff_id = config.get("staff_role_id")
+        is_staff = interaction.user.guild_permissions.manage_channels or (staff_id and any(r.id == staff_id for r in interaction.user.roles))
+        if not is_staff:
+            return await interaction.response.send_message(embed=error_embed("Seul le staff peut prendre en charge un ticket."), ephemeral=True)
+
+        if ticket.get("claimed_by"):
+            if ticket["claimed_by"] == interaction.user.id:
+                # Unclaim
+                await self.bot.db.unclaim_ticket(interaction.channel.id)
+                embed = discord.Embed(description=t(lang, "ticket.unclaimed", member=interaction.user.mention), color=Colors.WARNING)
+                await interaction.response.send_message(embed=embed)
+                
+                # Update control message
+                if interaction.message and interaction.message.embeds:
+                    em = interaction.message.embeds[0]
+                    em.description = em.description.replace(f"**👤 Pris en charge :** {interaction.user.mention}", f"**👤 Pris en charge :** {t(lang, 'ticket.not_claimed')}")
+                    await interaction.message.edit(embed=em)
+                return
+            else:
+                claimer = interaction.guild.get_member(ticket["claimed_by"])
+                return await interaction.response.send_message(
+                    embed=error_embed(t(lang, "ticket.already_claimed", claimer=claimer.mention if claimer else t(lang, "ticket.unknown"))), ephemeral=True
+                )
+                
+        # Claim
+        await self.bot.db.claim_ticket(interaction.channel.id, interaction.user.id)
+        embed = discord.Embed(description=t(lang, "ticket.claimed", member=interaction.user.mention), color=Colors.SUCCESS)
+        await interaction.response.send_message(embed=embed)
+        
+        # Update control message
+        if interaction.message and interaction.message.embeds:
+            em = interaction.message.embeds[0]
+            em.description = em.description.replace(f"**👤 Pris en charge :** {t(lang, 'ticket.not_claimed')}", f"**👤 Pris en charge :** {interaction.user.mention}")
+            await interaction.message.edit(embed=em)
+
+    async def add_member(self, interaction: discord.Interaction):
+        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
+        config = await self.bot.db.get_ticket_config(interaction.guild.id)
+        staff_id = config.get("staff_role_id")
+        is_staff = interaction.user.guild_permissions.manage_channels or (staff_id and any(r.id == staff_id for r in interaction.user.roles))
+        if not is_staff:
+            return await interaction.response.send_message(embed=error_embed("Seul le staff peut ajouter des membres."), ephemeral=True)
+            
+        view = discord.ui.View(timeout=30)
+        view.add_item(TicketAddUserSelect(lang))
+        await interaction.response.send_message(embed=info_embed("Sélectionnez le membre à ajouter au ticket :"), view=view, ephemeral=True)
+
+    async def remove_member(self, interaction: discord.Interaction):
+        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
+        config = await self.bot.db.get_ticket_config(interaction.guild.id)
+        staff_id = config.get("staff_role_id")
+        is_staff = interaction.user.guild_permissions.manage_channels or (staff_id and any(r.id == staff_id for r in interaction.user.roles))
+        if not is_staff:
+            return await interaction.response.send_message(embed=error_embed("Seul le staff peut retirer des membres."), ephemeral=True)
+            
+        view = discord.ui.View(timeout=30)
+        view.add_item(TicketRemoveUserSelect(lang))
+        await interaction.response.send_message(embed=info_embed("Sélectionnez le membre à retirer du ticket :"), view=view, ephemeral=True)
 
     async def close_ticket(self, interaction: discord.Interaction):
         lang = await self.bot.db.get_guild_lang(interaction.guild_id)
@@ -683,72 +817,6 @@ class Tickets(commands.Cog):
         view = TicketSetupDashboardView(self.bot, lang, interaction.guild.id)
         await view.build(interaction.guild)
         await interaction.response.send_message(view=view, ephemeral=True)
-
-    @app_commands.command(name="tadd", description="Ajoute un membre à ce ticket")
-    @app_commands.describe(membre="Le membre à ajouter")
-    @app_commands.default_permissions(manage_channels=True)
-    async def tadd(self, interaction: discord.Interaction, membre: discord.Member):
-        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
-        if not await self.bot.db.get_ticket(interaction.channel.id):
-            return await interaction.response.send_message(embed=error_embed(t(lang, "ticket.not_a_ticket")), ephemeral=True)
-        await interaction.channel.set_permissions(
-            membre, view_channel=True, send_messages=True,
-            read_message_history=True, attach_files=True
-        )
-        embed = discord.Embed(description=t(lang, "ticket.member_added", member=membre.mention), color=Colors.SUCCESS)
-        await interaction.response.send_message(embed=embed)
-
-    @app_commands.command(name="tremove", description="Retire un membre de ce ticket")
-    @app_commands.describe(membre="Le membre à retirer")
-    @app_commands.default_permissions(manage_channels=True)
-    async def tremove(self, interaction: discord.Interaction, membre: discord.Member):
-        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
-        ticket = await self.bot.db.get_ticket(interaction.channel.id)
-        if not ticket:
-            return await interaction.response.send_message(embed=error_embed(t(lang, "ticket.not_a_ticket")), ephemeral=True)
-        if ticket["user_id"] == membre.id:
-            return await interaction.response.send_message(
-                embed=error_embed(t(lang, "ticket.cant_remove_creator")), ephemeral=True
-            )
-        await interaction.channel.set_permissions(membre, overwrite=None)
-        embed = discord.Embed(description=t(lang, "ticket.member_removed", member=membre.mention), color=Colors.WARNING)
-        await interaction.response.send_message(embed=embed)
-
-    @app_commands.command(name="tclaim", description="Réclame ce ticket — indique que tu t'en occupes")
-    @app_commands.default_permissions(manage_channels=True)
-    async def tclaim(self, interaction: discord.Interaction):
-        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
-        ticket = await self.bot.db.get_ticket(interaction.channel.id)
-        if not ticket:
-            return await interaction.response.send_message(embed=error_embed(t(lang, "ticket.not_a_ticket")), ephemeral=True)
-        if ticket.get("claimed_by"):
-            claimer = interaction.guild.get_member(ticket["claimed_by"])
-            return await interaction.response.send_message(
-                embed=error_embed(t(lang, "ticket.already_claimed", claimer=claimer.mention if claimer else t(lang, "ticket.unknown"))), ephemeral=True
-            )
-        await self.bot.db.claim_ticket(interaction.channel.id, interaction.user.id)
-        embed = discord.Embed(
-            description=t(lang, "ticket.claimed", member=interaction.user.mention),
-            color=Colors.SUCCESS
-        )
-        await interaction.response.send_message(embed=embed)
-
-    @app_commands.command(name="tunclaim", description="Libère la réclamation de ce ticket")
-    @app_commands.default_permissions(manage_channels=True)
-    async def tunclaim(self, interaction: discord.Interaction):
-        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
-        ticket = await self.bot.db.get_ticket(interaction.channel.id)
-        if not ticket:
-            return await interaction.response.send_message(embed=error_embed(t(lang, "ticket.not_a_ticket")), ephemeral=True)
-        if not ticket.get("claimed_by"):
-            return await interaction.response.send_message(embed=error_embed(t(lang, "ticket.not_claimed_err")), ephemeral=True)
-        await self.bot.db.unclaim_ticket(interaction.channel.id)
-        embed = discord.Embed(
-            description=t(lang, "ticket.unclaimed", member=interaction.user.mention),
-            color=Colors.WARNING
-        )
-        await interaction.response.send_message(embed=embed)
-
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(Tickets(bot))
