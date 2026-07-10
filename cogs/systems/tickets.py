@@ -82,14 +82,20 @@ async def _open_ticket(bot: commands.Bot, interaction: discord.Interaction, cate
 
     # ── Build welcome LayoutView ──────────────────────────────────────────────────
     color = discord.Color(config.get("embed_color") or Colors.INFO.value)
-    template = config.get("welcome_message") or t(lang, "ticket.default_welcome")
-    welcome = (
-        template
-        .replace("{mention}", user.mention)
-        .replace("{name}", user.display_name)
-        .replace("{ticket_number}", f"{ticket_num:04d}")
-        .replace("{category}", category or t(lang, "ticket.default_category"))
-    )
+    
+    if category and "partenariat" in category.lower():
+        welcome = f"Salut {user.mention} ! Merci de l'intérêt que tu portes à notre serveur.\nPrécise-nous ta demande de partenariat avec d'autres serveurs et un membre du staff te répondra vite."
+    elif category and "staff" in category.lower():
+        welcome = f"Salut {user.mention} ! Tu souhaites rejoindre notre équipe ?\nPrésente-toi et explique tes motivations pour recruter des gens / rejoindre le staff."
+    else:
+        template = config.get("welcome_message") or t(lang, "ticket.default_welcome")
+        welcome = (
+            template
+            .replace("{mention}", user.mention)
+            .replace("{name}", user.display_name)
+            .replace("{ticket_number}", f"{ticket_num:04d}")
+            .replace("{category}", category or t(lang, "ticket.default_category"))
+        )
 
     title = t(lang, "ticket.title_num", num=f"{ticket_num:04d}")
     if category:
@@ -134,7 +140,16 @@ async def _open_ticket(bot: commands.Bot, interaction: discord.Interaction, cate
 class TicketCategorySelect(discord.ui.Select):
     def __init__(self, bot: commands.Bot, categories: list):
         self.bot = bot
-        options = [discord.SelectOption(label=c["name"], value=c["name"], emoji="🏷️") for c in categories[:25]]
+        options = []
+        for c in categories[:25]:
+            desc = "Ouvrir un ticket."
+            if "partenariat" in c["name"].lower():
+                desc = "Pour faire des partenariats avec d'autres serveurs."
+            elif "staff" in c["name"].lower():
+                desc = "Pour recruter des gens."
+            elif "aide" in c["name"].lower() or "support" in c["name"].lower():
+                desc = "Besoin d'aide ou question."
+            options.append(discord.SelectOption(label=c["name"], value=c["name"], emoji="🏷️", description=desc))
         super().__init__(placeholder="📂 Choisis une catégorie...", options=options)
 
     async def callback(self, interaction: discord.Interaction):
