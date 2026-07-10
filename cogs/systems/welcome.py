@@ -33,7 +33,7 @@ class WelcomeView(discord.ui.View):
             embed.add_field(name=t(lang, "welcome.roles", count=len(roles)), value=" ".join(roles[:10]), inline=False)
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @discord.ui.button(label="📜 Règles", style=discord.ButtonStyle.primary, custom_id="welcome_rules_persistent")
+    @discord.ui.button(label="📜 Règles", style=discord.ButtonStyle.secondary, custom_id="welcome_rules_persistent")
     async def show_rules(self, interaction: discord.Interaction, button: discord.ui.Button):
         lang = await interaction.client.db.get_guild_lang(interaction.guild_id)
         rules_text = (
@@ -47,7 +47,7 @@ class WelcomeView(discord.ui.View):
         embed.title = "📜 Règles du serveur"
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @discord.ui.button(label="🎫 Contacter le Staff", style=discord.ButtonStyle.danger, custom_id="welcome_ticket_persistent")
+    @discord.ui.button(label="🎫 Contacter le Staff", style=discord.ButtonStyle.secondary, custom_id="welcome_ticket_persistent")
     async def contact_staff(self, interaction: discord.Interaction, button: discord.ui.Button):
         if _open_ticket:
             await _open_ticket(interaction.client, interaction, category="Support")
@@ -97,10 +97,17 @@ class Welcome(commands.Cog):
         message  = self._format_message(template, member)
         age      = (discord.utils.utcnow() - member.created_at).days
 
+
+        welcome_color_str = settings.get("welcome_color")
+        try:
+            welcome_color = int(welcome_color_str.strip("#"), 16) if welcome_color_str else Colors.SUCCESS.value
+        except Exception:
+            welcome_color = Colors.SUCCESS.value
+
         embed = discord.Embed(
             title=t(lang, "welcome.join_title", server=member.guild.name),
             description=message,
-            color=Colors.SUCCESS.value,
+            color=welcome_color,
             timestamp=discord.utils.utcnow(),
         )
         embed.set_author(name=str(member), icon_url=member.display_avatar.url)
@@ -152,10 +159,17 @@ class Welcome(commands.Cog):
         template = settings.get("goodbye_message") or t(lang, "welcome.leave_default")
         message  = self._format_message(template, member)
 
+
+        goodbye_color_str = settings.get("goodbye_color")
+        try:
+            goodbye_color = int(goodbye_color_str.strip("#"), 16) if goodbye_color_str else Colors.ERROR.value
+        except Exception:
+            goodbye_color = Colors.ERROR.value
+
         embed = discord.Embed(
             title=t(lang, "welcome.leave_title"),
             description=message,
-            color=Colors.ERROR.value,
+            color=goodbye_color,
             timestamp=discord.utils.utcnow(),
         )
         embed.set_author(name=str(member), icon_url=member.display_avatar.url)

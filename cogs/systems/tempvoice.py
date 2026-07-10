@@ -270,7 +270,7 @@ class TempVoiceControlView(discord.ui.View):
         owner = interaction.guild.get_member(row["owner_id"])
         await interaction.response.edit_message(embed=_control_embed(channel, owner, row, lang))
 
-    @discord.ui.button(label="🔐 Privé", style=discord.ButtonStyle.primary, custom_id="tv_private", row=0)
+    @discord.ui.button(label="🔐 Privé", style=discord.ButtonStyle.secondary, custom_id="tv_private", row=0)
     async def btn_private(self, interaction: discord.Interaction, button: discord.ui.Button):
         lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         row, channel = await _get_row_and_channel(interaction, lang)
@@ -325,7 +325,7 @@ class TempVoiceControlView(discord.ui.View):
 
     # ── Row 2 : Autoriser | Expulser | Supprimer ──────────────────────────────
 
-    @discord.ui.button(label="➕ Autoriser", style=discord.ButtonStyle.success, custom_id="tv_allow", row=2)
+    @discord.ui.button(label="➕ Autoriser", style=discord.ButtonStyle.secondary, custom_id="tv_allow", row=2)
     async def btn_allow(self, interaction: discord.Interaction, button: discord.ui.Button):
         lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         row, channel = await _get_row_and_channel(interaction, lang)
@@ -335,7 +335,7 @@ class TempVoiceControlView(discord.ui.View):
         view.add_item(AllowUserSelect(row["channel_id"], lang))
         await interaction.response.send_message(embed=info_embed(t(lang, "tv.pick_user_allow")), view=view, ephemeral=True)
 
-    @discord.ui.button(label="🚫 Expulser", style=discord.ButtonStyle.danger, custom_id="tv_kick", row=2)
+    @discord.ui.button(label="🚫 Expulser", style=discord.ButtonStyle.secondary, custom_id="tv_kick", row=2)
     async def btn_kick(self, interaction: discord.Interaction, button: discord.ui.Button):
         lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         row, channel = await _get_row_and_channel(interaction, lang)
@@ -345,7 +345,7 @@ class TempVoiceControlView(discord.ui.View):
         view.add_item(KickUserSelect(row["channel_id"], lang))
         await interaction.response.send_message(embed=info_embed(t(lang, "tv.pick_user_kick")), view=view, ephemeral=True)
 
-    @discord.ui.button(label="🗑️ Supprimer", style=discord.ButtonStyle.danger, custom_id="tv_delete", row=2)
+    @discord.ui.button(label="🗑️ Supprimer", style=discord.ButtonStyle.secondary, custom_id="tv_delete", row=2)
     async def btn_delete(self, interaction: discord.Interaction, button: discord.ui.Button):
         lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         row, channel = await _get_row_and_channel(interaction, lang)

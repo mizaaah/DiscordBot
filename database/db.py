@@ -9,7 +9,7 @@ ALLOWED_SETTINGS = {
     "log_channel_id", "welcome_channel_id", "goodbye_channel_id",
     "autorole_id", "welcome_message", "goodbye_message",
     "report_channel_id", "ghostping_enabled", "language",
-    "welcome_image", "goodbye_image",
+    "welcome_image", "goodbye_image", "welcome_color", "goodbye_color",
     "log_category_id", "log_messages_id", "log_mod_id", "log_server_id", "log_voice_id"
 }
 
@@ -93,6 +93,8 @@ class Database:
                 ghostping_enabled   INTEGER DEFAULT 0,
                 language            TEXT DEFAULT 'fr',
                 welcome_image       TEXT,
+                welcome_color       TEXT,
+                goodbye_color       TEXT,
                 goodbye_image       TEXT,
                 log_category_id     INTEGER,
                 log_messages_id     INTEGER,
@@ -354,6 +356,12 @@ class Database:
         except aiosqlite.OperationalError: pass
         
         try: await self.db.execute("ALTER TABLE guild_settings ADD COLUMN goodbye_image TEXT")
+        except aiosqlite.OperationalError: pass
+        
+        try: await self.db.execute("ALTER TABLE guild_settings ADD COLUMN welcome_color TEXT")
+        except aiosqlite.OperationalError: pass
+        
+        try: await self.db.execute("ALTER TABLE guild_settings ADD COLUMN goodbye_color TEXT")
         except aiosqlite.OperationalError: pass
         
         try: await self.db.execute("ALTER TABLE guild_settings ADD COLUMN log_category_id INTEGER")

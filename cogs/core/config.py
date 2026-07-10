@@ -116,6 +116,37 @@ class SetupImageButton(discord.ui.Button):
         await interaction.response.send_modal(SetupImageModal(view, self.setting_key, self.modal_title, self.current))
 
 
+
+class SetupColorModal(discord.ui.Modal):
+    color_hex = discord.ui.TextInput(label="Couleur de l'embed (Hex: #FFFFFF)", style=discord.TextStyle.short, required=False, max_length=7, placeholder="#5865F2")
+
+    def __init__(self, setup_view: "SetupView", setting_key: str, title: str, current: str = None):
+        super().__init__(title=title)
+        self._setup_view = setup_view
+        self.setting_key = setting_key
+        if current:
+            self.color_hex.default = current
+
+    async def on_submit(self, interaction: discord.Interaction):
+        value = self.color_hex.value.strip() or None
+        if value and not value.startswith("#"):
+            value = "#" + value
+        if value:
+            await interaction.client.db.update_guild_setting(interaction.guild.id, self.setting_key, value)
+        await self._setup_view.refresh(interaction, "La couleur a bien été sauvegardée ! 🎨")
+
+
+class SetupColorButton(discord.ui.Button):
+    def __init__(self, lang: str, setting_key: str, modal_title: str, current: str = None):
+        super().__init__(label="🎨 Couleur", style=discord.ButtonStyle.secondary, row=2)
+        self.setting_key = setting_key
+        self.modal_title = modal_title
+        self.current = current
+
+    async def callback(self, interaction: discord.Interaction):
+        view: SetupView = self.view
+        await interaction.response.send_modal(SetupColorModal(view, self.setting_key, self.modal_title, self.current))
+
 class SetupLanguageSelect(discord.ui.Select):
     def __init__(self, lang: str):
         options = [
@@ -463,7 +494,8 @@ class SetupView(discord.ui.LayoutView):
             cont.add_item(discord.ui.ActionRow(SetupChannelSelect(lang, "welcome_channel_id", "setup.welcome_placeholder")))
             cont.add_item(discord.ui.ActionRow(
                 SetupMessageButton(lang, "welcome_message", t(lang, "setup.welcome_modal_title"), settings.get("welcome_message")),
-                SetupImageButton(lang, "welcome_image", "Bannière de Bienvenue", settings.get("welcome_image"))
+                SetupImageButton(lang, "welcome_image", "Bannière", settings.get("welcome_image")),
+                SetupColorButton(lang, "welcome_color", "Couleur Bienvenue", settings.get("welcome_color"))
             ))
             
         elif category == "goodbye":
@@ -471,7 +503,8 @@ class SetupView(discord.ui.LayoutView):
             cont.add_item(discord.ui.ActionRow(SetupChannelSelect(lang, "goodbye_channel_id", "setup.goodbye_placeholder")))
             cont.add_item(discord.ui.ActionRow(
                 SetupMessageButton(lang, "goodbye_message", t(lang, "setup.goodbye_modal_title"), settings.get("goodbye_message")),
-                SetupImageButton(lang, "goodbye_image", "Bannière d'Au revoir", settings.get("goodbye_image"))
+                SetupImageButton(lang, "goodbye_image", "Bannière", settings.get("goodbye_image")),
+                SetupColorButton(lang, "goodbye_color", "Couleur Départ", settings.get("goodbye_color"))
             ))
             
         elif category == "autorole":
