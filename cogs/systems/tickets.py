@@ -156,9 +156,7 @@ class TicketOpenView(discord.ui.LayoutView):
     def __init__(self, bot: commands.Bot, cont=None, label: str = None, emoji: str = None):
         super().__init__(timeout=None)
         self.bot = bot
-        if cont:
-            self.add_item(cont)
-
+        
         btn = discord.ui.Button(
             label=label or "Ouvrir un ticket",
             emoji=emoji or "📩",
@@ -166,7 +164,15 @@ class TicketOpenView(discord.ui.LayoutView):
             custom_id="ticket_open_persistent"
         )
         btn.callback = self.open_ticket
-        self.add_item(discord.ui.ActionRow(btn))
+        
+        if cont:
+            cont.add_item(discord.ui.Section(
+                discord.ui.TextDisplay("📞 **Nous Contacter**\nCliquez sur le bouton ci-contre pour ouvrir un ticket."),
+                accessory=btn
+            ))
+            self.add_item(cont)
+        else:
+            self.add_item(discord.ui.ActionRow(btn))
 
     async def open_ticket(self, interaction: discord.Interaction):
         lang = await self.bot.db.get_guild_lang(interaction.guild_id)
@@ -224,15 +230,12 @@ class TicketCloseView(discord.ui.LayoutView):
     def __init__(self, bot: commands.Bot, cont=None, label: str = None, emoji: str = None):
         super().__init__(timeout=None)
         self.bot = bot
-        if cont:
-            self.add_item(cont)
-            
+        
         btn_close = discord.ui.Button(
             label=label or "Fermer le ticket",
             emoji=emoji or "🔒",
             style=discord.ButtonStyle.danger,
-            custom_id="ticket_close_persistent",
-            row=0
+            custom_id="ticket_close_persistent"
         )
         btn_close.callback = self.close_ticket
         
@@ -240,31 +243,38 @@ class TicketCloseView(discord.ui.LayoutView):
             label="Prendre en charge",
             emoji="✋",
             style=discord.ButtonStyle.success,
-            custom_id="ticket_claim_persistent",
-            row=0
+            custom_id="ticket_claim_persistent"
         )
         btn_claim.callback = self.claim_ticket
         
         btn_add = discord.ui.Button(
-            label="Ajouter",
+            label="Ajouter un membre",
             emoji="➕",
             style=discord.ButtonStyle.secondary,
-            custom_id="ticket_add_persistent",
-            row=1
+            custom_id="ticket_add_persistent"
         )
         btn_add.callback = self.add_member
         
         btn_remove = discord.ui.Button(
-            label="Retirer",
+            label="Retirer un membre",
             emoji="➖",
             style=discord.ButtonStyle.secondary,
-            custom_id="ticket_remove_persistent",
-            row=1
+            custom_id="ticket_remove_persistent"
         )
         btn_remove.callback = self.remove_member
 
-        self.add_item(discord.ui.ActionRow(btn_close, btn_claim))
-        self.add_item(discord.ui.ActionRow(btn_add, btn_remove))
+        if cont:
+            cont.add_item(discord.ui.Separator())
+            cont.add_item(discord.ui.Section(discord.ui.TextDisplay("🔒 **Fermeture**\nFermer définitivement ce ticket."), accessory=btn_close))
+            cont.add_item(discord.ui.Section(discord.ui.TextDisplay("✋ **Prise en charge**\nAssignez-vous la gestion de ce ticket."), accessory=btn_claim))
+            cont.add_item(discord.ui.Section(discord.ui.TextDisplay("👥 **Gestion des membres**\nAjoutez ou retirez des membres du ticket."), accessory=btn_add))
+            # Wait, we can only have one accessory. We can't put Add and Remove in the same section unless it's an ActionRow... but accessories must be single items.
+            # So we make two sections.
+            cont.add_item(discord.ui.Section(discord.ui.TextDisplay("🚫 **Retirer un membre**\nRetirez l'accès d'un membre à ce ticket."), accessory=btn_remove))
+            self.add_item(cont)
+        else:
+            # When loaded from cog_load without cont, we must add the buttons to self to register the persistent callbacks!
+            self.add_item(discord.ui.ActionRow(btn_close, btn_claim, btn_add, btn_remove))
 
     async def claim_ticket(self, interaction: discord.Interaction):
         lang = await self.bot.db.get_guild_lang(interaction.guild_id)
@@ -545,8 +555,6 @@ class TicketDeploySelect(discord.ui.ChannelSelect):
         cont = discord.ui.Container(accent_color=color.value)
         cont.add_item(discord.ui.TextDisplay(f"# {t(lang, 'ticket.panel_title')}\n{t(lang, 'ticket.panel_desc').replace('\n', ' ')}"))
         cont.add_item(discord.ui.Separator())
-        cont.add_item(discord.ui.TextDisplay("*Cliquez sur le bouton ci-dessous pour contacter l'équipe.*"))
-        
         t_view = TicketOpenView(view.bot, cont, config.get("open_button_label"), config.get("open_button_emoji"))
         panel = await salon.send(view=t_view)
 
