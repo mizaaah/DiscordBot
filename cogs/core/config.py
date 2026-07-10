@@ -23,6 +23,7 @@ class SetupCategorySelect(discord.ui.Select):
             discord.SelectOption(label=t(lang, "setup.opt_autorole"), value="autorole", emoji="🎭"),
             discord.SelectOption(label=t(lang, "setup.opt_report"),   value="report",   emoji="🚨"),
             discord.SelectOption(label=t(lang, "setup.opt_language"), value="language", emoji="🌐"),
+            discord.SelectOption(label="Système XP",                  value="xp",       emoji="✨"),
             discord.SelectOption(label="AutoMod",                     value="automod",  emoji="🛡️"),
             discord.SelectOption(label="Anti-Raid",                   value="antiraid", emoji="⚔️"),
         ]
@@ -469,6 +470,12 @@ class SetupView(discord.ui.LayoutView):
         btn_lang.callback = make_nav("language")
         cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🌐 **Langue**\nLangue actuelle : `{self.lang.upper()}`"), accessory=btn_lang))
 
+        cont.add_item(discord.ui.Separator())
+
+        btn_xp = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.secondary)
+        btn_xp.callback = make_nav("xp")
+        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"✨ **Système XP**\nSalon Level Up : {ch(settings.get('levelup_channel_id'))}"), accessory=btn_xp))
+
         self.add_item(cont)
 
     async def show_home(self, interaction: discord.Interaction):
@@ -525,6 +532,10 @@ class SetupView(discord.ui.LayoutView):
         elif category == "language":
             cont.add_item(discord.ui.TextDisplay("🌐 **Langue du bot**\nDéfinit la langue utilisée par le bot sur ce serveur."))
             cont.add_item(discord.ui.ActionRow(SetupLanguageSelect(lang)))
+            
+        elif category == "xp":
+            cont.add_item(discord.ui.TextDisplay("✨ **Système XP & Rank**\nDéfinit le salon où envoyer les annonces de Level Up."))
+            cont.add_item(discord.ui.ActionRow(SetupChannelSelect(lang, "levelup_channel_id", "Sélectionner un salon pour le Level Up")))
             
         elif category == "automod":
             am_cfg = await self.bot.db.get_automod_config(self.guild_id)

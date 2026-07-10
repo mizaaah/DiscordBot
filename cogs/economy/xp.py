@@ -125,6 +125,15 @@ class XP(commands.Cog):
         if data["xp"] >= total_xp_for_level(data["level"] + 1):
             new_level = data["level"] + 1
             await self.bot.db.set_xp(message.guild.id, message.author.id, data["xp"], new_level)
+            guild_settings = await self.bot.db.get_guild_settings(message.guild.id)
+            levelup_channel_id = guild_settings.get("levelup_channel_id")
+            target_channel = message.guild.get_channel(levelup_channel_id) if levelup_channel_id else message.channel
+            delete_after = None if (target_channel and target_channel.id == levelup_channel_id) else 30
+            
+            if not target_channel:
+                target_channel = message.channel
+                delete_after = 30
+                
             lang = await self.bot.db.get_guild_lang(message.guild.id)
 
             embed = discord.Embed(
@@ -133,8 +142,36 @@ class XP(commands.Cog):
                 color=Colors.GOLD.value,
             )
             embed.set_thumbnail(url=message.author.display_avatar.url)
+            
+            file = None
+            try:
+                import os
+                bg_path = "assets/rank_bg.png"
+                if os.path.exists(bg_path):
+                    background = Editor(bg_path).resize((800, 250))
+                else:
+                    background = Editor(Canvas((800, 250), color="#23272A"))
+                    
+                profile_image = await load_image_async(str(message.author.display_avatar.url))
+                profile = Editor(profile_image).resize((150, 150)).circle_image()
+                background.paste(profile, (50, 50))
+                
+                font_large = Font.poppins(size=50, variant="bold")
+                font_small = Font.poppins(size=30, variant="regular")
+                
+                background.text((230, 80), "LEVEL UP!", font=font_large, color="#FFD700")
+                background.text((230, 140), f"{message.author.display_name} -> Niveau {new_level}", font=font_small, color="white")
+                
+                file = discord.File(fp=background.image_bytes, filename="levelup.png")
+                embed.set_image(url="attachment://levelup.png")
+            except Exception as e:
+                pass
+
             view = LevelUpView(message.guild.id, lang)
-            await message.channel.send(embed=embed, view=view, delete_after=30)
+            if file:
+                await target_channel.send(embed=embed, file=file, view=view, delete_after=delete_after)
+            else:
+                await target_channel.send(embed=embed, view=view, delete_after=delete_after)
             self.bot.dispatch("level_up", message.author, new_level)
 
     # ── /rank ─────────────────────────────────────────────────────────────────
@@ -153,7 +190,12 @@ class XP(commands.Cog):
         needed   = xp_end - xp_start
         
         try:
-            background = Editor(Canvas((900, 300), color="#23272A"))
+            import os
+            bg_path = "assets/rank_bg.png"
+            if os.path.exists(bg_path):
+                background = Editor(bg_path).resize((900, 300))
+            else:
+                background = Editor(Canvas((900, 300), color="#23272A"))
             profile_image = await load_image_async(str(member.display_avatar.url))
             profile = Editor(profile_image).resize((200, 200)).circle_image()
             background.paste(profile, (50, 50))

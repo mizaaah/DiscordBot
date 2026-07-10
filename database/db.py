@@ -10,7 +10,8 @@ ALLOWED_SETTINGS = {
     "autorole_id", "welcome_message", "goodbye_message",
     "report_channel_id", "ghostping_enabled", "language",
     "welcome_image", "goodbye_image", "welcome_color", "goodbye_color",
-    "log_category_id", "log_messages_id", "log_mod_id", "log_server_id", "log_voice_id"
+    "log_category_id", "log_messages_id", "log_mod_id", "log_server_id", "log_voice_id",
+    "levelup_channel_id"
 }
 
 ALLOWED_BOOST_SETTINGS = {"reward_role_id", "channel_id", "message"}
@@ -103,7 +104,8 @@ class Database:
                 log_messages_id     INTEGER,
                 log_mod_id          INTEGER,
                 log_server_id       INTEGER,
-                log_voice_id        INTEGER
+                log_voice_id        INTEGER,
+                levelup_channel_id  INTEGER
             )""",
             """CREATE TABLE IF NOT EXISTS warnings (
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
