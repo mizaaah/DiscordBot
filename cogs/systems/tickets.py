@@ -533,7 +533,9 @@ class TicketDeploySelect(discord.ui.ChannelSelect):
 
     async def callback(self, interaction: discord.Interaction):
         view: "TicketSetupDashboardView" = self.view
-        salon = self.values[0]
+        salon = interaction.guild.get_channel(self.values[0].id)
+        if not salon:
+            return await interaction.response.send_message("Salon introuvable.", ephemeral=True)
         lang = view.lang
         db = interaction.client.db
         gid = interaction.guild.id
