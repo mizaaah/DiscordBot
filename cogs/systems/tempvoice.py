@@ -257,9 +257,7 @@ class TempVoiceControlView(discord.ui.View):
 
         action = select.values[0]
         
-        # Reset select visually for toggles that edit message
-        if action in ["lock", "hide", "private"]:
-            select.values = []
+
 
         if action == "lock":
             new_val = not bool(row["locked"])
@@ -383,7 +381,7 @@ class TempVoice(commands.Cog):
         guild    = member.guild
         lang     = await self.bot.db.get_guild_lang(guild.id)
         category = guild.get_channel(config.get("category_id") or 0)
-        name     = (config.get("name_format") or "{user} • Salon").replace(
+        name     = (config.get("name_format") or "✨ | Salon de {user}").replace(
             "{user}", member.display_name[:20]
         )
         limit = config.get("default_limit") or 0
@@ -490,7 +488,7 @@ class TempVoice(commands.Cog):
         embed.add_field(name=t(lang, "tv.trigger_field"),  value=trigger.mention  if trigger  else t(lang, "tv.not_configured"), inline=True)
         embed.add_field(name=t(lang, "tv.category_field"), value=category.mention if category else t(lang, "tv.none"),           inline=True)
         embed.add_field(name=t(lang, "tv.active_channels_field"), value=str(active),                                          inline=True)
-        embed.add_field(name=t(lang, "tv.name_format_field"), value=f"`{config.get('name_format') or '{user} • Salon'}`", inline=True)
+        embed.add_field(name=t(lang, "tv.name_format_field"), value=f"`{config.get('name_format') or '✨ | Salon de {user}'}`", inline=True)
         embed.add_field(name=t(lang, "tv.default_limit_field"), value=str(config.get("default_limit") or t(lang, "tv.limit_unlimited")), inline=True)
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
