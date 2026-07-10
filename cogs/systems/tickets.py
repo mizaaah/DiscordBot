@@ -305,10 +305,13 @@ class TicketCloseView(discord.ui.LayoutView):
         btn_remove.callback = self.remove_member
         
         if cont:
+            cont.add_item(discord.ui.ActionRow(btn_claim, btn_unclaim, btn_add, btn_remove))
+            cont.add_item(discord.ui.ActionRow(btn_close))
             self.add_item(cont)
-            
-        self.add_item(discord.ui.ActionRow(btn_claim, btn_unclaim, btn_add, btn_remove))
-        self.add_item(discord.ui.ActionRow(btn_close))
+        else:
+            # Fallback for cog_load persistent view registration
+            self.add_item(discord.ui.ActionRow(btn_claim, btn_unclaim, btn_add, btn_remove))
+            self.add_item(discord.ui.ActionRow(btn_close))
 
     async def manage_action(self, interaction: discord.Interaction):
         pass
