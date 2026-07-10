@@ -678,7 +678,8 @@ class TicketSetupDashboardView(discord.ui.LayoutView):
             options = [discord.SelectOption(label=c["name"], value=c["name"]) for c in cats]
             
             class ChoiceSelect(discord.ui.Select):
-                def __init__(self):
+                def __init__(self, dashboard_view):
+                    self.dashboard_view = dashboard_view
                     super().__init__(placeholder="Choisissez un type de ticket...", options=options)
                     
                 async def callback(self, inter: discord.Interaction):
@@ -687,8 +688,8 @@ class TicketSetupDashboardView(discord.ui.LayoutView):
                     cont2.add_item(discord.ui.TextDisplay(f"# 🔗 Lier `{choice_name}`\nSélectionnez la Catégorie Discord (dossier) pour les tickets de type `{choice_name}`."))
                     
                     class CatSelect(discord.ui.ChannelSelect):
-                        _view = None
-                        def __init__(self):
+                        def __init__(self, dashboard_view):
+                            self.dashboard_view = dashboard_view
                             super().__init__(channel_types=[discord.ChannelType.category])
                             
                         async def callback(self, i2: discord.Interaction):
@@ -700,25 +701,22 @@ class TicketSetupDashboardView(discord.ui.LayoutView):
                                 if c["name"] == choice_name:
                                     c["category_id"] = cat_id
                             await db.update_ticket_config(i2.guild.id, "categories", old_cats)
-                            await self._view.refresh(i2)
+                            await self.dashboard_view.refresh(i2)
                             
-                    cat_sel = CatSelect()
-                    cat_sel._view = self._view
+                    cat_sel = CatSelect(self.dashboard_view)
                     cont2.add_item(discord.ui.ActionRow(cat_sel))
                     
                     async def back_callback2(i2: discord.Interaction):
-                        await self._view.refresh(i2)
+                        await self.dashboard_view.refresh(i2)
                     btn_back2 = discord.ui.Button(label="Retour au Dashboard", style=discord.ButtonStyle.secondary)
                     btn_back2.callback = back_callback2
                     cont2.add_item(discord.ui.ActionRow(btn_back2))
                     
-                    self._view.clear_items()
-                    self._view.add_item(cont2)
-                    await inter.response.edit_message(view=self._view)
+                    self.dashboard_view.clear_items()
+                    self.dashboard_view.add_item(cont2)
+                    await inter.response.edit_message(view=self.dashboard_view)
                     
-            # For dynamic components like ChoiceSelect, we need to pass the view manually
-            choice_sel = ChoiceSelect()
-            choice_sel._view = self
+            choice_sel = ChoiceSelect(self)
             cont.add_item(discord.ui.ActionRow(choice_sel))
             
         elif val == "deploy":
