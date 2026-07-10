@@ -9,11 +9,21 @@ class Logs(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    async def send_log(self, guild: discord.Guild, embed: discord.Embed):
+    async def send_log(self, guild: discord.Guild, embed: discord.Embed, log_type: str = None):
         settings = await self.bot.db.get_guild_settings(guild.id)
-        channel_id = settings.get("log_channel_id")
+        
+        # Determine specific channel ID based on log_type
+        channel_id = None
+        if log_type:
+            channel_id = settings.get(f"log_{log_type}_id")
+            
+        # Fallback to the global log_channel_id if the specific one isn't set
+        if not channel_id:
+            channel_id = settings.get("log_channel_id")
+            
         if not channel_id:
             return
+            
         channel = guild.get_channel(channel_id)
         if channel and channel.permissions_for(guild.me).send_messages:
             await channel.send(embed=embed)
@@ -36,7 +46,7 @@ class Logs(commands.Cog):
         embed.add_field(name=t(lang, "logs.label_moderator"), value=moderator.mention, inline=True)
         embed.add_field(name=t(lang, "logs.label_reason"),    value=reason, inline=False)
         embed.set_thumbnail(url=target.display_avatar.url)
-        await self.send_log(guild, embed)
+        await self.send_log(guild, embed, log_type="mod")
 
     async def log_ban(self, guild, target, moderator, reason, duration=None):
         lang  = await self._lang(guild)
@@ -46,7 +56,7 @@ class Logs(commands.Cog):
         embed.add_field(name=t(lang, "logs.label_moderator"), value=moderator.mention, inline=True)
         embed.add_field(name=t(lang, "logs.label_reason"),    value=reason, inline=False)
         embed.set_thumbnail(url=target.display_avatar.url)
-        await self.send_log(guild, embed)
+        await self.send_log(guild, embed, log_type="mod")
 
     async def log_unban(self, guild, target, moderator, reason):
         lang  = await self._lang(guild)
@@ -55,7 +65,7 @@ class Logs(commands.Cog):
         embed.add_field(name=t(lang, "logs.label_moderator"), value=moderator.mention, inline=True)
         embed.add_field(name=t(lang, "logs.label_reason"),    value=reason, inline=False)
         embed.set_thumbnail(url=target.display_avatar.url)
-        await self.send_log(guild, embed)
+        await self.send_log(guild, embed, log_type="mod")
 
     async def log_mute(self, guild, target, moderator, reason, duration):
         lang  = await self._lang(guild)
@@ -65,7 +75,7 @@ class Logs(commands.Cog):
         embed.add_field(name=t(lang, "logs.label_duration"),  value=duration, inline=True)
         embed.add_field(name=t(lang, "logs.label_reason"),    value=reason, inline=False)
         embed.set_thumbnail(url=target.display_avatar.url)
-        await self.send_log(guild, embed)
+        await self.send_log(guild, embed, log_type="mod")
 
     async def log_unmute(self, guild, target, moderator, reason):
         lang  = await self._lang(guild)
@@ -74,7 +84,7 @@ class Logs(commands.Cog):
         embed.add_field(name=t(lang, "logs.label_moderator"), value=moderator.mention, inline=True)
         embed.add_field(name=t(lang, "logs.label_reason"),    value=reason, inline=False)
         embed.set_thumbnail(url=target.display_avatar.url)
-        await self.send_log(guild, embed)
+        await self.send_log(guild, embed, log_type="mod")
 
     async def log_warn(self, guild, target, moderator, reason, warn_id, total):
         lang  = await self._lang(guild)
@@ -85,7 +95,7 @@ class Logs(commands.Cog):
         embed.add_field(name=t(lang, "logs.label_reason"),    value=reason, inline=False)
         embed.set_footer(text=t(lang, "logs.warn_id_footer", id=warn_id))
         embed.set_thumbnail(url=target.display_avatar.url)
-        await self.send_log(guild, embed)
+        await self.send_log(guild, embed, log_type="mod")
 
     async def log_clear(self, guild, channel, moderator, count):
         lang  = await self._lang(guild)
@@ -93,7 +103,7 @@ class Logs(commands.Cog):
         embed.add_field(name=t(lang, "logs.label_salon"),     value=channel.mention, inline=True)
         embed.add_field(name=t(lang, "logs.label_moderator"), value=moderator.mention, inline=True)
         embed.add_field(name=t(lang, "logs.clear_quantity"),  value=str(count), inline=True)
-        await self.send_log(guild, embed)
+        await self.send_log(guild, embed, log_type="mod")
 
     async def log_lock(self, guild, channel, moderator, reason, locked):
         lang  = await self._lang(guild)
@@ -103,7 +113,7 @@ class Logs(commands.Cog):
         embed.add_field(name=t(lang, "logs.label_salon"),     value=channel.mention, inline=True)
         embed.add_field(name=t(lang, "logs.label_moderator"), value=moderator.mention, inline=True)
         embed.add_field(name=t(lang, "logs.label_reason"),    value=reason, inline=False)
-        await self.send_log(guild, embed)
+        await self.send_log(guild, embed, log_type="mod")
 
     # ── Configuration / permissions logs ─────────────────────────────────────
 
@@ -113,7 +123,7 @@ class Logs(commands.Cog):
         embed.add_field(name=t(lang, "logs.config_change_setting"), value=setting, inline=True)
         embed.add_field(name=t(lang, "logs.label_moderator"), value=moderator.mention, inline=True)
         embed.add_field(name=t(lang, "logs.config_change_value"), value=str(value)[:1024], inline=False)
-        await self.send_log(guild, embed)
+        await self.send_log(guild, embed, log_type="mod")
 
     # ── Discord events ────────────────────────────────────────────────────────
 
@@ -125,7 +135,7 @@ class Logs(commands.Cog):
         embed.add_field(name=t(lang, "logs.member_join_account"), value=discord.utils.format_dt(member.created_at, 'R'), inline=True)
         embed.add_field(name=t(lang, "logs.member_join_id"),      value=str(member.id), inline=True)
         embed.set_thumbnail(url=member.display_avatar.url)
-        await self.send_log(member.guild, embed)
+        await self.send_log(member.guild, embed, log_type="server")
 
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member):
@@ -137,7 +147,7 @@ class Logs(commands.Cog):
         if roles:
             embed.add_field(name=t(lang, "logs.member_leave_roles"), value=" ".join(roles[:10]), inline=False)
         embed.set_thumbnail(url=member.display_avatar.url)
-        await self.send_log(member.guild, embed)
+        await self.send_log(member.guild, embed, log_type="server")
 
     @commands.Cog.listener()
     async def on_message_delete(self, message: discord.Message):
@@ -149,7 +159,7 @@ class Logs(commands.Cog):
         embed.add_field(name=t(lang, "logs.msg_delete_channel"), value=message.channel.mention, inline=True)
         if message.content:
             embed.add_field(name=t(lang, "logs.msg_delete_content"), value=message.content[:1024], inline=False)
-        await self.send_log(message.guild, embed)
+        await self.send_log(message.guild, embed, log_type="messages")
 
     @commands.Cog.listener()
     async def on_message_edit(self, before: discord.Message, after: discord.Message):
@@ -162,7 +172,7 @@ class Logs(commands.Cog):
         embed.add_field(name=t(lang, "logs.msg_edit_before"),  value=before.content[:512] or "*vide*", inline=False)
         embed.add_field(name=t(lang, "logs.msg_edit_after"),   value=after.content[:512]  or "*vide*", inline=False)
         embed.add_field(name=t(lang, "logs.msg_edit_link"),    value=f"[{t(lang, 'logs.msg_edit_link_text')}]({after.jump_url})", inline=False)
-        await self.send_log(before.guild, embed)
+        await self.send_log(before.guild, embed, log_type="messages")
 
     @commands.Cog.listener()
     async def on_member_update(self, before: discord.Member, after: discord.Member):
@@ -172,7 +182,7 @@ class Logs(commands.Cog):
             embed.add_field(name=t(lang, "logs.nick_change_member"), value=after.mention, inline=True)
             embed.add_field(name=t(lang, "logs.nick_change_before"), value=before.nick or before.name, inline=True)
             embed.add_field(name=t(lang, "logs.nick_change_after"),  value=after.nick  or after.name,  inline=True)
-            await self.send_log(after.guild, embed)
+            await self.send_log(after.guild, embed, log_type="server")
 
         added   = [r for r in after.roles   if r not in before.roles]
         removed = [r for r in before.roles  if r not in after.roles]
@@ -191,7 +201,7 @@ class Logs(commands.Cog):
         embed = self._base_embed(t(lang, "logs.channel_create_title"), Colors.SUCCESS)
         embed.add_field(name=t(lang, "logs.label_name"), value=channel.mention, inline=True)
         embed.add_field(name=t(lang, "logs.label_type"), value=str(channel.type).replace("_", " ").title(), inline=True)
-        await self.send_log(channel.guild, embed)
+        await self.send_log(channel.guild, embed, log_type="server")
 
     @commands.Cog.listener()
     async def on_guild_channel_delete(self, channel: discord.abc.GuildChannel):
@@ -199,8 +209,28 @@ class Logs(commands.Cog):
         embed = self._base_embed(t(lang, "logs.channel_delete_title"), Colors.ERROR)
         embed.add_field(name=t(lang, "logs.label_name"), value=f"#{channel.name}", inline=True)
         embed.add_field(name=t(lang, "logs.label_type"), value=str(channel.type).replace("_", " ").title(), inline=True)
-        await self.send_log(channel.guild, embed)
+        await self.send_log(channel.guild, embed, log_type="server")
 
+
+    @commands.Cog.listener()
+    async def on_voice_state_update(self, member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):
+        if before.channel == after.channel:
+            return
+            
+        # We don't have translations yet for voice logs, so we will use French by default
+        # or we could try to fetch lang, but hardcoding for now since we haven't added i18n keys
+        if before.channel is None and after.channel is not None:
+            embed = self._base_embed("🎤 Connexion Vocale", Colors.SUCCESS)
+            embed.description = f"{member.mention} s'est connecté à {after.channel.mention}"
+            await self.send_log(member.guild, embed, log_type="voice")
+        elif before.channel is not None and after.channel is None:
+            embed = self._base_embed("🎤 Déconnexion Vocale", Colors.ERROR)
+            embed.description = f"{member.mention} s'est déconnecté de {before.channel.mention}"
+            await self.send_log(member.guild, embed, log_type="voice")
+        else:
+            embed = self._base_embed("🎤 Changement de Salon", Colors.INFO)
+            embed.description = f"{member.mention} a quitté {before.channel.mention} pour {after.channel.mention}"
+            await self.send_log(member.guild, embed, log_type="voice")
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(Logs(bot))

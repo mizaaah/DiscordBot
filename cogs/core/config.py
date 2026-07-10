@@ -310,6 +310,47 @@ class SetupBackButton(discord.ui.Button):
         await view.show_home(interaction)
 
 
+class SetupLogsCategorySelect(discord.ui.ChannelSelect):
+    def __init__(self, lang: str):
+        super().__init__(placeholder="Choisissez une catégorie pour les logs...", channel_types=[discord.ChannelType.category])
+        self.lang = lang
+
+    async def callback(self, interaction: discord.Interaction):
+        category = self.values[0]
+        db = interaction.client.db
+        guild_id = interaction.guild.id
+        
+        await interaction.response.defer(ephemeral=True)
+        
+        overwrites = {
+            interaction.guild.default_role: discord.PermissionOverwrite(read_messages=False, send_messages=False),
+            interaction.guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True, manage_channels=True)
+        }
+        
+        async def get_or_create(name):
+            for ch in category.channels:
+                if ch.name == name:
+                    return ch
+            return await category.create_text_channel(name=name, overwrites=overwrites)
+            
+        try:
+            ch_msg = await get_or_create("logs-messages")
+            ch_voc = await get_or_create("logs-vocaux")
+            ch_mod = await get_or_create("logs-modération")
+            ch_srv = await get_or_create("logs-serveur")
+        except discord.Forbidden:
+            return await interaction.followup.send("❌ Je n'ai pas la permission de créer des salons dans cette catégorie.", ephemeral=True)
+            
+        await db.update_guild_setting(guild_id, "log_category_id", category.id)
+        await db.update_guild_setting(guild_id, "log_messages_id", ch_msg.id)
+        await db.update_guild_setting(guild_id, "log_voice_id", ch_voc.id)
+        await db.update_guild_setting(guild_id, "log_mod_id", ch_mod.id)
+        await db.update_guild_setting(guild_id, "log_server_id", ch_srv.id)
+        
+        view = self.view
+        await view._build_home(interaction.guild, "Catégorie de logs configurée et salons créés !")
+        await interaction.edit_original_response(view=view, embed=None)
+
 class SetupView(discord.ui.LayoutView):
     def __init__(self, bot, lang: str, guild_id: int):
         super().__init__(timeout=300)
@@ -364,7 +405,7 @@ class SetupView(discord.ui.LayoutView):
 
         btn_logs = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.secondary)
         btn_logs.callback = make_nav("logs")
-        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🪵 **Logs**\nSalon actuel : {ch(settings.get('log_channel_id'))}"), accessory=btn_logs))
+        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🪵 **Logs**\nCatégorie actuelle : {ch(settings.get('log_category_id'))}"), accessory=btn_logs))
         cont.add_item(discord.ui.Separator())
 
         btn_welc = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.secondary)
@@ -409,8 +450,8 @@ class SetupView(discord.ui.LayoutView):
         cont.add_item(discord.ui.TextDisplay(f"# {title}\n{desc}\n\n"))
 
         if category == "logs":
-            cont.add_item(discord.ui.TextDisplay("🪵 **Salon des Logs**\nDéfinit le salon où seront envoyés les journaux d'audit du serveur."))
-            cont.add_item(discord.ui.ActionRow(SetupChannelSelect(lang, "log_channel_id", "setup.logs_placeholder")))
+            cont.add_item(discord.ui.TextDisplay("🪵 **Catégorie des Logs**\nDéfinit la catégorie Discord où le bot créera automatiquement les salons de logs avancés (messages, vocal, modération, serveur)."))
+            cont.add_item(discord.ui.ActionRow(SetupLogsCategorySelect(lang)))
             
         elif category == "welcome":
             cont.add_item(discord.ui.TextDisplay("👋 **Salon de Bienvenue**\nDéfinit le salon où envoyer les messages d'arrivée."))

@@ -9,7 +9,8 @@ ALLOWED_SETTINGS = {
     "log_channel_id", "welcome_channel_id", "goodbye_channel_id",
     "autorole_id", "welcome_message", "goodbye_message",
     "report_channel_id", "ghostping_enabled", "language",
-    "welcome_image", "goodbye_image"
+    "welcome_image", "goodbye_image",
+    "log_category_id", "log_messages_id", "log_mod_id", "log_server_id", "log_voice_id"
 }
 
 ALLOWED_BOOST_SETTINGS = {"reward_role_id", "channel_id", "message"}
@@ -92,7 +93,12 @@ class Database:
                 ghostping_enabled   INTEGER DEFAULT 0,
                 language            TEXT DEFAULT 'fr',
                 welcome_image       TEXT,
-                goodbye_image       TEXT
+                goodbye_image       TEXT,
+                log_category_id     INTEGER,
+                log_messages_id     INTEGER,
+                log_mod_id          INTEGER,
+                log_server_id       INTEGER,
+                log_voice_id        INTEGER
             )""",
             """CREATE TABLE IF NOT EXISTS warnings (
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -348,6 +354,17 @@ class Database:
         except aiosqlite.OperationalError: pass
         
         try: await self.db.execute("ALTER TABLE guild_settings ADD COLUMN goodbye_image TEXT")
+        except aiosqlite.OperationalError: pass
+        
+        try: await self.db.execute("ALTER TABLE guild_settings ADD COLUMN log_category_id INTEGER")
+        except aiosqlite.OperationalError: pass
+        try: await self.db.execute("ALTER TABLE guild_settings ADD COLUMN log_messages_id INTEGER")
+        except aiosqlite.OperationalError: pass
+        try: await self.db.execute("ALTER TABLE guild_settings ADD COLUMN log_mod_id INTEGER")
+        except aiosqlite.OperationalError: pass
+        try: await self.db.execute("ALTER TABLE guild_settings ADD COLUMN log_server_id INTEGER")
+        except aiosqlite.OperationalError: pass
+        try: await self.db.execute("ALTER TABLE guild_settings ADD COLUMN log_voice_id INTEGER")
         except aiosqlite.OperationalError: pass
 
         await self.db.commit()
