@@ -285,29 +285,54 @@ class TicketCloseView(discord.ui.LayoutView):
         self.bot = bot
         
         btn_close = discord.ui.Button(
-            label=label or "Fermer le ticket",
-            emoji=emoji or "🔒",
+            label=label or "Fermer",
             style=discord.ButtonStyle.danger,
             custom_id="ticket_close_persistent"
         )
         btn_close.callback = self.close_ticket
         
-        btn_claim = discord.ui.Button(label="Prendre en charge", emoji="✋", style=discord.ButtonStyle.primary, custom_id="ticket_claim")
+        btn_claim = discord.ui.Button(label="Prendre en charge", style=discord.ButtonStyle.primary, custom_id="ticket_claim")
         btn_claim.callback = self.claim_ticket
         
-        btn_unclaim = discord.ui.Button(label="Se retirer", emoji="👋", style=discord.ButtonStyle.secondary, custom_id="ticket_unclaim")
+        btn_unclaim = discord.ui.Button(label="Se retirer", style=discord.ButtonStyle.secondary, custom_id="ticket_unclaim")
         btn_unclaim.callback = self.unclaim_ticket
         
-        btn_add = discord.ui.Button(label="Ajouter", emoji="➕", style=discord.ButtonStyle.secondary, custom_id="ticket_add")
+        btn_add = discord.ui.Button(label="Ajouter", style=discord.ButtonStyle.secondary, custom_id="ticket_add")
         btn_add.callback = self.add_member
         
-        btn_remove = discord.ui.Button(label="Retirer", emoji="➖", style=discord.ButtonStyle.secondary, custom_id="ticket_remove")
+        btn_remove = discord.ui.Button(label="Retirer", style=discord.ButtonStyle.secondary, custom_id="ticket_remove")
         btn_remove.callback = self.remove_member
         
         if cont:
+            cont.add_item(discord.ui.Separator())
+            cont.add_item(discord.ui.Section(
+                discord.ui.TextDisplay("✋ **Prise en charge**\nS'assigner ce ticket pour le gérer."),
+                accessory=btn_claim
+            ))
+            cont.add_item(discord.ui.Separator())
+            cont.add_item(discord.ui.Section(
+                discord.ui.TextDisplay("👋 **Se retirer**\nNe plus gérer ce ticket."),
+                accessory=btn_unclaim
+            ))
+            cont.add_item(discord.ui.Separator())
+            cont.add_item(discord.ui.Section(
+                discord.ui.TextDisplay("➕ **Ajouter un membre**\nDonner l'accès au ticket à un utilisateur."),
+                accessory=btn_add
+            ))
+            cont.add_item(discord.ui.Separator())
+            cont.add_item(discord.ui.Section(
+                discord.ui.TextDisplay("➖ **Retirer un membre**\nEnlever l'accès au ticket."),
+                accessory=btn_remove
+            ))
+            cont.add_item(discord.ui.Separator())
+            cont.add_item(discord.ui.Section(
+                discord.ui.TextDisplay("🔒 **Fermeture**\nArchiver et clôturer le ticket."),
+                accessory=btn_close
+            ))
             self.add_item(cont)
-            
-        self.add_item(discord.ui.ActionRow(btn_claim, btn_unclaim, btn_add, btn_remove, btn_close))
+        else:
+            # Fallback for cog_load persistent view registration
+            self.add_item(discord.ui.ActionRow(btn_claim, btn_unclaim, btn_add, btn_remove, btn_close))
 
     async def manage_action(self, interaction: discord.Interaction):
         pass
