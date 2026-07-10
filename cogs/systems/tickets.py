@@ -478,31 +478,22 @@ class TicketButtonsModal(discord.ui.Modal):
             
         await self._view.refresh(interaction)
 
-class TicketSetupActionSelect(discord.ui.Select):
-    def __init__(self, lang: str):
-        options = [
-            discord.SelectOption(label="Définir le rôle Staff", value="staff", emoji="👮"),
-            discord.SelectOption(label="Définir la Catégorie mère", value="category", emoji="📁"),
-            discord.SelectOption(label="Définir le salon de Logs", value="logs", emoji="🪵"),
-            discord.SelectOption(label="Modifier les choix de catégories", value="categories_list", emoji="🏷️"),
-            discord.SelectOption(label="Lier une catégorie Discord à un choix", value="link_category", emoji="🔗"),
-            discord.SelectOption(label="Personnaliser les Boutons", value="buttons", emoji="🎨"),
-            discord.SelectOption(label="🚀 Déployer le Panel", value="deploy", emoji="🚀"),
-        ]
-        super().__init__(placeholder="Choisissez une option à configurer...", options=options)
-
-    async def callback(self, interaction: discord.Interaction):
-        view: "TicketSetupDashboardView" = self.view
-        val = self.values[0]
-        lang = view.lang
+class TicketSetupDashboardView(discord.ui.LayoutView):
+    def __init__(self, bot: commands.Bot, lang: str, guild_id: int):
+        super().__init__(timeout=300)
+        self.bot = bot
+        self.lang = lang
+        self.guild_id = guild_id
+    async def execute_action(self, interaction: discord.Interaction, val: str):
+        lang = self.lang
         
         if val == "categories_list":
             config = await interaction.client.db.get_ticket_config(interaction.guild.id)
             cats = config.get("categories") or []
             current_str = ", ".join(c["name"] for c in cats)
-            return await interaction.response.send_modal(TicketCategoriesModal(view, current_str))
+            return await interaction.response.send_modal(TicketCategoriesModal(self, current_str))
         elif val == "buttons":
-            return await interaction.response.send_modal(TicketButtonsModal(view))
+            return await interaction.response.send_modal(TicketButtonsModal(self))
             
         cont = discord.ui.Container(accent_color=Colors.INFO.value)
         
@@ -549,21 +540,24 @@ class TicketSetupActionSelect(discord.ui.Select):
                                 if c["name"] == choice_name:
                                     c["category_id"] = cat_id
                             await db.update_ticket_config(i2.guild.id, "categories", old_cats)
-                            await view.refresh(i2)
+                            await self.view.refresh(i2)
                             
                     cont2.add_item(discord.ui.ActionRow(CatSelect()))
                     
                     async def back_callback2(i2: discord.Interaction):
-                        await view.refresh(i2)
+                        await self.view.refresh(i2)
                     btn_back2 = discord.ui.Button(label="Retour au Dashboard", style=discord.ButtonStyle.secondary)
                     btn_back2.callback = back_callback2
                     cont2.add_item(discord.ui.ActionRow(btn_back2))
                     
-                    view.clear_items()
-                    view.add_item(cont2)
-                    await inter.response.edit_message(view=view)
+                    self.view.clear_items()
+                    self.view.add_item(cont2)
+                    await inter.response.edit_message(view=self.view)
                     
-            cont.add_item(discord.ui.ActionRow(ChoiceSelect()))
+            # For dynamic components like ChoiceSelect, we need to pass the view manually
+            choice_sel = ChoiceSelect()
+            choice_sel.view = self
+            cont.add_item(discord.ui.ActionRow(choice_sel))
             
         elif val == "deploy":
             cont = discord.ui.Container(accent_color=Colors.SUCCESS.value)
@@ -571,49 +565,64 @@ class TicketSetupActionSelect(discord.ui.Select):
             cont.add_item(discord.ui.ActionRow(TicketDeploySelect(lang)))
 
         async def back_callback(inter: discord.Interaction):
-            await view.refresh(inter)
+            await self.refresh(inter)
             
         btn_back = discord.ui.Button(label="Retour au Dashboard", style=discord.ButtonStyle.secondary)
         btn_back.callback = back_callback
         cont.add_item(discord.ui.ActionRow(btn_back))
         
-        view.clear_items()
-        view.add_item(cont)
-        await interaction.response.edit_message(view=view)
+        self.clear_items()
+        self.add_item(cont)
+        await interaction.response.edit_message(view=self)
 
-
-class TicketSetupDashboardView(discord.ui.LayoutView):
-    def __init__(self, bot: commands.Bot, lang: str, guild_id: int):
-        super().__init__(timeout=300)
-        self.bot = bot
-        self.lang = lang
-        self.guild_id = guild_id
         
     async def build(self, guild: discord.Guild):
         self.clear_items()
         config = await self.bot.db.get_ticket_config(self.guild_id)
         
         def ch(cid):
-            if not cid: return "`Non défini`"
+            if not cid: return "Non défini"
             c = guild.get_channel(cid)
-            return c.mention if c else "`Introuvable`"
+            return c.mention if c else "Introuvable"
 
         def role(rid):
-            if not rid: return "`Non défini`"
+            if not rid: return "Non défini"
             r = guild.get_role(rid)
-            return r.mention if r else "`Introuvable`"
+            return r.mention if r else "Introuvable"
 
         cont = discord.ui.Container(accent_color=Colors.INFO.value)
         cont.add_item(discord.ui.TextDisplay(f"# ⚙️ Dashboard des Tickets\nConfigurez le système de tickets de {guild.name}.\n"))
         cont.add_item(discord.ui.Separator())
 
+        def make_nav(action: str):
+            async def nav_cb(inter: discord.Interaction):
+                await self.execute_action(inter, action)
+            return nav_cb
+
+        # Staff
         staff_role = role(config.get("staff_role_id"))
+        btn_staff = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.primary)
+        btn_staff.callback = make_nav("staff")
+        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"👮 **Staff**\nRôle actuel : {staff_role}\nRôle pouvant gérer les tickets."), accessory=btn_staff))
+        cont.add_item(discord.ui.Separator())
+
+        # Catégorie Mère
         category_ch = ch(config.get("category_id"))
+        btn_cat = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.primary)
+        btn_cat.callback = make_nav("category")
+        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"📁 **Catégorie Mère**\nDossier actuel : {category_ch}\nDossier par défaut où s'ouvrent les tickets."), accessory=btn_cat))
+        cont.add_item(discord.ui.Separator())
+
+        # Logs
         log_ch = ch(config.get("log_channel_id"))
-        
+        btn_logs = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.primary)
+        btn_logs.callback = make_nav("logs")
+        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🪵 **Logs**\nSalon actuel : {log_ch}\nTranscriptions des tickets fermés."), accessory=btn_logs))
+        cont.add_item(discord.ui.Separator())
+
+        # Choix et Liaisons
         cats = [c for c in (config.get("categories") or []) if c]
-        
-        cats_str = "`Aucune` (les membres ne choisiront pas)"
+        cats_str = "Aucun"
         if cats:
             parts = []
             for c in cats:
@@ -624,22 +633,30 @@ class TicketSetupDashboardView(discord.ui.LayoutView):
                 else:
                     parts.append(f"`{c['name']}`")
             cats_str = ", ".join(parts)
-        
+            
+        btn_choices = discord.ui.Button(label="Modifier les choix", style=discord.ButtonStyle.primary)
+        btn_choices.callback = make_nav("categories_list")
+        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🏷️ **Choix de Catégories**\nActuels : {cats_str}\nBoutons affichés sur le panel."), accessory=btn_choices))
+        cont.add_item(discord.ui.Separator())
+
+        btn_link = discord.ui.Button(label="Lier une catégorie", style=discord.ButtonStyle.primary)
+        btn_link.callback = make_nav("link_category")
+        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🔗 **Lier à un Dossier**\nPermet d'ouvrir un choix spécifique dans un dossier différent de la catégorie mère."), accessory=btn_link))
+        cont.add_item(discord.ui.Separator())
+
+        # Personnalisation
         open_btn = f"{config.get('open_button_emoji') or '📩'} {config.get('open_button_label') or 'Ouvrir un ticket'}".strip()
         close_btn = f"{config.get('close_button_emoji') or '🔒'} {config.get('close_button_label') or 'Fermer le ticket'}".strip()
-
-        desc = (
-            f"**👮 Staff :** {staff_role}\n"
-            f"**📁 Catégorie :** {category_ch}\n"
-            f"**🪵 Logs :** {log_ch}\n"
-            f"**🏷️ Catégories :** {cats_str}\n"
-            f"**🎨 Bouton Ouvrir :** `{open_btn}`\n"
-            f"**🎨 Bouton Fermer :** `{close_btn}`\n"
-        )
+        btn_cust = discord.ui.Button(label="Personnaliser", style=discord.ButtonStyle.primary)
+        btn_cust.callback = make_nav("buttons")
+        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🎨 **Personnalisation**\nOuvrir : `{open_btn}` | Fermer : `{close_btn}`"), accessory=btn_cust))
         cont.add_item(discord.ui.Separator())
-        cont.add_item(discord.ui.TextDisplay(desc))
 
-        cont.add_item(discord.ui.ActionRow(TicketSetupActionSelect(self.lang)))
+        # Déploiement
+        btn_deploy = discord.ui.Button(label="Déployer le Panel", style=discord.ButtonStyle.success)
+        btn_deploy.callback = make_nav("deploy")
+        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🚀 **Déploiement**\nEnvoyer le message d'ouverture de tickets dans un salon."), accessory=btn_deploy))
+
         self.add_item(cont)
 
     async def refresh(self, interaction: discord.Interaction):

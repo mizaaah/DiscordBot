@@ -339,31 +339,58 @@ class SetupView(discord.ui.LayoutView):
 
         cont = discord.ui.Container(accent_color=Colors.INFO.value)
 
-        header = f"# Configuration de {guild.name}\nSélectionnez une catégorie ci-dessous pour configurer les fonctionnalités du bot.\n"
+        header = f"# Configuration de {guild.name}\n"
         if confirm_text:
             header = f"✅ **{confirm_text}**\n\n" + header
         cont.add_item(discord.ui.TextDisplay(header))
         cont.add_item(discord.ui.Separator())
 
+        def make_nav(cat: str):
+            async def nav_cb(inter: discord.Interaction):
+                await self.show_category(inter, cat)
+            return nav_cb
+
         am_status = am_cfg.get("enabled")
-        btn_am = discord.ui.Button(label="Activé" if am_status else "Désactivé", style=discord.ButtonStyle.success if am_status else discord.ButtonStyle.secondary, disabled=True)
-        cont.add_item(discord.ui.Section(discord.ui.TextDisplay("🛡️ **AutoMod**\nModération automatique et protection contre les liens/spams."), accessory=btn_am))
+        btn_am = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.success if am_status else discord.ButtonStyle.secondary)
+        btn_am.callback = make_nav("automod")
+        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🛡️ **AutoMod**\nÉtat : **{'Activé' if am_status else 'Désactivé'}**\nModération automatique et protection."), accessory=btn_am))
         cont.add_item(discord.ui.Separator())
 
         ar_status = ar_cfg.get("enabled")
-        btn_ar = discord.ui.Button(label="Activé" if ar_status else "Désactivé", style=discord.ButtonStyle.success if ar_status else discord.ButtonStyle.secondary, disabled=True)
-        cont.add_item(discord.ui.Section(discord.ui.TextDisplay("⚔️ **Anti-Raid**\nProtection contre les raids de bots et les arrivées massives."), accessory=btn_ar))
+        btn_ar = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.success if ar_status else discord.ButtonStyle.secondary)
+        btn_ar.callback = make_nav("antiraid")
+        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"⚔️ **Anti-Raid**\nÉtat : **{'Activé' if ar_status else 'Désactivé'}**\nProtection contre les raids de bots."), accessory=btn_ar))
         cont.add_item(discord.ui.Separator())
 
-        desc = (
-            f"**🪵 Logs :** {ch(settings.get('log_channel_id'))}\n"
-            f"**👋 Bienvenue :** {ch(settings.get('welcome_channel_id'))}\n"
-            f"**👋 Départ :** {ch(settings.get('goodbye_channel_id'))}\n"
-            f"**🔰 Auto-Rôle :** {role(settings.get('autorole_id'))}\n"
-        )
-        cont.add_item(discord.ui.TextDisplay(desc))
+        btn_logs = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.primary)
+        btn_logs.callback = make_nav("logs")
+        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🪵 **Logs**\nSalon actuel : {ch(settings.get('log_channel_id'))}"), accessory=btn_logs))
+        cont.add_item(discord.ui.Separator())
 
-        cont.add_item(discord.ui.ActionRow(SetupCategorySelect(self.lang)))
+        btn_welc = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.primary)
+        btn_welc.callback = make_nav("welcome")
+        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"👋 **Bienvenue**\nSalon actuel : {ch(settings.get('welcome_channel_id'))}"), accessory=btn_welc))
+        cont.add_item(discord.ui.Separator())
+
+        btn_good = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.primary)
+        btn_good.callback = make_nav("goodbye")
+        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🚪 **Départ**\nSalon actuel : {ch(settings.get('goodbye_channel_id'))}"), accessory=btn_good))
+        cont.add_item(discord.ui.Separator())
+
+        btn_auto = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.primary)
+        btn_auto.callback = make_nav("autorole")
+        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🎭 **Auto-Rôle**\nRôle actuel : {role(settings.get('autorole_id'))}"), accessory=btn_auto))
+        cont.add_item(discord.ui.Separator())
+
+        btn_rep = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.primary)
+        btn_rep.callback = make_nav("report")
+        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🚨 **Signalement**\nConfiguration des reports de messages."), accessory=btn_rep))
+        cont.add_item(discord.ui.Separator())
+
+        btn_lang = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.primary)
+        btn_lang.callback = make_nav("language")
+        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🌐 **Langue**\nLangue actuelle : `{self.lang.upper()}`"), accessory=btn_lang))
+
         self.add_item(cont)
 
     async def show_home(self, interaction: discord.Interaction):
@@ -482,44 +509,10 @@ class Config(commands.Cog):
     @app_commands.command(name="config", description="Affiche la configuration actuelle du bot")
     @app_commands.default_permissions(manage_guild=True)
     async def config(self, interaction: discord.Interaction):
-        settings = await self.bot.db.get_guild_settings(interaction.guild.id)
-        lang = settings.get("language") or "fr"
-
-        def channel_str(cid):
-            if not cid:
-                return t(lang, "cfg.not_set")
-            ch = interaction.guild.get_channel(cid)
-            return ch.mention if ch else t(lang, "cfg.channel_missing", id=cid)
-
-        def role_str(rid):
-            if not rid:
-                return t(lang, "cfg.not_set")
-            r = interaction.guild.get_role(rid)
-            return r.mention if r else t(lang, "cfg.role_missing", id=rid)
-
-        embed = discord.Embed(
-            title=t(lang, "cfg.title", server=interaction.guild.name),
-            color=Colors.INFO
-        )
-        if interaction.guild.icon:
-            embed.set_thumbnail(url=interaction.guild.icon.url)
-        embed.add_field(name=t(lang, "cfg.log_channel"),     value=channel_str(settings.get("log_channel_id")),     inline=True)
-        embed.add_field(name=t(lang, "cfg.welcome_channel"), value=channel_str(settings.get("welcome_channel_id")), inline=True)
-        embed.add_field(name=t(lang, "cfg.goodbye_channel"), value=channel_str(settings.get("goodbye_channel_id")), inline=True)
-        embed.add_field(name=t(lang, "cfg.autorole"),        value=role_str(settings.get("autorole_id")),           inline=True)
-        embed.add_field(name=t(lang, "cfg.language_field"),  value=f"`{lang}`",                                     inline=True)
-        embed.add_field(
-            name=t(lang, "cfg.welcome_msg"),
-            value=f"`{settings.get('welcome_message') or t(lang, 'cfg.not_set')}`",
-            inline=False
-        )
-        embed.add_field(
-            name=t(lang, "cfg.goodbye_msg"),
-            value=f"`{settings.get('goodbye_message') or t(lang, 'cfg.not_set')}`",
-            inline=False
-        )
-        embed.set_footer(text=t(lang, "cfg.footer"))
-        await interaction.response.send_message(embed=embed)
+        lang  = await self.bot.db.get_guild_lang(interaction.guild_id)
+        view  = SetupView(self.bot, lang, interaction.guild.id)
+        await view.init_home(interaction.guild)
+        await interaction.response.send_message(view=view, ephemeral=True)
 
     # (Standalone config commands removed in favor of /setup)
 
