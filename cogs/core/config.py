@@ -316,7 +316,12 @@ class SetupLogsCategorySelect(discord.ui.ChannelSelect):
         self.lang = lang
 
     async def callback(self, interaction: discord.Interaction):
-        category = self.values[0]
+        category_id = self.values[0].id
+        category = interaction.guild.get_channel(category_id)
+        if not category or not isinstance(category, discord.CategoryChannel):
+            await interaction.response.send_message("❌ Catégorie introuvable.", ephemeral=True)
+            return
+
         db = interaction.client.db
         guild_id = interaction.guild.id
         
