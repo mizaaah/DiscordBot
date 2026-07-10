@@ -61,13 +61,13 @@ async def build_ticket_container(bot, guild, channel_id, lang):
         claimer = guild.get_member(claimed_by)
         if claimer: claimer_str = claimer.mention
         
-    cat_str = f"\n• **Catégorie :** `{category}`" if category else ""
+    cat_str = f"\n**Catégorie :** `{category}`" if category else ""
     info_text = (
         f"**Informations du ticket**\n"
-        f"• **Support :** {staff_str}"
+        f"**Support :** {staff_str}"
         f"{cat_str}\n"
-        f"• **Pris en charge :** {claimer_str}\n"
-        f"• **Membre :** {user_mention}"
+        f"**Pris en charge :** {claimer_str}\n"
+        f"**Membre :** {user_mention}"
     )
     
     thumb = discord.ui.Thumbnail(media=user_avatar) if user_avatar else None
@@ -305,11 +305,9 @@ class TicketCloseView(discord.ui.LayoutView):
         btn_remove.callback = self.remove_member
         
         if cont:
-            cont.add_item(discord.ui.ActionRow(btn_claim, btn_unclaim, btn_add, btn_remove, btn_close))
             self.add_item(cont)
-        else:
-            # Fallback for cog_load persistent view registration
-            self.add_item(discord.ui.ActionRow(btn_claim, btn_unclaim, btn_add, btn_remove, btn_close))
+            
+        self.add_item(discord.ui.ActionRow(btn_claim, btn_unclaim, btn_add, btn_remove, btn_close))
 
     async def manage_action(self, interaction: discord.Interaction):
         pass
