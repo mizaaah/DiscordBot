@@ -22,17 +22,22 @@ LB_PAGE_SIZE = 10
 
 
 class LevelUpView(discord.ui.View):
-    def __init__(self, guild_id: int, lang: str):
-        super().__init__(timeout=30)
-        self.guild_id = guild_id
-        self.lang     = lang
+    def __init__(self, lang: str = "fr"):
+        super().__init__(timeout=None)
         self.children[0].label = t(lang, "xp.levelup_btn")
 
-    @discord.ui.button(label="📊 Mon rang", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="📊 Mon rang", style=discord.ButtonStyle.secondary, custom_id="persistent_xp_show_rank")
     async def show_rank(self, interaction: discord.Interaction, button: discord.ui.Button):
-        lang     = await interaction.client.db.get_guild_lang(interaction.guild_id)
-        data     = await interaction.client.db.get_xp(self.guild_id, interaction.user.id)
-        rank_pos = await interaction.client.db.get_rank(self.guild_id, interaction.user.id)
+        guild_id = interaction.guild_id
+        if not guild_id:
+            return
+
+        lang     = await interaction.client.db.get_guild_lang(guild_id)
+        data     = await interaction.client.db.get_xp(guild_id, interaction.user.id)
+        if not data:
+            return await interaction.response.send_message("❌ " + t(lang, "xp.no_xp_self"), ephemeral=True)
+
+        rank_pos = await interaction.client.db.get_rank(guild_id, interaction.user.id)
         level    = data["level"]
         cur_xp   = data["xp"]
         xp_start = total_xp_for_level(level)
@@ -296,6 +301,7 @@ class XP(commands.Cog):
 
 
 async def setup(bot: commands.Bot):
+    bot.add_view(LevelUpView())
     cog = XP(bot)
     await bot.add_cog(cog)
 
