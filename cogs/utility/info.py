@@ -142,12 +142,6 @@ class HelpViewV2(discord.ui.View):
         self.clear_items()
         self.add_item(HelpCategorySelect(page_key))
         
-        # Ajouter des boutons utiles
-        support_btn = discord.ui.Button(label="Support", style=discord.ButtonStyle.link, url="https://discord.gg/support", emoji="💬")
-        invite_btn = discord.ui.Button(label="Inviter le bot", style=discord.ButtonStyle.link, url="https://discord.com/oauth2/authorize", emoji="🔗")
-        self.add_item(support_btn)
-        self.add_item(invite_btn)
-        
         embed = self._generate_embed(page_key, interaction.client)
         
         if interaction.response.is_done():
@@ -158,18 +152,13 @@ class HelpViewV2(discord.ui.View):
     async def send_initial(self, interaction: discord.Interaction):
         self.clear_items()
         self.add_item(HelpCategorySelect(self.current_page))
-        support_btn = discord.ui.Button(label="Support", style=discord.ButtonStyle.link, url="https://discord.gg/support", emoji="💬")
-        invite_btn = discord.ui.Button(label="Inviter le bot", style=discord.ButtonStyle.link, url="https://discord.com/oauth2/authorize", emoji="🔗")
-        self.add_item(support_btn)
-        self.add_item(invite_btn)
 
         embed = self._generate_embed(self.current_page, interaction.client)
         await interaction.response.send_message(embed=embed, view=self, ephemeral=True)
 
     async def on_timeout(self):
         for item in self.children:
-            if not isinstance(item, discord.ui.Button) or item.style != discord.ButtonStyle.link:
-                item.disabled = True
+            item.disabled = True
 
 
 # ══════════════════════════════════════════════════════════════════════════════
