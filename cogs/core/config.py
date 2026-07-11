@@ -422,7 +422,7 @@ class SetupView(discord.ui.LayoutView):
 
         cont = discord.ui.Container(accent_color=Colors.INFO.value)
 
-        header = f"# Configuration de {guild.name}\n"
+        header = f"# ⚙️ Configuration de {guild.name}\n> Gérez les paramètres globaux de votre serveur.\n"
         if confirm_text:
             header = f"✅ **{confirm_text}**\n\n" + header
         cont.add_item(discord.ui.TextDisplay(header))
@@ -433,53 +433,60 @@ class SetupView(discord.ui.LayoutView):
                 await self.show_category(inter, cat)
             return nav_cb
 
+        # AutoMod
         am_status = am_cfg.get("enabled")
         btn_am = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.success if am_status else discord.ButtonStyle.secondary)
         btn_am.callback = make_nav("automod")
-        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🛡️ **AutoMod**\nÉtat : **{'Activé' if am_status else 'Désactivé'}**\nModération automatique et protection."), accessory=btn_am))
+        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🛡️ **AutoMod**\n> **État :** {'✅ Activé' if am_status else '❌ Désactivé'}\n> Protection automatique contre le spam, les liens et le flood."), accessory=btn_am))
         cont.add_item(discord.ui.Separator())
 
+        # Anti-Raid
         ar_status = ar_cfg.get("enabled")
         btn_ar = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.success if ar_status else discord.ButtonStyle.secondary)
         btn_ar.callback = make_nav("antiraid")
-        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"⚔️ **Anti-Raid**\nÉtat : **{'Activé' if ar_status else 'Désactivé'}**\nProtection contre les raids de bots."), accessory=btn_ar))
+        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"⚔️ **Anti-Raid**\n> **État :** {'✅ Activé' if ar_status else '❌ Désactivé'}\n> Protection contre les attaques de bots et raids de masse."), accessory=btn_ar))
         cont.add_item(discord.ui.Separator())
 
+        # Logs
         btn_logs = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.secondary)
         btn_logs.callback = make_nav("logs")
-        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🪵 **Logs**\nCatégorie actuelle : {ch(settings.get('log_category_id'))}"), accessory=btn_logs))
+        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🪵 **Logs**\n> **Catégorie actuelle :** {ch(settings.get('log_category_id'))}\n> Traçage complet des actions sur le serveur."), accessory=btn_logs))
         cont.add_item(discord.ui.Separator())
 
+        # Bienvenue
         btn_welc = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.secondary)
         btn_welc.callback = make_nav("welcome")
-        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"👋 **Bienvenue**\nSalon actuel : {ch(settings.get('welcome_channel_id'))}"), accessory=btn_welc))
+        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"👋 **Accueil**\n> **Salon actuel :** {ch(settings.get('welcome_channel_id'))}\n> Accueillez les nouveaux membres avec style."), accessory=btn_welc))
         cont.add_item(discord.ui.Separator())
 
+        # Départ
         btn_good = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.secondary)
         btn_good.callback = make_nav("goodbye")
-        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🚪 **Départ**\nSalon actuel : {ch(settings.get('goodbye_channel_id'))}"), accessory=btn_good))
+        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🚪 **Départs**\n> **Salon actuel :** {ch(settings.get('goodbye_channel_id'))}\n> Dites au revoir aux membres qui vous quittent."), accessory=btn_good))
         cont.add_item(discord.ui.Separator())
 
+        # Auto-Rôle
         btn_auto = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.secondary)
         btn_auto.callback = make_nav("autorole")
-        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🎭 **Auto-Rôle**\nRôle actuel : {role(settings.get('autorole_id'))}"), accessory=btn_auto))
+        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🎭 **Auto-Rôle**\n> **Rôle actuel :** {role(settings.get('autorole_id'))}\n> Rôle attribué automatiquement aux nouveaux membres."), accessory=btn_auto))
         cont.add_item(discord.ui.Separator())
 
+        # Signalement
         btn_rep = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.secondary)
         btn_rep.callback = make_nav("report")
-        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🚨 **Signalement**\nConfiguration des reports de messages."), accessory=btn_rep))
+        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🚨 **Signalement**\n> Configuration des signalements de messages au Staff."), accessory=btn_rep))
         cont.add_item(discord.ui.Separator())
 
+        # Langue
         btn_lang = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.secondary)
         btn_lang.callback = make_nav("language")
-        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🌐 **Langue**\nLangue actuelle : `{self.lang.upper()}`"), accessory=btn_lang))
-
+        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🌐 **Langue**\n> **Actuelle :** `{self.lang.upper()}`\n> Définissez la langue du bot pour le serveur."), accessory=btn_lang))
         cont.add_item(discord.ui.Separator())
 
+        # XP
         btn_xp = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.secondary)
         btn_xp.callback = make_nav("xp")
-        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"✨ **Système XP**\nSalon Level Up : {ch(settings.get('levelup_channel_id'))}"), accessory=btn_xp))
-
+        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"✨ **Système XP**\n> **Salon Level Up :** {ch(settings.get('levelup_channel_id'))}\n> Gérer l'évolution des niveaux des membres."), accessory=btn_xp))
         self.add_item(cont)
 
     async def show_home(self, interaction: discord.Interaction):
@@ -504,11 +511,11 @@ class SetupView(discord.ui.LayoutView):
         cont.add_item(discord.ui.TextDisplay(header_text))
 
         if category == "logs":
-            cont.add_item(discord.ui.TextDisplay("🪵 **Catégorie des Logs**\nDéfinit la catégorie Discord où le bot créera automatiquement les salons de logs avancés (messages, vocal, modération, serveur)."))
+            cont.add_item(discord.ui.TextDisplay("🪵 **Catégorie des Logs**\n> Définit la catégorie Discord où le bot créera automatiquement les salons de logs avancés (messages, vocal, modération, serveur)."))
             cont.add_item(discord.ui.ActionRow(SetupLogsCategorySelect(lang)))
             
         elif category == "welcome":
-            cont.add_item(discord.ui.TextDisplay("👋 **Salon de Bienvenue**\nDéfinit le salon où envoyer les messages d'arrivée."))
+            cont.add_item(discord.ui.TextDisplay("👋 **Salon de Bienvenue**\n> Définit le salon où envoyer les messages d'arrivée."))
             cont.add_item(discord.ui.ActionRow(SetupChannelSelect(lang, "welcome_channel_id", "setup.welcome_placeholder")))
             cont.add_item(discord.ui.ActionRow(
                 SetupMessageButton(lang, "welcome_message", t(lang, "setup.welcome_modal_title"), settings.get("welcome_message")),
@@ -517,7 +524,7 @@ class SetupView(discord.ui.LayoutView):
             ))
             
         elif category == "goodbye":
-            cont.add_item(discord.ui.TextDisplay("👋 **Salon de Départ**\nDéfinit le salon où envoyer les messages de départ."))
+            cont.add_item(discord.ui.TextDisplay("🚪 **Salon de Départ**\n> Définit le salon où envoyer les messages de départ."))
             cont.add_item(discord.ui.ActionRow(SetupChannelSelect(lang, "goodbye_channel_id", "setup.goodbye_placeholder")))
             cont.add_item(discord.ui.ActionRow(
                 SetupMessageButton(lang, "goodbye_message", t(lang, "setup.goodbye_modal_title"), settings.get("goodbye_message")),
@@ -526,25 +533,25 @@ class SetupView(discord.ui.LayoutView):
             ))
             
         elif category == "autorole":
-            cont.add_item(discord.ui.TextDisplay("🔰 **Auto-Rôle**\nRôle donné automatiquement aux nouveaux membres."))
+            cont.add_item(discord.ui.TextDisplay("🎭 **Auto-Rôle**\n> Rôle donné automatiquement aux nouveaux membres."))
             cont.add_item(discord.ui.ActionRow(SetupRoleSelect(lang)))
             
         elif category == "report":
-            cont.add_item(discord.ui.TextDisplay("🚨 **Salon des Signalements**\nReçoit les signalements effectués par les membres."))
+            cont.add_item(discord.ui.TextDisplay("🚨 **Salon des Signalements**\n> Reçoit les signalements effectués par les membres."))
             cont.add_item(discord.ui.ActionRow(SetupChannelSelect(lang, "report_channel_id", "setup.report_placeholder")))
             
         elif category == "language":
-            cont.add_item(discord.ui.TextDisplay("🌐 **Langue du bot**\nDéfinit la langue utilisée par le bot sur ce serveur."))
+            cont.add_item(discord.ui.TextDisplay("🌐 **Langue du bot**\n> Définit la langue utilisée par le bot sur ce serveur."))
             cont.add_item(discord.ui.ActionRow(SetupLanguageSelect(lang)))
             
         elif category == "xp":
-            cont.add_item(discord.ui.TextDisplay("✨ **Système XP & Rank**\nDéfinit le salon où envoyer les annonces de Level Up."))
+            cont.add_item(discord.ui.TextDisplay("✨ **Système XP & Rank**\n> Définit le salon où envoyer les annonces de Level Up."))
             cont.add_item(discord.ui.ActionRow(SetupChannelSelect(lang, "levelup_channel_id", "Sélectionner un salon pour le Level Up")))
             
         elif category == "automod":
             am_cfg = await self.bot.db.get_automod_config(self.guild_id)
             btn_am = AutomodToggleButton(bool(am_cfg["enabled"]))
-            cont.add_item(discord.ui.Section(discord.ui.TextDisplay("Système Global AutoMod"), accessory=btn_am))
+            cont.add_item(discord.ui.Section(discord.ui.TextDisplay("🛡️ **Système Global AutoMod**\n> Activez ou désactivez l'AutoMod sur tout le serveur."), accessory=btn_am))
             
             if self.automod_module:
                 mod = self.automod_module
@@ -552,7 +559,7 @@ class SetupView(discord.ui.LayoutView):
                 action = am_cfg[f"{mod}_action"]
                 threshold = am_cfg.get(f"{mod}_threshold", 0)
                 
-                cont.add_item(discord.ui.TextDisplay(f"\n\n### Module : {mod.capitalize()}\nConfiguration spécifique de ce sous-module."))
+                cont.add_item(discord.ui.TextDisplay(f"\n\n### ⚙️ Module : {mod.capitalize()}\n> Configuration spécifique de ce sous-module."))
                 sec_tog = discord.ui.Section(discord.ui.TextDisplay(f"**État du module {mod}**"), accessory=AutomodModuleToggleButton(mod, is_enabled))
                 cont.add_item(sec_tog)
                 
@@ -567,8 +574,8 @@ class SetupView(discord.ui.LayoutView):
         elif category == "antiraid":
             ar_cfg = await self.bot.db.get_antiraid_config(self.guild_id)
             cont.add_item(discord.ui.Section(discord.ui.TextDisplay("**État du système Anti-Raid**"), accessory=AntiraidToggleButton(bool(ar_cfg["enabled"]))))
-            cont.add_item(discord.ui.Section(discord.ui.TextDisplay("**Seuil de détection (Joins / Secondes)**"), accessory=AntiraidThresholdButton(ar_cfg["join_threshold"], ar_cfg["join_window"])))
-            cont.add_item(discord.ui.Section(discord.ui.TextDisplay("**Âge minimum du compte (Jours)**"), accessory=AntiraidAgeButton(ar_cfg["min_account_age"])))
+            cont.add_item(discord.ui.Section(discord.ui.TextDisplay("**Seuil de détection**\n> Ratio : Joins / Secondes"), accessory=AntiraidThresholdButton(ar_cfg["join_threshold"], ar_cfg["join_window"])))
+            cont.add_item(discord.ui.Section(discord.ui.TextDisplay("**Âge minimum du compte**\n> En jours."), accessory=AntiraidAgeButton(ar_cfg["min_account_age"])))
             cont.add_item(discord.ui.ActionRow(AntiraidActionSelect(ar_cfg["action"])))
 
         cont.add_item(discord.ui.ActionRow(SetupCategorySelect(lang)))

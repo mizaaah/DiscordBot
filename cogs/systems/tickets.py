@@ -711,15 +711,15 @@ class TicketSetupDashboardView(discord.ui.LayoutView):
         cont = discord.ui.Container(accent_color=Colors.INFO.value)
         
         if val == "staff":
-            cont.add_item(discord.ui.TextDisplay("# ⚙️ Configuration du Staff\nSélectionnez le rôle qui gérera les tickets."))
+            cont.add_item(discord.ui.TextDisplay("👮 **Rôle du Staff**\n> Sélectionnez le rôle qui sera autorisé à gérer et répondre aux tickets."))
             cont.add_item(discord.ui.ActionRow(TicketSetupRoleSelect(lang)))
             
         elif val == "category":
-            cont.add_item(discord.ui.TextDisplay("# 📁 Catégorie des Tickets\nSélectionnez la catégorie où les salons de tickets seront créés."))
+            cont.add_item(discord.ui.TextDisplay("📁 **Catégorie Principale**\n> Sélectionnez la catégorie Discord (le dossier) où les nouveaux salons de tickets seront créés."))
             cont.add_item(discord.ui.ActionRow(TicketSetupCategorySelect(lang)))
             
         elif val == "logs":
-            cont.add_item(discord.ui.TextDisplay("# 🪵 Salon des Logs\nSélectionnez le salon où envoyer les transcriptions."))
+            cont.add_item(discord.ui.TextDisplay("🪵 **Salon des Logs**\n> Sélectionnez le salon où envoyer la transcription complète (historique des messages) des tickets fermés."))
             cont.add_item(discord.ui.ActionRow(TicketSetupLogsSelect(lang)))
             
         elif val == "link_category":
@@ -728,7 +728,7 @@ class TicketSetupDashboardView(discord.ui.LayoutView):
             if not cats:
                 return await interaction.response.send_message(embed=error_embed("Vous n'avez pas encore défini de choix de catégories."), ephemeral=True)
                 
-            cont.add_item(discord.ui.TextDisplay("# 🔗 Lier une catégorie\nSélectionnez d'abord le choix de ticket que vous voulez lier."))
+            cont.add_item(discord.ui.TextDisplay("🔗 **Lier un Type de Ticket**\n> Sélectionnez d'abord le choix de ticket que vous souhaitez lier à un dossier spécifique."))
             options = [discord.SelectOption(label=c["name"], value=c["name"]) for c in cats]
             
             class ChoiceSelect(discord.ui.Select):
@@ -739,7 +739,7 @@ class TicketSetupDashboardView(discord.ui.LayoutView):
                 async def callback(self, inter: discord.Interaction):
                     choice_name = self.values[0]
                     cont2 = discord.ui.Container(accent_color=Colors.INFO.value)
-                    cont2.add_item(discord.ui.TextDisplay(f"# 🔗 Lier `{choice_name}`\nSélectionnez la Catégorie Discord (dossier) pour les tickets de type `{choice_name}`."))
+                    cont2.add_item(discord.ui.TextDisplay(f"🔗 **Lier `{choice_name}`**\n> Sélectionnez la Catégorie Discord (dossier) où les tickets de type `{choice_name}` devront s'ouvrir."))
                     
                     class CatSelect(discord.ui.ChannelSelect):
                         def __init__(self, dashboard_view):
@@ -775,7 +775,7 @@ class TicketSetupDashboardView(discord.ui.LayoutView):
             
         elif val == "deploy":
             cont = discord.ui.Container(accent_color=Colors.SUCCESS.value)
-            cont.add_item(discord.ui.TextDisplay("# 🚀 Déploiement\nSélectionnez le salon où envoyer le panel d'ouverture de tickets."))
+            cont.add_item(discord.ui.TextDisplay("🚀 **Déploiement du Panel**\n> Sélectionnez le salon où les membres pourront cliquer sur le bouton pour ouvrir un ticket."))
             cont.add_item(discord.ui.ActionRow(TicketDeploySelect(lang)))
 
         async def back_callback(inter: discord.Interaction):
@@ -805,7 +805,7 @@ class TicketSetupDashboardView(discord.ui.LayoutView):
             return r.mention if r else "Introuvable"
 
         cont = discord.ui.Container(accent_color=Colors.INFO.value)
-        cont.add_item(discord.ui.TextDisplay(f"# ⚙️ Dashboard des Tickets\nConfigurez le système de tickets de {guild.name}.\n"))
+        cont.add_item(discord.ui.TextDisplay(f"# 🎫 Configuration des Tickets\n> Préparez le système de support de {guild.name} étape par étape.\n"))
         cont.add_item(discord.ui.Separator())
 
         def make_nav(action: str):
@@ -817,21 +817,21 @@ class TicketSetupDashboardView(discord.ui.LayoutView):
         staff_role = role(config.get("staff_role_id"))
         btn_staff = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.secondary)
         btn_staff.callback = make_nav("staff")
-        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"👮 **Staff**\nRôle actuel : {staff_role}\nRôle pouvant gérer les tickets."), accessory=btn_staff))
+        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"👮 **Rôle du Staff**\n> **Rôle actuel :** {staff_role}\n> Les membres avec ce rôle auront accès à tous les tickets."), accessory=btn_staff))
         cont.add_item(discord.ui.Separator())
 
         # Catégorie Mère
         category_ch = ch(config.get("category_id"))
         btn_cat = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.secondary)
         btn_cat.callback = make_nav("category")
-        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"📁 **Catégorie Mère**\nDossier actuel : {category_ch}\nDossier par défaut où s'ouvrent les tickets."), accessory=btn_cat))
+        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"📁 **Catégorie Principale**\n> **Dossier actuel :** {category_ch}\n> Dossier Discord où s'ouvriront les tickets par défaut."), accessory=btn_cat))
         cont.add_item(discord.ui.Separator())
 
         # Logs
         log_ch = ch(config.get("log_channel_id"))
         btn_logs = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.secondary)
         btn_logs.callback = make_nav("logs")
-        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🪵 **Logs**\nSalon actuel : {log_ch}\nTranscriptions des tickets fermés."), accessory=btn_logs))
+        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🪵 **Transcriptions (Logs)**\n> **Salon actuel :** {log_ch}\n> Salon où envoyer l'historique complet des tickets fermés."), accessory=btn_logs))
         cont.add_item(discord.ui.Separator())
 
         # Choix et Liaisons
@@ -848,14 +848,14 @@ class TicketSetupDashboardView(discord.ui.LayoutView):
                     parts.append(f"`{c['name']}`")
             cats_str = ", ".join(parts)
             
-        btn_choices = discord.ui.Button(label="Modifier les choix", style=discord.ButtonStyle.secondary)
+        btn_choices = discord.ui.Button(label="Modifier les types", style=discord.ButtonStyle.secondary)
         btn_choices.callback = make_nav("categories_list")
-        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🏷️ **Choix de Catégories**\nActuels : {cats_str}\nBoutons affichés sur le panel."), accessory=btn_choices))
+        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🏷️ **Types de Tickets**\n> **Actuels :** {cats_str}\n> Définissez les choix proposés aux membres (ex: Support, Plainte)."), accessory=btn_choices))
         cont.add_item(discord.ui.Separator())
 
         btn_link = discord.ui.Button(label="Lier une catégorie", style=discord.ButtonStyle.secondary)
         btn_link.callback = make_nav("link_category")
-        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🔗 **Lier à un Dossier**\nPermet d'ouvrir un choix spécifique dans un dossier différent de la catégorie mère."), accessory=btn_link))
+        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🔗 **Liaison des Dossiers**\n> Redirigez certains types de tickets dans des dossiers Discord spécifiques."), accessory=btn_link))
         cont.add_item(discord.ui.Separator())
 
         # Personnalisation
@@ -863,13 +863,13 @@ class TicketSetupDashboardView(discord.ui.LayoutView):
         close_btn = f"{config.get('close_button_emoji') or '🔒'} {config.get('close_button_label') or 'Fermer le ticket'}".strip()
         btn_cust = discord.ui.Button(label="Personnaliser", style=discord.ButtonStyle.secondary)
         btn_cust.callback = make_nav("buttons")
-        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🎨 **Personnalisation**\nOuvrir : `{open_btn}` | Fermer : `{close_btn}`"), accessory=btn_cust))
+        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🎨 **Personnalisation des Boutons**\n> **Ouvrir :** `{open_btn}` | **Fermer :** `{close_btn}`"), accessory=btn_cust))
         cont.add_item(discord.ui.Separator())
 
         # Déploiement
         btn_deploy = discord.ui.Button(label="Déployer le Panel", style=discord.ButtonStyle.success)
         btn_deploy.callback = make_nav("deploy")
-        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🚀 **Déploiement**\nEnvoyer le message d'ouverture de tickets dans un salon."), accessory=btn_deploy))
+        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🚀 **Déploiement du Panel**\n> Envoyez le menu interactif final dans le salon de votre choix."), accessory=btn_deploy))
 
         self.add_item(cont)
 
