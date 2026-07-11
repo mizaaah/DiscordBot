@@ -42,6 +42,11 @@ ALLOWED_TEMPVOICE_SETTINGS = {
     "trigger_channel_id", "control_channel_id", "category_id", "default_limit", "name_format"
 }
 
+ALLOWED_ANTINUKE_SETTINGS = {
+    "enabled", "ban_threshold", "kick_threshold", "channel_delete_threshold",
+    "role_delete_threshold", "action", "alert_channel_id", "bypass_roles"
+}
+
 
 class Database:
     def __init__(self):
@@ -50,6 +55,7 @@ class Database:
         self._automod_cache = {}
         self._ticket_cache = {}
         self._antiraid_cache = {}
+        self._antinuke_cache = {}
 
     # ── Internal helpers ──────────────────────────────────────────────────────
 
@@ -166,6 +172,17 @@ class Database:
                 action              TEXT DEFAULT 'kick',
                 alert_channel_id    INTEGER,
                 lockdown_active     INTEGER DEFAULT 0
+            )""",
+            """CREATE TABLE IF NOT EXISTS antinuke_config (
+                guild_id                 INTEGER PRIMARY KEY,
+                enabled                  INTEGER DEFAULT 0,
+                ban_threshold            INTEGER DEFAULT 3,
+                kick_threshold           INTEGER DEFAULT 3,
+                channel_delete_threshold INTEGER DEFAULT 2,
+                role_delete_threshold    INTEGER DEFAULT 2,
+                action                   TEXT DEFAULT 'quarantine',
+                alert_channel_id         INTEGER,
+                bypass_roles             TEXT DEFAULT '[]'
             )""",
             """CREATE TABLE IF NOT EXISTS ticket_config (
                 guild_id            INTEGER PRIMARY KEY,
@@ -618,6 +635,32 @@ class Database:
         await self._exec(
             "UPDATE tickets SET status = 'closed', closed_at = datetime('now'), closed_by = ? WHERE channel_id = ?",
             closed_by, channel_id
+        )
+
+    # ── AntiNuke ──────────────────────────────────────────────────────────────
+    
+    async def get_antinuke_config(self, guild_id: int) -> dict:
+        if guild_id in self._antinuke_cache:
+            return self._antinuke_cache[guild_id]
+        row = await self._row("SELECT * FROM antinuke_config WHERE guild_id = ?", guild_id)
+        if not row:
+            await self._exec("INSERT OR IGNORE INTO antinuke_config (guild_id) VALUES (?)", guild_id)
+            row = await self._row("SELECT * FROM antinuke_config WHERE guild_id = ?", guild_id)
+        row["bypass_roles"] = json.loads(row.get("bypass_roles") or "[]")
+        self._antinuke_cache[guild_id] = row
+        return row
+
+    async def update_antinuke_setting(self, guild_id: int, setting: str, value):
+        if setting not in ALLOWED_ANTINUKE_SETTINGS:
+            raise ValueError(f"Paramètre '{setting}' non autorisé.")
+        if guild_id in self._antinuke_cache:
+            self._antinuke_cache[guild_id][setting] = value
+        if isinstance(value, list):
+            value = json.dumps(value)
+        await self._exec(
+            f"INSERT INTO antinuke_config (guild_id, {setting}) VALUES (?, ?)"
+            f" ON CONFLICT(guild_id) DO UPDATE SET {setting} = excluded.{setting}",
+            guild_id, value
         )
 
     # ── Reaction Roles ────────────────────────────────────────────────────────

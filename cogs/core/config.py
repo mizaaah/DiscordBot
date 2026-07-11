@@ -337,6 +337,66 @@ class AntiraidAgeButton(discord.ui.Button):
         view: SetupView = self.view
         await interaction.response.send_modal(AntiraidAgeModal(view, self.age))
 
+class AntiNukeToggleButton(discord.ui.Button):
+    def __init__(self, current: bool):
+        super().__init__(label=f"{'Désactiver' if current else 'Activer'} Anti-Nuke", style=discord.ButtonStyle.danger if current else discord.ButtonStyle.success, row=4)
+        self.current = current
+
+    async def callback(self, interaction: discord.Interaction):
+        view: SetupView = self.view
+        new_val = 0 if self.current else 1
+        await interaction.client.db.update_antinuke_setting(interaction.guild.id, "enabled", new_val)
+        await view.refresh(interaction, "Anti-Nuke mis à jour !")
+
+class AntiNukeActionSelect(discord.ui.Select):
+    def __init__(self, current_action: str):
+        options = [
+            discord.SelectOption(label="Quarantaine (Retrait des rôles)", value="quarantine", emoji="🛡️", default=current_action=="quarantine"),
+            discord.SelectOption(label="Bannissement (Ban)", value="ban", emoji="🔨", default=current_action=="ban"),
+            discord.SelectOption(label="Expulsion (Kick)", value="kick", emoji="👢", default=current_action=="kick"),
+        ]
+        super().__init__(placeholder="Sanction en cas de détection...", options=options, row=2)
+
+    async def callback(self, interaction: discord.Interaction):
+        view: SetupView = self.view
+        await interaction.client.db.update_antinuke_setting(interaction.guild.id, "action", self.values[0])
+        await view.refresh(interaction, "Sanction Anti-Nuke mise à jour !")
+
+class AntiNukeThresholdsModal(discord.ui.Modal, title="Seuils Anti-Nuke (/minute)"):
+    ban_thresh = discord.ui.TextInput(label="Bannissements", style=discord.TextStyle.short)
+    kick_thresh = discord.ui.TextInput(label="Expulsions", style=discord.TextStyle.short)
+    ch_del_thresh = discord.ui.TextInput(label="Suppressions de salons", style=discord.TextStyle.short)
+    role_del_thresh = discord.ui.TextInput(label="Suppressions de rôles", style=discord.TextStyle.short)
+
+    def __init__(self, setup_view: "SetupView", config: dict):
+        super().__init__()
+        self._setup_view = setup_view
+        self.ban_thresh.default = str(config.get("ban_threshold", 3))
+        self.kick_thresh.default = str(config.get("kick_threshold", 3))
+        self.ch_del_thresh.default = str(config.get("channel_delete_threshold", 2))
+        self.role_del_thresh.default = str(config.get("role_delete_threshold", 2))
+
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            db = interaction.client.db
+            gid = interaction.guild.id
+            await db.update_antinuke_setting(gid, "ban_threshold", int(self.ban_thresh.value.strip()))
+            await db.update_antinuke_setting(gid, "kick_threshold", int(self.kick_thresh.value.strip()))
+            await db.update_antinuke_setting(gid, "channel_delete_threshold", int(self.ch_del_thresh.value.strip()))
+            await db.update_antinuke_setting(gid, "role_delete_threshold", int(self.role_del_thresh.value.strip()))
+            await self._setup_view.refresh(interaction, "Seuils Anti-Nuke mis à jour !")
+        except ValueError:
+            await interaction.response.send_message("Valeurs invalides. Veuillez entrer des nombres entiers.", ephemeral=True)
+
+class AntiNukeAlertChannelSelect(discord.ui.ChannelSelect):
+    def __init__(self):
+        super().__init__(placeholder="Sélectionner le salon d'alerte Anti-Nuke...", channel_types=[discord.ChannelType.text], row=3)
+
+    async def callback(self, interaction: discord.Interaction):
+        view: SetupView = self.view
+        await interaction.client.db.update_antinuke_setting(interaction.guild.id, "alert_channel_id", self.values[0].id)
+        await view.refresh(interaction, "Salon d'alerte mis à jour !")
+
 class SetupBackButton(discord.ui.Button):
     def __init__(self, lang: str):
         super().__init__(label=t(lang, "setup.back_btn"), style=discord.ButtonStyle.danger, row=4)
@@ -445,6 +505,14 @@ class SetupView(discord.ui.LayoutView):
         btn_ar = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.success if ar_status else discord.ButtonStyle.secondary)
         btn_ar.callback = make_nav("antiraid")
         cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"⚔️ **Anti-Raid**\n> **État :** {'✅ Activé' if ar_status else '❌ Désactivé'}\n> Protection contre les attaques de bots et raids de masse."), accessory=btn_ar))
+        cont.add_item(discord.ui.Separator())
+
+        # Anti-Nuke
+        an_cfg = await self.bot.db.get_antinuke_config(self.guild_id)
+        an_status = an_cfg.get("enabled")
+        btn_an = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.success if an_status else discord.ButtonStyle.secondary)
+        btn_an.callback = make_nav("antinuke")
+        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"☢️ **Anti-Nuke**\n> **État :** {'✅ Activé' if an_status else '❌ Désactivé'}\n> Limite les actions destructrices de masse (ban, suppression de salons/rôles)."), accessory=btn_an))
         cont.add_item(discord.ui.Separator())
 
         # Logs
@@ -577,6 +645,19 @@ class SetupView(discord.ui.LayoutView):
             cont.add_item(discord.ui.Section(discord.ui.TextDisplay("**Seuil de détection**\n> Ratio : Joins / Secondes"), accessory=AntiraidThresholdButton(ar_cfg["join_threshold"], ar_cfg["join_window"])))
             cont.add_item(discord.ui.Section(discord.ui.TextDisplay("**Âge minimum du compte**\n> En jours."), accessory=AntiraidAgeButton(ar_cfg["min_account_age"])))
             cont.add_item(discord.ui.ActionRow(AntiraidActionSelect(ar_cfg["action"])))
+
+        elif category == "antinuke":
+            an_cfg = await self.bot.db.get_antinuke_config(self.guild_id)
+            cont.add_item(discord.ui.Section(discord.ui.TextDisplay("**État du système Anti-Nuke**"), accessory=AntiNukeToggleButton(bool(an_cfg["enabled"]))))
+            
+            btn_thresh = discord.ui.Button(label="Configurer les seuils", style=discord.ButtonStyle.secondary, emoji="⚙️")
+            async def open_thresh_modal(inter: discord.Interaction):
+                await inter.response.send_modal(AntiNukeThresholdsModal(self, an_cfg))
+            btn_thresh.callback = open_thresh_modal
+            cont.add_item(discord.ui.Section(discord.ui.TextDisplay("**Seuils de tolérance**\n> Nombre maximum d'actions par minute."), accessory=btn_thresh))
+            
+            cont.add_item(discord.ui.ActionRow(AntiNukeActionSelect(an_cfg["action"])))
+            cont.add_item(discord.ui.ActionRow(AntiNukeAlertChannelSelect()))
 
         cont.add_item(discord.ui.ActionRow(SetupCategorySelect(lang)))
         cont.add_item(discord.ui.ActionRow(SetupBackButton(lang)))
