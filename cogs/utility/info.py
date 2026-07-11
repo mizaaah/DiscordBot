@@ -18,63 +18,76 @@ HELP_CATEGORIES = {
         "emoji": "🏠"
     },
     "moderation": {
-        "title": "🛡️ Modération",
-        "desc": "Commandes pour gérer les membres et les salons.\n\n"
-                "- `/kick` : Expulser un membre\n"
-                "- `/ban` / `/unban` : Bannir ou débannir un membre\n"
-                "- `/mute` / `/unmute` : Rendre muet un membre\n"
-                "- `/warn` / `/warnings` / `/clearwarnings` : Gérer les avertissements\n"
-                "- `/clear` : Effacer des messages\n"
-                "- `/slowmode` : Activer le mode lent\n"
-                "- `/lock` / `/unlock` : Verrouiller un salon\n"
-                "- `/snipe` / `/editsnipe` : Voir les messages supprimés/modifiés",
+        "title": "🛡️ Modération & Sécurité",
+        "desc": "Commandes pour gérer les membres, les salons et la sécurité avancée.\n\n"
+                "**Modération de Base**\n"
+                "🔹 `/kick` : Expulser un membre\n"
+                "🔹 `/ban` / `/unban` : Bannir ou débannir un membre\n"
+                "🔹 `/mute` / `/unmute` : Rendre muet un membre\n"
+                "🔹 `/warn` / `/warnings` / `/clearwarnings` : Gérer les avertissements\n"
+                "🔹 `/clear` : Effacer des messages\n"
+                "🔹 `/slowmode` : Activer le mode lent\n"
+                "🔹 `/lock` / `/unlock` : Verrouiller un salon\n"
+                "🔹 `/snipe` / `/editsnipe` : Voir les messages supprimés/modifiés\n\n"
+                "**Sécurité Avancée**\n"
+                "☢️ **Anti-Nuke** (Via `/config`) : Limite les destructions de masse.\n"
+                "💾 `/backup` : Créer et restaurer des sauvegardes du serveur.",
         "emoji": "🛡️"
     },
     "automod": {
         "title": "🤖 AutoMod & Anti-Raid",
         "desc": "Systèmes de protection automatiques du serveur.\n\n"
-                "- `/config` (Puis AutoMod / AntiRaid) : Configurer les systèmes\n"
-                "- `/ghostping` : Activer/Désactiver la détection de ghost pings",
+                "**Configuration**\n"
+                "🔹 `/config` (Puis AutoMod / AntiRaid) : Configurer les systèmes\n"
+                "🔹 `/ghostping` : Activer/Désactiver la détection de ghost pings",
         "emoji": "🤖"
     },
     "xp": {
         "title": "📈 Système de Niveaux",
         "desc": "Commandes liées à l'expérience et aux niveaux.\n\n"
-                "- `/rank` : Voir son niveau ou celui d'un membre\n"
-                "- `/leaderboard` : Afficher le classement du serveur\n"
-                "- `/setxp` / `/addxp` / `/resetxp` : Gérer l'XP des membres (Admin)\n"
-                "- `/xprole add` / `remove` / `list` : Récompenses de rôles par niveau",
+                "**Classements**\n"
+                "🔹 `/rank` : Voir son niveau ou celui d'un membre\n"
+                "🔹 `/leaderboard` : Afficher le classement du serveur\n\n"
+                "**Administration**\n"
+                "🔹 `/setxp` / `/addxp` / `/resetxp` : Gérer l'XP des membres\n"
+                "🔹 `/xprole add` / `remove` / `list` : Récompenses de rôles par niveau",
         "emoji": "📈"
     },
     "tickets": {
         "title": "🎟️ Système de Tickets",
         "desc": "Commandes pour le support et les tickets.\n\n"
-                "- `/ticket setup` : Créer un panel de tickets (V2)",
+                "**Configuration**\n"
+                "🔹 `/ticket setup` : Créer un panel de tickets (Entièrement personnalisable)",
         "emoji": "🎟️"
     },
     "roles": {
         "title": "🎭 Rôles & Sanctions",
         "desc": "Gestion avancée des rôles et sanctions automatiques.\n\n"
-                "- `/rr setup` / `/rr add` / `/rr remove` : Reaction Roles (Boutons)\n"
-                "- `/autosanction add` / `remove` / `list` : Sanctions automatiques selon les warns",
+                "**Interactivité**\n"
+                "🔹 `/rr setup` / `/rr add` / `/rr remove` : Reaction Roles (Boutons interactifs)\n\n"
+                "**Automatisation**\n"
+                "🔹 `/autosanction add` / `remove` / `list` : Sanctions automatiques selon les warns",
         "emoji": "🎭"
     },
     "community": {
         "title": "🎁 Communauté & Vocaux",
-        "desc": "Outils d'interaction pour la communauté.\n\n"
-                "- `/tempvoice` : Créer un panel de vocaux temporaires\n"
-                "- `/giveaway start` / `reroll` / `end` / `list` : Gérer les giveaways\n"
-                "- `/starboard` : Configurer le starboard\n"
-                "- `/afk set` : Se mettre en mode AFK",
+        "desc": "Outils d'interaction pour animer la communauté.\n\n"
+                "**Fonctionnalités**\n"
+                "🔹 `/tempvoice` : Créer un panel de vocaux temporaires automatiques\n"
+                "🔹 `/giveaway start` / `reroll` / `end` / `list` : Gérer les cadeaux et concours\n"
+                "🔹 `/starboard` : Mettre en avant les meilleurs messages\n"
+                "🔹 `/afk set` : Se mettre en mode AFK pour prévenir les autres",
         "emoji": "🎁"
     },
     "config": {
-        "title": "⚙️ Configuration & Infos",
-        "desc": "Paramétrage global et commandes d'informations.\n\n"
-                "- `/config` : Ouvrir le panel V2 (Logs, Bienvenue, Auto-Rôle, etc.)\n"
-                "- `/embed create` / `edit` / `button` : Créateur d'embeds interactifs\n"
-                "- `/cmdperm` : Restreindre certaines commandes\n"
-                "- `/userinfo` / `/serverinfo` / `/botinfo` / `/avatar` / `/roleinfo` : Informations utiles",
+        "title": "⚙️ Configuration Globale",
+        "desc": "Paramétrage global et commandes d'informations utiles.\n\n"
+                "**Dashboard Central**\n"
+                "🔹 `/config` : Ouvrir le panel complet (Logs, Bienvenue, Anti-Nuke, Auto-Rôle, etc.)\n\n"
+                "**Outils Utiles**\n"
+                "🔹 `/embed create` / `edit` / `button` : Créateur d'embeds interactifs sur mesure\n"
+                "🔹 `/cmdperm` : Restreindre certaines commandes à des rôles\n"
+                "🔹 `/userinfo` / `/serverinfo` / `/botinfo` / `/avatar` / `/roleinfo` : Informations diverses",
         "emoji": "⚙️"
     }
 }
@@ -108,15 +121,17 @@ class HelpViewV2(discord.ui.View):
             color=Colors.INFO.value
         )
         embed.set_thumbnail(url=bot.user.display_avatar.url if bot.user else None)
-        embed.set_footer(text=f"Aide interactive • {bot.user.name if bot.user else 'Bot'}")
+        embed.set_footer(text=f"Aide interactive • {bot.user.name if bot.user else 'Bot'}", icon_url=bot.user.display_avatar.url if bot.user else None)
         
         if page_key == "home":
+            embed.description = "Bienvenue dans le centre d'aide interactif du bot !\nSélectionnez une catégorie ci-dessous pour découvrir toutes les fonctionnalités."
             embed.add_field(
-                name="Comment naviguer ?", 
-                value="Utilisez le **menu déroulant** ci-dessous pour explorer les différentes catégories de commandes. Chaque catégorie regroupe les commandes par thème pour vous aider à mieux configurer le serveur.",
+                name="🧭 Comment naviguer ?", 
+                value="Utilisez le **menu déroulant** ci-dessous pour explorer les différentes catégories. Chaque catégorie regroupe les commandes par thème pour vous aider à mieux configurer et gérer le serveur.",
                 inline=False
             )
-            embed.set_image(url="https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExMXpzazZoZnVpOXRjanM1NmxzaXZpNWg2dmZ0OWY4enVxZDc1MnZlNyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/TrVla4Z2PYEkU/giphy.gif")
+            # Ajout d'une bannière un peu plus élégante (un dégradé ou une image propre)
+            embed.set_image(url="https://media.discordapp.net/attachments/1110000000000000000/1110000000000000000/banner_help.gif") # Un placeholder visuel pour une bannière esthétique si l'utilisateur en met une
             
         return embed
 
@@ -127,6 +142,12 @@ class HelpViewV2(discord.ui.View):
         self.clear_items()
         self.add_item(HelpCategorySelect(page_key))
         
+        # Ajouter des boutons utiles
+        support_btn = discord.ui.Button(label="Support", style=discord.ButtonStyle.link, url="https://discord.gg/support", emoji="💬")
+        invite_btn = discord.ui.Button(label="Inviter le bot", style=discord.ButtonStyle.link, url="https://discord.com/oauth2/authorize", emoji="🔗")
+        self.add_item(support_btn)
+        self.add_item(invite_btn)
+        
         embed = self._generate_embed(page_key, interaction.client)
         
         if interaction.response.is_done():
@@ -135,12 +156,20 @@ class HelpViewV2(discord.ui.View):
             await interaction.response.edit_message(embed=embed, view=self)
 
     async def send_initial(self, interaction: discord.Interaction):
+        self.clear_items()
+        self.add_item(HelpCategorySelect(self.current_page))
+        support_btn = discord.ui.Button(label="Support", style=discord.ButtonStyle.link, url="https://discord.gg/support", emoji="💬")
+        invite_btn = discord.ui.Button(label="Inviter le bot", style=discord.ButtonStyle.link, url="https://discord.com/oauth2/authorize", emoji="🔗")
+        self.add_item(support_btn)
+        self.add_item(invite_btn)
+
         embed = self._generate_embed(self.current_page, interaction.client)
         await interaction.response.send_message(embed=embed, view=self, ephemeral=True)
 
     async def on_timeout(self):
         for item in self.children:
-            item.disabled = True
+            if not isinstance(item, discord.ui.Button) or item.style != discord.ButtonStyle.link:
+                item.disabled = True
 
 
 # ══════════════════════════════════════════════════════════════════════════════
