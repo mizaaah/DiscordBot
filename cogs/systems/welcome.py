@@ -18,6 +18,18 @@ class WelcomeView(discord.ui.View):
         super().__init__(timeout=None)
         self.lang = lang
 
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        try:
+            embed = interaction.message.embeds[0]
+            if embed.author and embed.author.url:
+                target_id = int(embed.author.url.split("/")[-1])
+                if interaction.user.id != target_id:
+                    await interaction.response.send_message("❌ Ces boutons sont réservés au membre qui vient de rejoindre le serveur !", ephemeral=True)
+                    return False
+        except Exception:
+            pass
+        return True
+
     @discord.ui.button(label="👤 Mon profil", style=discord.ButtonStyle.secondary, custom_id="welcome_profile_persistent")
     async def show_profile(self, interaction: discord.Interaction, button: discord.ui.Button):
         lang   = await interaction.client.db.get_guild_lang(interaction.guild_id)
@@ -46,13 +58,6 @@ class WelcomeView(discord.ui.View):
         embed = info_embed(rules_text)
         embed.title = "📜 Règles du serveur"
         await interaction.response.send_message(embed=embed, ephemeral=True)
-
-    @discord.ui.button(label="🎫 Contacter le Staff", style=discord.ButtonStyle.secondary, custom_id="welcome_ticket_persistent")
-    async def contact_staff(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if _open_ticket:
-            await _open_ticket(interaction.client, interaction, category="Support")
-        else:
-            await interaction.response.send_message("Le système de tickets n'est pas disponible pour le moment.", ephemeral=True)
 
 
 class Welcome(commands.Cog):
@@ -110,7 +115,7 @@ class Welcome(commands.Cog):
             color=welcome_color,
             timestamp=discord.utils.utcnow(),
         )
-        embed.set_author(name=str(member), icon_url=member.display_avatar.url)
+        embed.set_author(name=str(member), icon_url=member.display_avatar.url, url=f"https://discord.com/users/{member.id}")
         embed.set_thumbnail(url=member.display_avatar.url)
         footer_text = t(lang, "welcome.footer_join", count=member.guild.member_count, days=age)
         embed.set_footer(text=footer_text, icon_url=member.guild.icon.url if member.guild.icon else None)
