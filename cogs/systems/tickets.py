@@ -628,8 +628,6 @@ class TicketDeploySelect(discord.ui.ChannelSelect):
         title = config.get("panel_title") or t(lang, 'ticket.panel_title')
         desc = config.get("panel_desc") or t(lang, 'ticket.panel_desc').replace('\n', ' ')
         
-        cont.add_item(discord.ui.TextDisplay(f"# {title}\n> {desc.replace('\n', '\n> ')}"))
-        cont.add_item(discord.ui.Separator())
         t_view = TicketOpenView(view.bot, cont, config.get("open_button_label"), config.get("open_button_emoji"), title, desc)
         panel = await salon.send(view=t_view)
 
