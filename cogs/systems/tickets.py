@@ -206,7 +206,7 @@ class TicketCategoryView(discord.ui.LayoutView):
 # ── Persistent views ──────────────────────────────────────────────────────────
 
 class TicketOpenView(discord.ui.LayoutView):
-    def __init__(self, bot: commands.Bot, cont=None, label: str = None, emoji: str = None):
+    def __init__(self, bot: commands.Bot, cont=None, label: str = None, emoji: str = None, title: str = None, desc: str = None):
         super().__init__(timeout=None)
         self.bot = bot
         
@@ -219,8 +219,10 @@ class TicketOpenView(discord.ui.LayoutView):
         btn.callback = self.open_ticket
         
         if cont:
+            title_text = title if title else "# 📩 Support et Assistance"
+            desc_text = desc if desc else "Besoin d'aide ? Cliquez sur le bouton ci-contre pour ouvrir un ticket."
             cont.add_item(discord.ui.Section(
-                discord.ui.TextDisplay("# 📩 Support et Assistance\nBesoin d'aide ? Cliquez sur le bouton ci-contre pour ouvrir un ticket."),
+                discord.ui.TextDisplay(f"# {title_text}\n> {desc_text.replace('\n', '\n> ')}"),
                 accessory=btn
             ))
             self.add_item(cont)
@@ -622,9 +624,13 @@ class TicketDeploySelect(discord.ui.ChannelSelect):
         
         color  = discord.Color(config.get("embed_color") or Colors.INFO.value)
         cont = discord.ui.Container(accent_color=color.value)
-        cont.add_item(discord.ui.TextDisplay(f"# {t(lang, 'ticket.panel_title')}\n{t(lang, 'ticket.panel_desc').replace('\n', ' ')}"))
+        
+        title = config.get("panel_title") or t(lang, 'ticket.panel_title')
+        desc = config.get("panel_desc") or t(lang, 'ticket.panel_desc').replace('\n', ' ')
+        
+        cont.add_item(discord.ui.TextDisplay(f"# {title}\n> {desc.replace('\n', '\n> ')}"))
         cont.add_item(discord.ui.Separator())
-        t_view = TicketOpenView(view.bot, cont, config.get("open_button_label"), config.get("open_button_emoji"))
+        t_view = TicketOpenView(view.bot, cont, config.get("open_button_label"), config.get("open_button_emoji"), title, desc)
         panel = await salon.send(view=t_view)
 
         await db.update_ticket_config(gid, "panel_message_id", panel.id)
@@ -689,6 +695,68 @@ class TicketButtonsModal(discord.ui.Modal):
         if self.close_emoji.value.strip():
             await db.update_ticket_config(gid, "close_button_emoji", self.close_emoji.value.strip())
             
+        await self._view.refresh(interaction)
+
+class TicketFormatModal(discord.ui.Modal):
+    def __init__(self, view: "TicketSetupDashboardView", current_format: str, current_welcome: str):
+        super().__init__(title="Format & Bienvenue")
+        self._view = view
+        
+        self.name_format = discord.ui.TextInput(
+            label="Format du nom du salon",
+            style=discord.TextStyle.short,
+            required=False,
+            default=current_format,
+            placeholder="{category}-{number}"
+        )
+        self.welcome_msg = discord.ui.TextInput(
+            label="Message de bienvenue dans le ticket",
+            style=discord.TextStyle.long,
+            required=False,
+            default=current_welcome,
+            placeholder="Bienvenue {mention} dans le ticket {ticket_number}!"
+        )
+        self.add_item(self.name_format)
+        self.add_item(self.welcome_msg)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        db = interaction.client.db
+        gid = interaction.guild.id
+        if self.name_format.value.strip():
+            await db.update_ticket_config(gid, "channel_name_format", self.name_format.value.strip())
+        if self.welcome_msg.value.strip():
+            await db.update_ticket_config(gid, "welcome_message", self.welcome_msg.value.strip())
+        await self._view.refresh(interaction)
+
+class TicketPanelModal(discord.ui.Modal):
+    def __init__(self, view: "TicketSetupDashboardView", current_title: str, current_desc: str):
+        super().__init__(title="Apparence du Panel")
+        self._view = view
+        
+        self.panel_title = discord.ui.TextInput(
+            label="Titre de l'embed",
+            style=discord.TextStyle.short,
+            required=False,
+            default=current_title,
+            placeholder="Support et Assistance"
+        )
+        self.panel_desc = discord.ui.TextInput(
+            label="Description de l'embed",
+            style=discord.TextStyle.long,
+            required=False,
+            default=current_desc,
+            placeholder="Cliquez sur le bouton pour ouvrir un ticket."
+        )
+        self.add_item(self.panel_title)
+        self.add_item(self.panel_desc)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        db = interaction.client.db
+        gid = interaction.guild.id
+        if self.panel_title.value.strip():
+            await db.update_ticket_config(gid, "panel_title", self.panel_title.value.strip())
+        if self.panel_desc.value.strip():
+            await db.update_ticket_config(gid, "panel_desc", self.panel_desc.value.strip())
         await self._view.refresh(interaction)
 
 class TicketSetupDashboardView(discord.ui.LayoutView):
@@ -772,6 +840,29 @@ class TicketSetupDashboardView(discord.ui.LayoutView):
                     
             choice_sel = ChoiceSelect(self)
             cont.add_item(discord.ui.ActionRow(choice_sel))
+            
+        elif val == "appearance":
+            cont.add_item(discord.ui.TextDisplay("📝 **Personnalisation de l'Apparence**\n> Modifiez les textes envoyés par le bot et le format des salons."))
+            
+            async def open_format_modal(inter: discord.Interaction):
+                config = await inter.client.db.get_ticket_config(inter.guild.id)
+                fmt = config.get("channel_name_format") or "{category}-{number}"
+                welc = config.get("welcome_message") or ""
+                await inter.response.send_modal(TicketFormatModal(self, fmt, welc))
+                
+            async def open_panel_modal(inter: discord.Interaction):
+                config = await inter.client.db.get_ticket_config(inter.guild.id)
+                title = config.get("panel_title") or ""
+                desc = config.get("panel_desc") or ""
+                await inter.response.send_modal(TicketPanelModal(self, title, desc))
+                
+            btn_format = discord.ui.Button(label="Format & Message", style=discord.ButtonStyle.secondary, emoji="💬")
+            btn_format.callback = open_format_modal
+            
+            btn_panel = discord.ui.Button(label="Texte du Panel", style=discord.ButtonStyle.secondary, emoji="📋")
+            btn_panel.callback = open_panel_modal
+            
+            cont.add_item(discord.ui.ActionRow(btn_format, btn_panel))
             
         elif val == "deploy":
             cont = discord.ui.Container(accent_color=Colors.SUCCESS.value)
@@ -864,6 +955,12 @@ class TicketSetupDashboardView(discord.ui.LayoutView):
         btn_cust = discord.ui.Button(label="Personnaliser", style=discord.ButtonStyle.secondary)
         btn_cust.callback = make_nav("buttons")
         cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🎨 **Personnalisation des Boutons**\n> **Ouvrir :** `{open_btn}` | **Fermer :** `{close_btn}`"), accessory=btn_cust))
+        cont.add_item(discord.ui.Separator())
+
+        # Apparence
+        btn_app = discord.ui.Button(label="Personnaliser les textes", style=discord.ButtonStyle.secondary)
+        btn_app.callback = make_nav("appearance")
+        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"📝 **Apparence (Textes & Noms)**\n> Titre du Panel, message de bienvenue, format des salons, etc."), accessory=btn_app))
         cont.add_item(discord.ui.Separator())
 
         # Déploiement

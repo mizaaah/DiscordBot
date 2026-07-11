@@ -30,6 +30,7 @@ ALLOWED_TICKET_SETTINGS = {
     "embed_color", "welcome_message", "categories",
     "channel_name_format", "open_button_label", "open_button_emoji",
     "close_button_label", "close_button_emoji",
+    "panel_title", "panel_desc"
 }
 
 ALLOWED_ANTIRAID_SETTINGS = {
@@ -181,7 +182,9 @@ class Database:
                 open_button_label   TEXT DEFAULT 'Ouvrir un ticket',
                 open_button_emoji   TEXT DEFAULT '📩',
                 close_button_label  TEXT DEFAULT 'Fermer le ticket',
-                close_button_emoji  TEXT DEFAULT '🔒'
+                close_button_emoji  TEXT DEFAULT '🔒',
+                panel_title         TEXT,
+                panel_desc          TEXT
             )""",
             """CREATE TABLE IF NOT EXISTS tickets (
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
