@@ -498,14 +498,12 @@ class SetupView(discord.ui.LayoutView):
         btn_am = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.success if am_status else discord.ButtonStyle.secondary)
         btn_am.callback = make_nav("automod")
         cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🛡️ **AutoMod**\n> **État :** {'✅ Activé' if am_status else '❌ Désactivé'}\n> Protection automatique contre le spam, les liens et le flood."), accessory=btn_am))
-        cont.add_item(discord.ui.Separator())
 
         # Anti-Raid
         ar_status = ar_cfg.get("enabled")
         btn_ar = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.success if ar_status else discord.ButtonStyle.secondary)
         btn_ar.callback = make_nav("antiraid")
         cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"⚔️ **Anti-Raid**\n> **État :** {'✅ Activé' if ar_status else '❌ Désactivé'}\n> Protection contre les attaques de bots et raids de masse."), accessory=btn_ar))
-        cont.add_item(discord.ui.Separator())
 
         # Anti-Nuke
         an_cfg = await self.bot.db.get_antinuke_config(self.guild_id)
@@ -513,43 +511,36 @@ class SetupView(discord.ui.LayoutView):
         btn_an = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.success if an_status else discord.ButtonStyle.secondary)
         btn_an.callback = make_nav("antinuke")
         cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"☢️ **Anti-Nuke**\n> **État :** {'✅ Activé' if an_status else '❌ Désactivé'}\n> Limite les actions destructrices de masse (ban, suppression de salons/rôles)."), accessory=btn_an))
-        cont.add_item(discord.ui.Separator())
 
         # Logs
         btn_logs = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.secondary)
         btn_logs.callback = make_nav("logs")
         cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🪵 **Logs**\n> **Catégorie actuelle :** {ch(settings.get('log_category_id'))}\n> Traçage complet des actions sur le serveur."), accessory=btn_logs))
-        cont.add_item(discord.ui.Separator())
 
         # Bienvenue
         btn_welc = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.secondary)
         btn_welc.callback = make_nav("welcome")
         cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"👋 **Accueil**\n> **Salon actuel :** {ch(settings.get('welcome_channel_id'))}\n> Accueillez les nouveaux membres avec style."), accessory=btn_welc))
-        cont.add_item(discord.ui.Separator())
 
         # Départ
         btn_good = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.secondary)
         btn_good.callback = make_nav("goodbye")
         cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🚪 **Départs**\n> **Salon actuel :** {ch(settings.get('goodbye_channel_id'))}\n> Dites au revoir aux membres qui vous quittent."), accessory=btn_good))
-        cont.add_item(discord.ui.Separator())
 
         # Auto-Rôle
         btn_auto = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.secondary)
         btn_auto.callback = make_nav("autorole")
         cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🎭 **Auto-Rôle**\n> **Rôle actuel :** {role(settings.get('autorole_id'))}\n> Rôle attribué automatiquement aux nouveaux membres."), accessory=btn_auto))
-        cont.add_item(discord.ui.Separator())
 
         # Signalement
         btn_rep = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.secondary)
         btn_rep.callback = make_nav("report")
         cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🚨 **Signalement**\n> Configuration des signalements de messages au Staff."), accessory=btn_rep))
-        cont.add_item(discord.ui.Separator())
 
         # Langue
         btn_lang = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.secondary)
         btn_lang.callback = make_nav("language")
         cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🌐 **Langue**\n> **Actuelle :** `{self.lang.upper()}`\n> Définissez la langue du bot pour le serveur."), accessory=btn_lang))
-        cont.add_item(discord.ui.Separator())
 
         # XP
         btn_xp = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.secondary)
