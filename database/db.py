@@ -184,6 +184,12 @@ class Database:
                 alert_channel_id         INTEGER,
                 bypass_roles             TEXT DEFAULT '[]'
             )""",
+            """CREATE TABLE IF NOT EXISTS backups (
+                id          TEXT PRIMARY KEY,
+                guild_id    INTEGER NOT NULL,
+                created_at  TEXT DEFAULT (datetime('now')),
+                data        TEXT NOT NULL
+            )""",
             """CREATE TABLE IF NOT EXISTS ticket_config (
                 guild_id            INTEGER PRIMARY KEY,
                 category_id         INTEGER,
@@ -1047,3 +1053,18 @@ class Database:
 
     async def is_blacklisted(self, guild_id: int, user_id: int) -> bool:
         return bool(await self._val("SELECT 1 FROM blacklist WHERE guild_id = ? AND user_id = ?", guild_id, user_id))
+
+    # ── Backups ───────────────────────────────────────────────────────────────
+
+    async def create_backup(self, backup_id: str, guild_id: int, data: str):
+        await self._exec("INSERT INTO backups (id, guild_id, data) VALUES (?, ?, ?)", backup_id, guild_id, data)
+
+    async def get_backups(self, guild_id: int) -> list:
+        return await self._rows("SELECT id, created_at FROM backups WHERE guild_id = ? ORDER BY created_at DESC", guild_id)
+
+    async def get_backup(self, backup_id: str) -> dict | None:
+        return await self._row("SELECT * FROM backups WHERE id = ?", backup_id)
+
+    async def delete_backup(self, backup_id: str) -> bool:
+        cur = await self._exec("DELETE FROM backups WHERE id = ?", backup_id)
+        return cur.rowcount > 0
