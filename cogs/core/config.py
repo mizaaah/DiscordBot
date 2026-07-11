@@ -53,8 +53,12 @@ class SetupRoleSelect(discord.ui.RoleSelect):
     async def callback(self, interaction: discord.Interaction):
         view: SetupView = self.view
         role = self.values[0]
-        if role >= interaction.guild.me.top_role:
+        
+        # Safeguard if top_role is None for some reason
+        me = interaction.guild.me if interaction.guild else None
+        if me and me.top_role and role >= me.top_role:
             return await interaction.response.send_message(embed=error_embed(t(view.lang, "cfg.autorole_too_high")), ephemeral=True)
+            
         await interaction.client.db.update_guild_setting(interaction.guild.id, "autorole_id", role.id)
         await view.refresh(interaction, t(view.lang, "setup.saved_role", role=role.mention))
 
