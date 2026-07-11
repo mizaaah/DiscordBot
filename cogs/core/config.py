@@ -19,7 +19,6 @@ class SetupCategorySelect(discord.ui.Select):
         options = [
             discord.SelectOption(label=t(lang, "setup.opt_logs"),     value="logs",     emoji="🪵"),
             discord.SelectOption(label=t(lang, "setup.opt_welcome"),  value="welcome",  emoji="👋"),
-            discord.SelectOption(label=t(lang, "setup.opt_goodbye"),  value="goodbye",  emoji="🚪"),
             discord.SelectOption(label=t(lang, "setup.opt_autorole"), value="autorole", emoji="🎭"),
             discord.SelectOption(label=t(lang, "setup.opt_report"),   value="report",   emoji="🚨"),
             discord.SelectOption(label=t(lang, "setup.opt_language"), value="language", emoji="🌐"),
@@ -522,11 +521,6 @@ class SetupView(discord.ui.LayoutView):
         btn_welc.callback = make_nav("welcome")
         cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"👋 **Accueil**\n> **Salon actuel :** {ch(settings.get('welcome_channel_id'))}\n> Accueillez les nouveaux membres avec style."), accessory=btn_welc))
 
-        # Départ
-        btn_good = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.secondary)
-        btn_good.callback = make_nav("goodbye")
-        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🚪 **Départs**\n> **Salon actuel :** {ch(settings.get('goodbye_channel_id'))}\n> Dites au revoir aux membres qui vous quittent."), accessory=btn_good))
-
         # Auto-Rôle
         btn_auto = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.secondary)
         btn_auto.callback = make_nav("autorole")
@@ -582,15 +576,7 @@ class SetupView(discord.ui.LayoutView):
                 SetupColorButton(lang, "welcome_color", "Couleur Bienvenue", settings.get("welcome_color"))
             ))
             
-        elif category == "goodbye":
-            cont.add_item(discord.ui.TextDisplay("🚪 **Salon de Départ**\n> Définit le salon où envoyer les messages de départ."))
-            cont.add_item(discord.ui.ActionRow(SetupChannelSelect(lang, "goodbye_channel_id", "setup.goodbye_placeholder")))
-            cont.add_item(discord.ui.ActionRow(
-                SetupMessageButton(lang, "goodbye_message", t(lang, "setup.goodbye_modal_title"), settings.get("goodbye_message")),
-                SetupImageButton(lang, "goodbye_image", "Bannière", settings.get("goodbye_image")),
-                SetupColorButton(lang, "goodbye_color", "Couleur Départ", settings.get("goodbye_color"))
-            ))
-            
+
         elif category == "autorole":
             cont.add_item(discord.ui.TextDisplay("🎭 **Auto-Rôle**\n> Rôle donné automatiquement aux nouveaux membres."))
             cont.add_item(discord.ui.ActionRow(SetupRoleSelect(lang)))

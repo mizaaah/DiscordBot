@@ -149,44 +149,7 @@ class Welcome(commands.Cog):
             except Exception:
                 await channel.send(embed=embed, view=WelcomeView(lang))
 
-    @commands.Cog.listener()
-    async def on_member_remove(self, member: discord.Member):
-        settings = await self.bot.db.get_guild_settings(member.guild.id)
-        lang     = settings.get("language") or "fr"
 
-        goodbye_channel_id = settings.get("goodbye_channel_id")
-        if not goodbye_channel_id:
-            return
-        channel = member.guild.get_channel(goodbye_channel_id)
-        if not channel or not channel.permissions_for(member.guild.me).send_messages:
-            return
-
-        template = settings.get("goodbye_message") or t(lang, "welcome.leave_default")
-        message  = self._format_message(template, member)
-
-
-        goodbye_color_str = settings.get("goodbye_color")
-        try:
-            goodbye_color = int(goodbye_color_str.strip("#"), 16) if goodbye_color_str else Colors.ERROR.value
-        except Exception:
-            goodbye_color = Colors.ERROR.value
-
-        embed = discord.Embed(
-            title=t(lang, "welcome.leave_title"),
-            description=message,
-            color=goodbye_color,
-            timestamp=discord.utils.utcnow(),
-        )
-        embed.set_author(name=str(member), icon_url=member.display_avatar.url)
-        embed.set_thumbnail(url=member.display_avatar.url)
-        footer_text = t(lang, "welcome.footer_leave", count=member.guild.member_count)
-        embed.set_footer(text=footer_text, icon_url=member.guild.icon.url if member.guild.icon else None)
-
-        goodbye_image = settings.get("goodbye_image")
-        if goodbye_image:
-            embed.set_image(url=goodbye_image)
-
-        await channel.send(embed=embed)
 
 
 async def setup(bot: commands.Bot):
