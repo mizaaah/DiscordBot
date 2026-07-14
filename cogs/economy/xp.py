@@ -172,7 +172,7 @@ class XP(commands.Cog):
             except Exception as e:
                 pass
 
-            view = LevelUpView(message.guild.id, lang)
+            view = LevelUpView(lang)
             if file:
                 await target_channel.send(embed=embed, file=file, view=view, delete_after=delete_after)
             else:
