@@ -739,21 +739,6 @@ class SetupView(discord.ui.LayoutView):
 
         cont.add_item(discord.ui.ActionRow(SetupCategorySelect(lang)))
         cont.add_item(discord.ui.ActionRow(SetupBackButton(lang)))
-
-        # Statistiques
-        stats_cfg = await self.bot.db.get_stats_channels(self.guild_id)
-        stats_status = bool(stats_cfg)
-        btn_stats = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.success if stats_status else discord.ButtonStyle.secondary)
-        btn_stats.callback = make_nav("stats")
-        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"📊 **Statistiques**\n> **État :** {'✅ Activé' if stats_status else '❌ Désactivé'}\n> Salons vocaux affichant les membres/bots en direct."), accessory=btn_stats))
-
-        # TempVoice
-        tv_cfg = await self.bot.db.get_tempvoice_config(self.guild_id)
-        tv_status = bool(tv_cfg.get("trigger_channel_id"))
-        btn_tv = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.success if tv_status else discord.ButtonStyle.secondary)
-        btn_tv.callback = make_nav("tempvoice")
-        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🔊 **TempVoice**\n> **État :** {'✅ Configurés' if tv_status else '❌ Non configurés'}\n> Salons vocaux temporaires personnels."), accessory=btn_tv))
-        
         self.add_item(cont)
         
         try:

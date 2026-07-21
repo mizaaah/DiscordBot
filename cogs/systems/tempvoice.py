@@ -272,7 +272,7 @@ class TempVoiceControlView(discord.ui.View):
         invite = await channel.create_invite(max_age=3600, max_uses=0, reason="TempVoice Invitation")
         await interaction.response.send_message(f"🔗 Voici l'invitation pour le salon : {invite.url}", ephemeral=True)
 
-    @discord.ui.button(label="Choisir un nouveau responsable de salon", emoji="👑", style=discord.ButtonStyle.success, custom_id="tv_btn_transfer", row=3)
+    @discord.ui.button(label="Choisir un nouveau responsable de salon", emoji="👑", style=discord.ButtonStyle.success, custom_id="tv_btn_transfer", row=2)
     async def btn_transfer(self, interaction: discord.Interaction, button: discord.ui.Button):
         lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         row, channel = await _get_row_and_channel(interaction, lang)
@@ -282,7 +282,7 @@ class TempVoiceControlView(discord.ui.View):
         view.add_item(TransferUserSelect(row["channel_id"], lang))
         await interaction.response.send_message(embed=info_embed(t(lang, "tv.pick_new_owner")), view=view, ephemeral=True)
 
-    @discord.ui.button(label="Signaler un problème à l'équipe...", emoji="🚨", style=discord.ButtonStyle.danger, custom_id="tv_btn_report", row=4)
+    @discord.ui.button(label="Signaler un problème à l'équipe...", emoji="🚨", style=discord.ButtonStyle.danger, custom_id="tv_btn_report", row=2)
     async def btn_report(self, interaction: discord.Interaction, button: discord.ui.Button):
         lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         row, channel = await _get_row_and_channel(interaction, lang)
@@ -301,7 +301,7 @@ class TempVoiceControlView(discord.ui.View):
     @discord.ui.select(
         placeholder="⚙️ Autres paramètres avancés...",
         custom_id="tv_action_select",
-        row=4,
+        row=3,
         options=[
             discord.SelectOption(label="Masquer / Afficher", emoji="👁️", value="hide"),
             discord.SelectOption(label="Rendre Privé / Public", emoji="🔐", value="private"),
