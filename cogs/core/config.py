@@ -26,6 +26,7 @@ class SetupCategorySelect(discord.ui.Select):
             discord.SelectOption(label="AutoMod",                     value="automod",  emoji="🛡️"),
             discord.SelectOption(label="Anti-Raid",                   value="antiraid", emoji="⚔️"),
             discord.SelectOption(label="Statistiques",                value="stats",    emoji="📊"),
+            discord.SelectOption(label="TempVoice", value="tempvoice", emoji="🔊"),
         ]
         super().__init__(placeholder=t(lang, "setup.select_placeholder"), options=options, row=0)
 
@@ -175,6 +176,52 @@ class StatsToggleButton(discord.ui.Button):
                     await interaction.response.send_message(f"❌ Erreur lors de la création : {e}", ephemeral=True)
             else:
                 await interaction.response.send_message("❌ Le module de statistiques n'est pas chargé.", ephemeral=True)
+
+
+class SetupTVChannelSelect(discord.ui.ChannelSelect):
+    def __init__(self, placeholder: str, is_category: bool = False):
+        types = [discord.ChannelType.category] if is_category else [discord.ChannelType.voice]
+        super().__init__(placeholder=placeholder, channel_types=types, row=1 if not is_category else 2)
+        self.is_category = is_category
+
+    async def callback(self, interaction: discord.Interaction):
+        view: SetupView = self.view
+        channel = self.values[0]
+        if self.is_category:
+            await interaction.client.db.update_tempvoice_config(interaction.guild.id, "category_id", channel.id)
+            msg = f"Catégorie définie sur {channel.mention}"
+        else:
+            await interaction.client.db.update_tempvoice_config(interaction.guild.id, "trigger_channel_id", channel.id)
+            msg = f"Salon déclencheur défini sur {channel.mention}"
+        await view.refresh(interaction, msg)
+
+class SetupTVModal(discord.ui.Modal, title="Configuration TempVoice"):
+    name_format = discord.ui.TextInput(label="Format du nom ({user} = pseudo)", max_length=50, placeholder="✨ | Salon de {user}")
+    default_limit = discord.ui.TextInput(label="Limite par défaut (0 = infini)", max_length=2, placeholder="0")
+
+    def __init__(self, view, current_format, current_limit):
+        super().__init__()
+        self.setup_view = view
+        if current_format: self.name_format.default = current_format
+        if current_limit is not None: self.default_limit.default = str(current_limit)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.client.db.update_tempvoice_config(interaction.guild.id, "name_format", self.name_format.value or "✨ | Salon de {user}")
+        try:
+            limit = int(self.default_limit.value or "0")
+            await interaction.client.db.update_tempvoice_config(interaction.guild.id, "default_limit", limit)
+        except ValueError:
+            pass
+        await self.setup_view.refresh(interaction, "Configuration sauvegardée !")
+
+class SetupTVButton(discord.ui.Button):
+    def __init__(self, config):
+        super().__init__(label="Paramètres (Nom & Limite)", style=discord.ButtonStyle.secondary, row=3, emoji="⚙️")
+        self.config = config
+
+    async def callback(self, interaction: discord.Interaction):
+        view: SetupView = self.view
+        await interaction.response.send_modal(SetupTVModal(view, self.config.get("name_format"), self.config.get("default_limit")))
 
 class SetupLanguageSelect(discord.ui.Select):
     def __init__(self, lang: str):
@@ -623,6 +670,14 @@ class SetupView(discord.ui.LayoutView):
             stats_channels = await self.bot.db.get_stats_channels(self.guild_id)
             btn = StatsToggleButton(bool(stats_channels))
             cont.add_item(discord.ui.Section(discord.ui.TextDisplay("📊 **Salons de Statistiques**\n> Crée automatiquement des salons vocaux verrouillés affichant le nombre de membres, de connectés et de bots.\n> Les salons sont mis à jour toutes les 10 minutes."), accessory=btn))
+            
+
+        elif category == "tempvoice":
+            tv_config = await self.bot.db.get_tempvoice_config(self.guild_id)
+            cont.add_item(discord.ui.TextDisplay("🔊 **Salons Vocaux Temporaires**\n> Permet aux membres de créer leurs propres salons vocaux en rejoignant un salon défini."))
+            cont.add_item(discord.ui.ActionRow(SetupTVChannelSelect("Sélectionner le salon déclencheur (Vocal)", is_category=False)))
+            cont.add_item(discord.ui.ActionRow(SetupTVChannelSelect("Sélectionner la catégorie d'accueil", is_category=True)))
+            cont.add_item(discord.ui.ActionRow(SetupTVButton(tv_config)))
             
         elif category == "automod":
             am_cfg = await self.bot.db.get_automod_config(self.guild_id)
