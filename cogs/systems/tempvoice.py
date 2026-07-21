@@ -228,48 +228,6 @@ class TempVoiceControlView(discord.ui.View):
         super().__init__(timeout=None)
         self.bot = bot
 
-    @discord.ui.select(
-        placeholder="Sélectionne ta plateforme...",
-        custom_id="tv_platform_select",
-        row=0,
-        options=[
-            discord.SelectOption(label="PC", emoji="💻", value="PC"),
-            discord.SelectOption(label="PlayStation", emoji="🎮", value="PS"),
-            discord.SelectOption(label="Xbox", emoji="🟢", value="Xbox"),
-            discord.SelectOption(label="Mobile", emoji="📱", value="Mobile"),
-            discord.SelectOption(label="Switch", emoji="🔴", value="Switch"),
-            discord.SelectOption(label="Retirer la plateforme", emoji="❌", value="none"),
-        ]
-    )
-    async def select_platform(self, interaction: discord.Interaction, select: discord.ui.Select):
-        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
-        row, channel = await _get_row_and_channel(interaction, lang)
-        if not row: return
-        if not await _owner_only(interaction, row, lang):
-            try: await interaction.response.edit_message(view=self)
-            except: pass
-            return
-            
-        platform = select.values[0]
-        base_name = channel.name
-        prefixes = ["[PC] ", "[PS] ", "[Xbox] ", "[Mobile] ", "[Switch] "]
-        for p in prefixes:
-            if base_name.startswith(p):
-                base_name = base_name[len(p):]
-                
-        if platform != "none":
-            new_name = f"[{platform}] {base_name}"
-        else:
-            new_name = base_name
-            
-        try:
-            await channel.edit(name=new_name)
-            await interaction.response.send_message(embed=success_embed(f"Salon renommé avec la plateforme {platform} !"), ephemeral=True)
-            # Rafraichir le panel car on utilise edit pour valider le select
-            try: await interaction.message.edit(view=self)
-            except: pass
-        except discord.HTTPException:
-            await interaction.response.send_message(embed=error_embed("Discord me bloque ! Attends 10 minutes avant de renommer encore le salon."), ephemeral=True)
 
     @discord.ui.button(label="Expulser", emoji="🚫", style=discord.ButtonStyle.secondary, custom_id="tv_btn_kick", row=1)
     async def btn_kick(self, interaction: discord.Interaction, button: discord.ui.Button):
