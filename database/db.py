@@ -222,6 +222,13 @@ class Database:
                 closed_at       TEXT,
                 closed_by       INTEGER
             )""",
+            """CREATE TABLE IF NOT EXISTS stats_channels (
+                guild_id            INTEGER PRIMARY KEY,
+                category_id         INTEGER,
+                members_channel_id  INTEGER,
+                online_channel_id   INTEGER,
+                bots_channel_id     INTEGER
+            )""",
             """CREATE TABLE IF NOT EXISTS whitelist (
                 guild_id INTEGER,
                 user_id INTEGER,
@@ -1068,3 +1075,25 @@ class Database:
     async def delete_backup(self, backup_id: str) -> bool:
         cur = await self._exec("DELETE FROM backups WHERE id = ?", backup_id)
         return cur.rowcount > 0
+
+    # ── STATS CHANNELS ────────────────────────────────────────────────────────
+
+    async def get_stats_channels(self, guild_id: int) -> dict | None:
+        return await self._row("SELECT * FROM stats_channels WHERE guild_id = ?", guild_id)
+
+    async def get_all_stats_channels(self) -> list:
+        return await self._rows("SELECT * FROM stats_channels")
+
+    async def set_stats_channels(self, guild_id: int, category_id: int, members_id: int, online_id: int, bots_id: int):
+        await self._exec('''
+            INSERT INTO stats_channels (guild_id, category_id, members_channel_id, online_channel_id, bots_channel_id)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(guild_id) DO UPDATE SET
+                category_id = excluded.category_id,
+                members_channel_id = excluded.members_channel_id,
+                online_channel_id = excluded.online_channel_id,
+                bots_channel_id = excluded.bots_channel_id
+        ''', guild_id, category_id, members_id, online_id, bots_id)
+
+    async def delete_stats_channels(self, guild_id: int):
+        await self._exec("DELETE FROM stats_channels WHERE guild_id = ?", guild_id)

@@ -25,6 +25,7 @@ class SetupCategorySelect(discord.ui.Select):
             discord.SelectOption(label="Système XP",                  value="xp",       emoji="✨"),
             discord.SelectOption(label="AutoMod",                     value="automod",  emoji="🛡️"),
             discord.SelectOption(label="Anti-Raid",                   value="antiraid", emoji="⚔️"),
+            discord.SelectOption(label="Statistiques",                value="stats",    emoji="📊"),
         ]
         super().__init__(placeholder=t(lang, "setup.select_placeholder"), options=options, row=0)
 
@@ -150,6 +151,30 @@ class SetupColorButton(discord.ui.Button):
     async def callback(self, interaction: discord.Interaction):
         view: SetupView = self.view
         await interaction.response.send_modal(SetupColorModal(view, self.setting_key, self.modal_title, self.current))
+
+
+class StatsToggleButton(discord.ui.Button):
+    def __init__(self, current: bool):
+        super().__init__(label="Désactiver les stats" if current else "Générer les salons de stats", style=discord.ButtonStyle.danger if current else discord.ButtonStyle.success, row=1)
+        self.current = current
+    
+    async def callback(self, interaction: discord.Interaction):
+        view: SetupView = self.view
+        stats_cog = interaction.client.get_cog("Stats")
+        if self.current:
+            # Desactiver
+            await interaction.client.db.delete_stats_channels(interaction.guild.id)
+            await view.refresh(interaction, "Salons de statistiques désactivés (vous pouvez les supprimer manuellement).")
+        else:
+            # Generer
+            if stats_cog:
+                try:
+                    await stats_cog.create_stats_channels(interaction.guild)
+                    await view.refresh(interaction, "Les salons de statistiques ont été créés !")
+                except Exception as e:
+                    await interaction.response.send_message(f"❌ Erreur lors de la création : {e}", ephemeral=True)
+            else:
+                await interaction.response.send_message("❌ Le module de statistiques n'est pas chargé.", ephemeral=True)
 
 class SetupLanguageSelect(discord.ui.Select):
     def __init__(self, lang: str):
@@ -592,6 +617,12 @@ class SetupView(discord.ui.LayoutView):
         elif category == "xp":
             cont.add_item(discord.ui.TextDisplay("✨ **Système XP & Rank**\n> Définit le salon où envoyer les annonces de Level Up."))
             cont.add_item(discord.ui.ActionRow(SetupChannelSelect(lang, "levelup_channel_id", "Sélectionner un salon pour le Level Up")))
+            
+
+        elif category == "stats":
+            stats_channels = await self.bot.db.get_stats_channels(self.guild_id)
+            btn = StatsToggleButton(bool(stats_channels))
+            cont.add_item(discord.ui.Section(discord.ui.TextDisplay("📊 **Salons de Statistiques**\n> Crée automatiquement des salons vocaux verrouillés affichant le nombre de membres, de connectés et de bots.\n> Les salons sont mis à jour toutes les 10 minutes."), accessory=btn))
             
         elif category == "automod":
             am_cfg = await self.bot.db.get_automod_config(self.guild_id)
