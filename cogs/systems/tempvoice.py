@@ -462,12 +462,11 @@ class TempVoice(commands.Cog):
             "channel_id": channel.id, "owner_id": member.id,
             "locked": 0, "hidden": 0, "allowed_users": "[]",
         }
-        embed = TempVoiceControlView(self.bot, channel, member, row_preview, lang)
-        view  = TempVoiceControlView(self.bot)
+        view = TempVoiceControlView(self.bot, channel, member, row_preview, lang)
 
         ctrl_msg_id = None
         try:
-            msg         = await channel.send(embed=embed, view=view)
+            msg         = await channel.send(view=view)
             ctrl_msg_id = msg.id
         except discord.Forbidden:
             pass
