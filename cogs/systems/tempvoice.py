@@ -11,56 +11,6 @@ from utils.i18n import t
 #  Helpers
 # ══════════════════════════════════════════════════════════════════════════════
 
-def _control_embed(channel: discord.VoiceChannel, owner: discord.Member | None, row: dict, lang: str) -> discord.Embed:
-    locked  = bool(row.get("locked", 0))
-    hidden  = bool(row.get("hidden", 0))
-    allowed = json.loads(row.get("allowed_users") or "[]")
-
-    if locked and hidden:
-        color = Colors.ERROR
-    elif locked or hidden:
-        color = Colors.WARNING
-    else:
-        color = Colors.SUCCESS
-
-    owner_name = owner.display_name if owner else t(lang, "tv.unknown")
-    embed = discord.Embed(
-        title=t(lang, "tv.channel_title", owner=owner_name),
-        color=color,
-        description=(
-            f"{t(lang, 'tv.locked') if locked else t(lang, 'tv.unlocked')}"
-            f"  •  "
-            f"{t(lang, 'tv.hidden') if hidden else t(lang, 'tv.visible')}"
-        ),
-    )
-
-    if owner:
-        embed.set_thumbnail(url=owner.display_avatar.url)
-
-    members = channel.members
-    limit   = channel.user_limit
-    limit_str = f"{len(members)}/{limit}" if limit else f"{len(members)}/∞"
-
-    embed.add_field(name=t(lang, "tv.owner_field"), value=owner.mention if owner else "❓", inline=True)
-    embed.add_field(name=t(lang, "tv.members_field"), value=limit_str,                        inline=True)
-
-    if members:
-        member_list = " ".join(m.mention for m in members[:10])
-        if len(members) > 10:
-            member_list += f" *+{len(members) - 10}*"
-        embed.add_field(name=t(lang, "tv.in_channel_field"), value=member_list, inline=False)
-
-    if allowed:
-        embed.add_field(
-            name=t(lang, "tv.allowed_field", count=len(allowed)),
-            value=" ".join(f"<@{uid}>" for uid in allowed[:15]),
-            inline=False,
-        )
-
-    embed.set_footer(text=t(lang, "tv.owner_only_footer"))
-    return embed
-
-
 async def _get_row_and_channel(interaction: discord.Interaction, lang: str):
     row = await interaction.client.db.get_tempvoice_by_msg(interaction.message.id)
     if not row:
@@ -81,7 +31,7 @@ async def _owner_only(interaction: discord.Interaction, row: dict, lang: str) ->
     return True
 
 
-async def _update_control_msg(bot: commands.Bot, guild: discord.Guild, row: dict, embed: discord.Embed):
+async def _update_control_msg(bot: commands.Bot, guild: discord.Guild, row: dict, view: discord.ui.View):
     """Edit the control panel message inside the voice channel."""
     if not row or not row.get("control_msg_id"):
         return
@@ -90,7 +40,7 @@ async def _update_control_msg(bot: commands.Bot, guild: discord.Guild, row: dict
         return
     try:
         msg = await channel.fetch_message(row["control_msg_id"])
-        await msg.edit(embed=embed)
+        await msg.edit(view=view, embed=None)
     except (discord.NotFound, discord.Forbidden):
         pass
 
@@ -116,7 +66,7 @@ class RenameModal(discord.ui.Modal, title="✏️ Renommer le salon"):
         await channel.edit(name=self.new_name.value.strip(), reason="TempVoice: renommé")
         row   = await self.bot.db.get_tempvoice_channel(self.channel_id)
         owner = interaction.guild.get_member(row["owner_id"]) if row else None
-        await _update_control_msg(self.bot, interaction.guild, row, _control_embed(channel, owner, row or {}, lang))
+        await _update_control_msg(self.bot, interaction.guild, row, TempVoiceControlView(self.bot, channel, owner, row or {}, lang))
         await interaction.response.send_message(embed=success_embed(t(lang, "tv.renamed", name=self.new_name.value)), ephemeral=True)
 
 
@@ -143,7 +93,7 @@ class LimitModal(discord.ui.Modal, title="👥 Limite de membres"):
         await channel.edit(user_limit=val, reason="TempVoice: limite modifiée")
         row   = await self.bot.db.get_tempvoice_channel(self.channel_id)
         owner = interaction.guild.get_member(row["owner_id"]) if row else None
-        await _update_control_msg(self.bot, interaction.guild, row, _control_embed(channel, owner, row or {}, lang))
+        await _update_control_msg(self.bot, interaction.guild, row, TempVoiceControlView(self.bot, channel, owner, row or {}, lang))
         lim_str = t(lang, "tv.limit_n", n=val) if val else t(lang, "tv.limit_unlimited")
         await interaction.response.send_message(embed=success_embed(t(lang, "tv.limit_set", limit=lim_str)), ephemeral=True)
 
@@ -173,7 +123,7 @@ class AllowUserSelect(discord.ui.UserSelect):
                 await interaction.client.db.update_tempvoice_allowed(self.channel_id, allowed)
                 row["allowed_users"] = json.dumps(allowed)
             owner = interaction.guild.get_member(row["owner_id"])
-            await _update_control_msg(interaction.client, interaction.guild, row, _control_embed(channel, owner, row, lang))
+            await _update_control_msg(interaction.client, interaction.guild, row, TempVoiceControlView(self.bot, channel, owner, row, lang))
         await interaction.response.send_message(embed=success_embed(t(lang, "tv.user_allowed", user=user.mention)), ephemeral=True)
 
 
@@ -215,7 +165,7 @@ class TransferUserSelect(discord.ui.UserSelect):
         if row and channel:
             updated = {**row, "owner_id": new_owner.id}
             await _update_control_msg(interaction.client, interaction.guild, updated,
-                                      _control_embed(channel, new_owner, updated, lang))
+                                      TempVoiceControlView(self.bot, channel, new_owner, updated, lang))
         await interaction.response.send_message(embed=success_embed(t(lang, "tv.ownership_transferred", user=new_owner.mention)), ephemeral=True)
 
 
@@ -223,14 +173,100 @@ class TransferUserSelect(discord.ui.UserSelect):
 #  Persistent control view
 # ══════════════════════════════════════════════════════════════════════════════
 
-class TempVoiceControlView(discord.ui.View):
-    def __init__(self, bot: commands.Bot):
+class TempVoiceControlView(discord.ui.LayoutView):
+    def __init__(self, bot: commands.Bot, channel: discord.VoiceChannel = None, owner: discord.Member = None, row: dict = None, lang: str = "fr"):
         super().__init__(timeout=None)
         self.bot = bot
+        
+        self.btn_kick = discord.ui.Button(label="Expulser", emoji="🚫", style=discord.ButtonStyle.secondary, custom_id="tv_btn_kick")
+        self.btn_kick.callback = self._cb_kick
+        
+        self.btn_ban = discord.ui.Button(label="Bannir", emoji="🔨", style=discord.ButtonStyle.secondary, custom_id="tv_btn_ban")
+        self.btn_ban.callback = self._cb_ban
+        
+        self.btn_lock = discord.ui.Button(label="Verrouiller / Déverrouiller", emoji="🔒", style=discord.ButtonStyle.secondary, custom_id="tv_btn_lock")
+        self.btn_lock.callback = self._cb_lock
+        
+        self.btn_invite = discord.ui.Button(label="Créer une invitation", emoji="✉️", style=discord.ButtonStyle.primary, custom_id="tv_btn_invite")
+        self.btn_invite.callback = self._cb_invite
+        
+        self.btn_transfer = discord.ui.Button(label="Choisir un nouveau responsable", emoji="👑", style=discord.ButtonStyle.success, custom_id="tv_btn_transfer")
+        self.btn_transfer.callback = self._cb_transfer
+        
+        self.btn_report = discord.ui.Button(label="Signaler un problème...", emoji="🚨", style=discord.ButtonStyle.danger, custom_id="tv_btn_report")
+        self.btn_report.callback = self._cb_report
+        
+        self.select_action = discord.ui.Select(
+            placeholder="⚙️ Autres paramètres avancés...",
+            custom_id="tv_action_select",
+            options=[
+                discord.SelectOption(label="Masquer / Afficher", emoji="👁️", value="hide"),
+                discord.SelectOption(label="Rendre Privé / Public", emoji="🔐", value="private"),
+                discord.SelectOption(label="Renommer le salon", emoji="✏️", value="rename"),
+                discord.SelectOption(label="Modifier la limite", emoji="👥", value="limit"),
+                discord.SelectOption(label="Autoriser un membre", emoji="➕", value="allow"),
+                discord.SelectOption(label="Supprimer le salon", emoji="🗑️", value="delete"),
+            ]
+        )
+        self.select_action.callback = self._cb_select
 
+        if channel and row:
+            self._build_layout(channel, owner, row, lang)
+        else:
+            # During boot/setup, just register the components
+            self.add_item(self.btn_kick)
+            self.add_item(self.btn_ban)
+            self.add_item(self.btn_lock)
+            self.add_item(self.btn_invite)
+            self.add_item(self.btn_transfer)
+            self.add_item(self.btn_report)
+            self.add_item(self.select_action)
 
-    @discord.ui.button(label="Expulser", emoji="🚫", style=discord.ButtonStyle.secondary, custom_id="tv_btn_kick", row=1)
-    async def btn_kick(self, interaction: discord.Interaction, button: discord.ui.Button):
+    def _build_layout(self, channel: discord.VoiceChannel, owner: discord.Member | None, row: dict, lang: str):
+        self.clear_items()
+        
+        locked  = bool(row.get("locked", 0))
+        hidden  = bool(row.get("hidden", 0))
+        allowed = json.loads(row.get("allowed_users") or "[]")
+
+        if locked and hidden:
+            color = Colors.ERROR.value
+        elif locked or hidden:
+            color = Colors.WARNING.value
+        else:
+            color = Colors.SUCCESS.value
+
+        owner_name = owner.display_name if owner else t(lang, "tv.unknown")
+        locked_txt = t(lang, "tv.locked") if locked else t(lang, "tv.unlocked")
+        hidden_txt = t(lang, "tv.hidden") if hidden else t(lang, "tv.visible")
+        
+        members = channel.members if channel else []
+        limit   = channel.user_limit if channel else 0
+        limit_str = f"{len(members)}/{limit}" if limit else f"{len(members)}/∞"
+
+        header = f"# 🎙️ Salon de {owner_name}\n"
+        header += f"> **{locked_txt}** • **{hidden_txt}**\n\n"
+        header += f"👑 **Propriétaire:** {owner.mention if owner else '❓'}\n"
+        header += f"👥 **Membres:** {limit_str}\n"
+
+        if members:
+            header += f"\n🎶 **Dans le salon:**\n> {' '.join(m.mention for m in members[:10])}\n"
+            
+        if allowed:
+            header += f"\n✅ **Autorisés:**\n> {' '.join(f'<@{uid}>' for uid in allowed[:15])}\n"
+            
+        header += f"\n*Seul le propriétaire peut modifier ce salon*"
+
+        cont = discord.ui.Container(accent_color=color)
+        cont.add_item(discord.ui.TextDisplay(header))
+        
+        cont.add_item(discord.ui.ActionRow(self.btn_kick, self.btn_ban, self.btn_lock))
+        cont.add_item(discord.ui.ActionRow(self.btn_invite, self.btn_transfer, self.btn_report))
+        cont.add_item(discord.ui.ActionRow(self.select_action))
+        
+        self.add_item(cont)
+
+    async def _cb_kick(self, interaction: discord.Interaction):
         lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         row, channel = await _get_row_and_channel(interaction, lang)
         if not row: return
@@ -239,13 +275,10 @@ class TempVoiceControlView(discord.ui.View):
         view.add_item(KickUserSelect(row["channel_id"], lang))
         await interaction.response.send_message(embed=info_embed(t(lang, "tv.pick_user_kick")), view=view, ephemeral=True)
 
-    @discord.ui.button(label="Bannir", emoji="🔨", style=discord.ButtonStyle.secondary, custom_id="tv_btn_ban", row=1)
-    async def btn_ban(self, interaction: discord.Interaction, button: discord.ui.Button):
-        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
+    async def _cb_ban(self, interaction: discord.Interaction):
         await interaction.response.send_message("Fonctionnalité Bannir bientôt disponible (utilise Expulser + Verrouiller pour l'instant).", ephemeral=True)
 
-    @discord.ui.button(label="Verrouiller / Déverrouiller", emoji="🔒", style=discord.ButtonStyle.secondary, custom_id="tv_btn_lock", row=1)
-    async def btn_lock(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def _cb_lock(self, interaction: discord.Interaction):
         lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         row, channel = await _get_row_and_channel(interaction, lang)
         if not row: return
@@ -262,18 +295,17 @@ class TempVoiceControlView(discord.ui.View):
         await interaction.client.db.update_tempvoice_state(row["channel_id"], locked=int(new_val))
         row["locked"] = int(new_val)
         owner = interaction.guild.get_member(row["owner_id"])
-        await interaction.response.edit_message(embed=_control_embed(channel, owner, row, lang), view=self)
+        
+        await interaction.response.edit_message(view=TempVoiceControlView(self.bot, channel, owner, row, lang), embed=None)
 
-    @discord.ui.button(label="Créer une invitation", emoji="✉️", style=discord.ButtonStyle.primary, custom_id="tv_btn_invite", row=2)
-    async def btn_invite(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def _cb_invite(self, interaction: discord.Interaction):
         lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         row, channel = await _get_row_and_channel(interaction, lang)
         if not row: return
         invite = await channel.create_invite(max_age=3600, max_uses=0, reason="TempVoice Invitation")
         await interaction.response.send_message(f"🔗 Voici l'invitation pour le salon : {invite.url}", ephemeral=True)
 
-    @discord.ui.button(label="Choisir un nouveau responsable de salon", emoji="👑", style=discord.ButtonStyle.success, custom_id="tv_btn_transfer", row=2)
-    async def btn_transfer(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def _cb_transfer(self, interaction: discord.Interaction):
         lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         row, channel = await _get_row_and_channel(interaction, lang)
         if not row: return
@@ -282,8 +314,7 @@ class TempVoiceControlView(discord.ui.View):
         view.add_item(TransferUserSelect(row["channel_id"], lang))
         await interaction.response.send_message(embed=info_embed(t(lang, "tv.pick_new_owner")), view=view, ephemeral=True)
 
-    @discord.ui.button(label="Signaler un problème à l'équipe...", emoji="🚨", style=discord.ButtonStyle.danger, custom_id="tv_btn_report", row=2)
-    async def btn_report(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def _cb_report(self, interaction: discord.Interaction):
         lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         row, channel = await _get_row_and_channel(interaction, lang)
         
@@ -298,30 +329,17 @@ class TempVoiceControlView(discord.ui.View):
                 
         await interaction.response.send_modal(TVReportModal())
 
-    @discord.ui.select(
-        placeholder="⚙️ Autres paramètres avancés...",
-        custom_id="tv_action_select",
-        row=3,
-        options=[
-            discord.SelectOption(label="Masquer / Afficher", emoji="👁️", value="hide"),
-            discord.SelectOption(label="Rendre Privé / Public", emoji="🔐", value="private"),
-            discord.SelectOption(label="Renommer le salon", emoji="✏️", value="rename"),
-            discord.SelectOption(label="Modifier la limite", emoji="👥", value="limit"),
-            discord.SelectOption(label="Autoriser un membre", emoji="➕", value="allow"),
-            discord.SelectOption(label="Supprimer le salon", emoji="🗑️", value="delete"),
-        ]
-    )
-    async def select_action(self, interaction: discord.Interaction, select: discord.ui.Select):
+    async def _cb_select(self, interaction: discord.Interaction):
         lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         row, channel = await _get_row_and_channel(interaction, lang)
         if not row: return
         
         if not await _owner_only(interaction, row, lang):
-            try: await interaction.response.edit_message(view=self)
+            try: await interaction.response.edit_message(view=TempVoiceControlView(self.bot, channel, interaction.guild.get_member(row["owner_id"]), row, lang), embed=None)
             except: pass
             return
 
-        action = select.values[0]
+        action = self.select_action.values[0]
         
         if action == "hide":
             new_val = not bool(row["hidden"])
@@ -331,7 +349,7 @@ class TempVoiceControlView(discord.ui.View):
             await interaction.client.db.update_tempvoice_state(row["channel_id"], hidden=int(new_val))
             row["hidden"] = int(new_val)
             owner = interaction.guild.get_member(row["owner_id"])
-            await interaction.response.edit_message(embed=_control_embed(channel, owner, row, lang), view=self)
+            await interaction.response.edit_message(view=TempVoiceControlView(self.bot, channel, owner, row, lang), embed=None)
 
         elif action == "private":
             both_on = bool(row["locked"]) and bool(row["hidden"])
@@ -348,34 +366,32 @@ class TempVoiceControlView(discord.ui.View):
             row["locked"] = int(new_val)
             row["hidden"] = int(new_val)
             owner = interaction.guild.get_member(row["owner_id"])
-            await interaction.response.edit_message(embed=_control_embed(channel, owner, row, lang), view=self)
+            await interaction.response.edit_message(view=TempVoiceControlView(self.bot, channel, owner, row, lang), embed=None)
 
         elif action == "rename":
             await interaction.response.send_modal(RenameModal(row["channel_id"], self.bot, lang))
-            try: await interaction.message.edit(view=self)
+            try: await interaction.message.edit(view=TempVoiceControlView(self.bot, channel, interaction.guild.get_member(row["owner_id"]), row, lang), embed=None)
             except: pass
 
         elif action == "limit":
             await interaction.response.send_modal(LimitModal(row["channel_id"], self.bot, lang))
-            try: await interaction.message.edit(view=self)
+            try: await interaction.message.edit(view=TempVoiceControlView(self.bot, channel, interaction.guild.get_member(row["owner_id"]), row, lang), embed=None)
             except: pass
 
         elif action == "allow":
             view = discord.ui.View(timeout=30)
             view.add_item(AllowUserSelect(row["channel_id"], lang))
             await interaction.response.send_message(embed=info_embed(t(lang, "tv.pick_user_allow")), view=view, ephemeral=True)
-            try: await interaction.message.edit(view=self)
+            try: await interaction.message.edit(view=TempVoiceControlView(self.bot, channel, interaction.guild.get_member(row["owner_id"]), row, lang), embed=None)
             except: pass
 
         elif action == "delete":
             await interaction.client.db.delete_tempvoice_channel(row["channel_id"])
-            await interaction.response.send_message(embed=success_embed(t(lang, "tv.channel_deleted")), ephemeral=True)
-            try: await channel.delete(reason="TempVoice: supprimé par le propriétaire")
+            await channel.delete(reason="TempVoice: supprimé manuellement")
+            # Note: interaction context might be invalid if the channel is deleted and the message goes with it
+            try: await interaction.response.send_message("Salon supprimé.", ephemeral=True)
             except discord.NotFound: pass
 
-# ══════════════════════════════════════════════════════════════════════════════
-#  Cog
-# ══════════════════════════════════════════════════════════════════════════════
 
 class TempVoice(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -417,7 +433,7 @@ class TempVoice(commands.Cog):
                 updated = {**row, "owner_id": new_owner.id}
                 await _update_control_msg(
                     self.bot, member.guild, updated,
-                    _control_embed(before.channel, new_owner, updated, lang)
+                    TempVoiceControlView(self.bot, before.channel, new_owner, updated, lang)
                 )
 
     # ── Internal helpers ──────────────────────────────────────────────────────
@@ -446,7 +462,7 @@ class TempVoice(commands.Cog):
             "channel_id": channel.id, "owner_id": member.id,
             "locked": 0, "hidden": 0, "allowed_users": "[]",
         }
-        embed = _control_embed(channel, member, row_preview, lang)
+        embed = TempVoiceControlView(self.bot, channel, member, row_preview, lang)
         view  = TempVoiceControlView(self.bot)
 
         ctrl_msg_id = None
