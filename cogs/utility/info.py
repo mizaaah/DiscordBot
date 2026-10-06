@@ -91,8 +91,10 @@ HELP_CATEGORIES = {
                 "**Gestion**\n"
                 "🔹 `/notifications list` : Voir tous les comptes suivis\n"
                 "🔹 `/notifications remove <plateforme> <nom>` : Retirer un suivi\n"
+                "🔹 `/notifications channel <plateforme> <nom> #salon` : Changer le salon d'un suivi\n"
                 "🔹 `/notifications message <plateforme> <texte>` : Personnaliser le message\n"
-                "🔹 `/notifications channel <plateforme> <nom> #salon` : Changer le salon d'un suivi",
+                "🔹 `/notifications role <plateforme> <nom> @role` : Ping un rôle\n"
+                "🔹 `/notifications color <plateforme> <nom> #couleur` : Changer la couleur",
         "emoji": "🔔"
     },
     "config": {

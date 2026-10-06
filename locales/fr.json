@@ -766,5 +766,12 @@
   "notif.twitch_live_desc": "**{user}** est en live sur Twitch !\n👉 [{url}]({url})",
   "notif.new_tiktok": "a posté une nouvelle vidéo !",
   "notif.post_title": "📝 Description",
-  "notif.tiktok_new_post_desc": "**@{user}** a posté une nouvelle vidéo sur TikTok !\n👉 [{url}]({url})"
+  "notif.tiktok_new_post_desc": "**@{user}** a posté une nouvelle vidéo sur TikTok !\n👉 [{url}]({url})",
+  "notif.watch_live": "Aller voir le live",
+  "notif.watch_video": "Voir la vidéo",
+  "notif.role_updated": "✅ Les notifications de `{user}` pingeront le rôle {role}.",
+  "notif.role_removed": "✅ Les notifications de `{user}` ne pingeront plus de rôle.",
+  "notif.invalid_color": "❌ Code couleur invalide : `{color}`. Format attendu : `#RRGGBB`.",
+  "notif.color_updated": "✅ La couleur des notifications de `{user}` a été changée en `{color}`.",
+  "notif.color_removed": "✅ La couleur des notifications de `{user}` a été réinitialisée."
 }

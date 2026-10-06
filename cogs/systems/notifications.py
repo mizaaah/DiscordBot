@@ -262,7 +262,7 @@ class Notifications(commands.Cog):
                         stream = live_streams[username.lower()]
                         user_info = twitch_users.get(username.lower(), {})
                         await self._send_twitch_notification(
-                            channel, stream, user_info, custom_msg, lang
+                            channel, stream, user_info, custom_msg, lang, feed
                         )
 
                     guild_state["twitch"][username] = is_live
@@ -278,7 +278,7 @@ class Notifications(commands.Cog):
                             # Nouveau post !
                             guild_state["tiktok"][username] = post["link"]
                             await self._send_tiktok_notification(
-                                channel, username, post, custom_msg, lang
+                                channel, username, post, custom_msg, lang, feed
                             )
 
     @check_feeds.before_loop
@@ -312,7 +312,7 @@ class Notifications(commands.Cog):
 
     async def _send_twitch_notification(
         self, channel: discord.TextChannel, stream: dict, user_info: dict,
-        custom_msg: str | None, lang: str
+        custom_msg: str | None, lang: str, feed: dict
     ):
         login = stream["user_login"]
         display = stream.get("user_name", login)
@@ -336,11 +336,18 @@ class Notifications(commands.Cog):
         else:
             description = t(lang, "notif.twitch_live_desc", user=display, url=url)
 
+        embed_color = TWITCH_COLOR
+        if feed.get("embed_color"):
+            try:
+                embed_color = discord.Color.from_str(feed["embed_color"])
+            except ValueError:
+                pass
+
         embed = discord.Embed(
             title=f"🔴 {display} {t(lang, 'notif.is_live')}",
             url=url,
             description=description,
-            color=TWITCH_COLOR,
+            color=embed_color,
             timestamp=datetime.now(timezone.utc),
         )
 
@@ -358,14 +365,21 @@ class Notifications(commands.Cog):
 
         embed.set_footer(text="Twitch", icon_url="https://brand.twitch.tv/assets/logos/svg/glitch-logo-purple.svg")
 
+        content = f"🔴 **{display}** est en live !"
+        if feed.get("ping_role_id"):
+            content = f"<@&{feed['ping_role_id']}> {content}"
+
+        view = discord.ui.View()
+        view.add_item(discord.ui.Button(label=t(lang, "notif.watch_live"), url=url, style=discord.ButtonStyle.link, emoji="📺"))
+
         try:
-            await channel.send(content=f"🔴 **{display}** est en live !", embed=embed)
+            await channel.send(content=content, embed=embed, view=view)
         except discord.Forbidden:
             log.warning(f"[Notifications] Can't send to #{channel.name} ({channel.guild.id})")
 
     async def _send_tiktok_notification(
         self, channel: discord.TextChannel, username: str, post: dict,
-        custom_msg: str | None, lang: str
+        custom_msg: str | None, lang: str, feed: dict
     ):
         clean_user = username.lstrip("@")
         url = post.get("link", f"https://www.tiktok.com/@{clean_user}")
@@ -380,11 +394,18 @@ class Notifications(commands.Cog):
         else:
             description = t(lang, "notif.tiktok_new_post_desc", user=clean_user, url=url)
 
+        embed_color = TIKTOK_COLOR
+        if feed.get("embed_color"):
+            try:
+                embed_color = discord.Color.from_str(feed["embed_color"])
+            except ValueError:
+                pass
+
         embed = discord.Embed(
             title=f"🎵 {clean_user} {t(lang, 'notif.new_tiktok')}",
             url=url,
             description=description,
-            color=TIKTOK_COLOR,
+            color=embed_color,
             timestamp=datetime.now(timezone.utc),
         )
 
@@ -393,8 +414,15 @@ class Notifications(commands.Cog):
 
         embed.set_footer(text="TikTok")
 
+        content = f"🎵 **{clean_user}** a posté une nouvelle vidéo !"
+        if feed.get("ping_role_id"):
+            content = f"<@&{feed['ping_role_id']}> {content}"
+
+        view = discord.ui.View()
+        view.add_item(discord.ui.Button(label=t(lang, "notif.watch_video"), url=url, style=discord.ButtonStyle.link, emoji="🎵"))
+
         try:
-            await channel.send(content=f"🎵 **{clean_user}** a posté une nouvelle vidéo !", embed=embed)
+            await channel.send(content=content, embed=embed, view=view)
         except discord.Forbidden:
             log.warning(f"[Notifications] Can't send to #{channel.name} ({channel.guild.id})")
 
@@ -655,6 +683,81 @@ class Notifications(commands.Cog):
         await interaction.response.send_message(
             embed=success_embed(t(lang, "notif.channel_updated", user=nom, channel=salon.mention))
         )
+
+    @notif_group.command(name="role", description="Ajouter ou retirer un rôle à ping pour un suivi")
+    @app_commands.describe(
+        plateforme="twitch ou tiktok",
+        nom="Le nom d'utilisateur",
+        role="Le rôle à ping (laisse vide pour retirer le ping)"
+    )
+    @app_commands.choices(plateforme=[
+        app_commands.Choice(name="Twitch", value="twitch"),
+        app_commands.Choice(name="TikTok", value="tiktok"),
+    ])
+    @app_commands.default_permissions(manage_guild=True)
+    async def notif_role(self, interaction: discord.Interaction, plateforme: str, nom: str, role: discord.Role = None):
+        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
+        nom = nom.lower().strip().lstrip("@")
+
+        updated = await self.bot.db.update_notification_role(interaction.guild_id, plateforme, nom, role.id if role else None)
+        if not updated:
+            return await interaction.response.send_message(
+                embed=error_embed(t(lang, "notif.not_tracking", user=nom, platform=plateforme.capitalize())),
+                ephemeral=True,
+            )
+
+        if role:
+            await interaction.response.send_message(
+                embed=success_embed(t(lang, "notif.role_updated", user=nom, role=role.mention))
+            )
+        else:
+            await interaction.response.send_message(
+                embed=success_embed(t(lang, "notif.role_removed", user=nom))
+            )
+
+    @notif_group.command(name="color", description="Modifier la couleur de l'embed pour un suivi")
+    @app_commands.describe(
+        plateforme="twitch ou tiktok",
+        nom="Le nom d'utilisateur",
+        couleur="Code couleur Hex (ex: #FF0000, laisse vide pour reset)"
+    )
+    @app_commands.choices(plateforme=[
+        app_commands.Choice(name="Twitch", value="twitch"),
+        app_commands.Choice(name="TikTok", value="tiktok"),
+    ])
+    @app_commands.default_permissions(manage_guild=True)
+    async def notif_color(self, interaction: discord.Interaction, plateforme: str, nom: str, couleur: str = None):
+        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
+        nom = nom.lower().strip().lstrip("@")
+        
+        if couleur and not couleur.startswith("#"):
+            couleur = f"#{couleur}"
+
+        # Validate color
+        if couleur:
+            try:
+                discord.Color.from_str(couleur)
+            except ValueError:
+                return await interaction.response.send_message(
+                    embed=error_embed(t(lang, "notif.invalid_color", color=couleur)),
+                    ephemeral=True
+                )
+
+        updated = await self.bot.db.update_notification_color(interaction.guild_id, plateforme, nom, couleur)
+        if not updated:
+            return await interaction.response.send_message(
+                embed=error_embed(t(lang, "notif.not_tracking", user=nom, platform=plateforme.capitalize())),
+                ephemeral=True,
+            )
+
+        if couleur:
+            await interaction.response.send_message(
+                embed=success_embed(t(lang, "notif.color_updated", user=nom, color=couleur))
+            )
+        else:
+            await interaction.response.send_message(
+                embed=success_embed(t(lang, "notif.color_removed", user=nom))
+            )
 
 
 async def setup(bot: commands.Bot):

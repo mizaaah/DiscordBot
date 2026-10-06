@@ -387,6 +387,8 @@ class Database:
                 platform    TEXT NOT NULL,
                 username    TEXT NOT NULL,
                 message     TEXT,
+                ping_role_id INTEGER,
+                embed_color TEXT,
                 created_at  TEXT DEFAULT (datetime('now')),
                 UNIQUE(guild_id, platform, username)
             )""",
@@ -445,6 +447,8 @@ class Database:
             "ALTER TABLE ticket_config ADD COLUMN close_button_emoji TEXT DEFAULT '🔒'",
             "ALTER TABLE sanctions ADD COLUMN case_id INTEGER",
             "ALTER TABLE rr_panels ADD COLUMN exclusive INTEGER DEFAULT 0",
+            "ALTER TABLE notification_feeds ADD COLUMN ping_role_id INTEGER",
+            "ALTER TABLE notification_feeds ADD COLUMN embed_color TEXT",
         ]:
             try:
                 await self.db.execute(migration)
@@ -1155,3 +1159,18 @@ class Database:
             channel_id, guild_id, platform, username
         )
         return cur.rowcount > 0
+
+    async def update_notification_role(self, guild_id: int, platform: str, username: str, role_id: int | None) -> bool:
+        cur = await self._exec(
+            "UPDATE notification_feeds SET ping_role_id = ? WHERE guild_id = ? AND platform = ? AND username = ?",
+            role_id, guild_id, platform, username
+        )
+        return cur.rowcount > 0
+
+    async def update_notification_color(self, guild_id: int, platform: str, username: str, color: str | None) -> bool:
+        cur = await self._exec(
+            "UPDATE notification_feeds SET embed_color = ? WHERE guild_id = ? AND platform = ? AND username = ?",
+            color, guild_id, platform, username
+        )
+        return cur.rowcount > 0
+
