@@ -79,6 +79,22 @@ HELP_CATEGORIES = {
                 "🔹 `/afk set` : Se mettre en mode AFK pour prévenir les autres",
         "emoji": "🎁"
     },
+    "notifications": {
+        "title": "🔔 Notifications Sociales",
+        "desc": "Recevez des alertes quand vos créateurs préférés sont actifs !\n\n"
+                "**Configuration**\n"
+                "🔹 `/notifications setup #salon` : Définir le salon de notifications\n\n"
+                "**Twitch**\n"
+                "🔹 `/notifications twitch <nom>` : Suivre un streamer (alerte quand il passe en live)\n\n"
+                "**TikTok**\n"
+                "🔹 `/notifications tiktok <nom>` : Suivre un compte (alerte quand il poste)\n\n"
+                "**Gestion**\n"
+                "🔹 `/notifications list` : Voir tous les comptes suivis\n"
+                "🔹 `/notifications remove <plateforme> <nom>` : Retirer un suivi\n"
+                "🔹 `/notifications message <plateforme> <texte>` : Personnaliser le message\n"
+                "🔹 `/notifications channel <plateforme> <nom> #salon` : Changer le salon d'un suivi",
+        "emoji": "🔔"
+    },
     "config": {
         "title": "⚙️ Configuration Globale",
         "desc": "Paramétrage global et commandes d'informations utiles.\n\n"
@@ -364,6 +380,7 @@ class Info(commands.Cog):
             "ticket": "tickets",
             "rr": "roles", "autosanction": "roles",
             "tempvoice": "community", "giveaway": "community", "starboard": "community", "afk": "community",
+            "notifications": "notifications",
             "config": "config", "embed": "config", "cmdperm": "config", "userinfo": "config", "serverinfo": "config"
         }
         
