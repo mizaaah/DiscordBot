@@ -426,338 +426,257 @@ class Notifications(commands.Cog):
         except discord.Forbidden:
             log.warning(f"[Notifications] Can't send to #{channel.name} ({channel.guild.id})")
 
-    # ── Slash commands ────────────────────────────────────────────────────────
+    # ── UI & Command ──────────────────────────────────────────────────────────
 
-    notif_group = app_commands.Group(
-        name="notifications",
-        description="Notifications Twitch & TikTok",
-    )
-
-    @notif_group.command(name="setup", description="Définir le salon de notifications")
-    @app_commands.describe(salon="Le salon où envoyer les notifications")
+    @app_commands.command(name="notifications", description="Ouvrir le panneau de gestion des notifications Twitch & TikTok")
     @app_commands.default_permissions(manage_guild=True)
-    async def notif_setup(self, interaction: discord.Interaction, salon: discord.TextChannel):
-        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
-        await self.bot.db.set_notification_channel(interaction.guild_id, salon.id)
-        embed = discord.Embed(
-            title=t(lang, "notif.setup_title"),
-            description=t(lang, "notif.setup_desc", channel=salon.mention),
-            color=discord.Color.from_str("#5865F2"),
-        )
-        embed.set_footer(text=t(lang, "notif.setup_footer"))
-        await interaction.response.send_message(embed=embed)
+    async def notif_dashboard_cmd(self, interaction: discord.Interaction):
+        view = NotifDashboardView(self)
+        await view.init(interaction)
 
-    @notif_group.command(name="twitch", description="Ajouter un streamer Twitch à suivre")
-    @app_commands.describe(nom="Le nom du streamer Twitch (login)")
-    @app_commands.default_permissions(manage_guild=True)
-    async def notif_twitch(self, interaction: discord.Interaction, nom: str):
-        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
 
-        if not self.twitch.configured:
-            return await interaction.response.send_message(
-                embed=error_embed(t(lang, "notif.twitch_not_configured")), ephemeral=True
-            )
+class NotifDashboardView(discord.ui.View):
+    def __init__(self, cog: Notifications):
+        super().__init__(timeout=300)
+        self.cog = cog
 
-        # Vérifier que le salon est configuré
-        channel_id = await self.bot.db.get_notification_channel(interaction.guild_id)
-        if not channel_id:
-            return await interaction.response.send_message(
-                embed=error_embed(t(lang, "notif.no_channel")), ephemeral=True
-            )
-
-        nom = nom.lower().strip().lstrip("@")
-
-        # Vérifier que le streamer existe
-        users = await self.twitch.get_users([nom])
-        if not users:
-            return await interaction.response.send_message(
-                embed=error_embed(t(lang, "notif.twitch_user_not_found", user=nom)), ephemeral=True
-            )
-
-        # Vérifier les doublons
-        existing = await self.bot.db.get_notification_feeds(interaction.guild_id)
-        for f in existing:
-            if f["platform"] == "twitch" and f["username"] == nom:
-                return await interaction.response.send_message(
-                    embed=error_embed(t(lang, "notif.already_tracking", user=nom, platform="Twitch")),
-                    ephemeral=True,
-                )
-
-        await self.bot.db.add_notification_feed(interaction.guild_id, channel_id, "twitch", nom)
-
-        # Init l'état
-        guild_state = self._state.setdefault(interaction.guild_id, {"twitch": {}, "tiktok": {}})
-        streams = await self.twitch.get_streams([nom])
-        guild_state["twitch"][nom] = bool(streams)
-
-        user_info = users[0]
-        embed = discord.Embed(
-            title=t(lang, "notif.twitch_added_title"),
-            description=t(lang, "notif.twitch_added_desc", user=user_info.get("display_name", nom)),
-            color=TWITCH_COLOR,
-        )
-        if user_info.get("profile_image_url"):
-            embed.set_thumbnail(url=user_info["profile_image_url"])
-        embed.set_footer(text=t(lang, "notif.check_interval"))
-
-        await interaction.response.send_message(embed=embed)
-
-    @notif_group.command(name="tiktok", description="Ajouter un compte TikTok à suivre")
-    @app_commands.describe(nom="Le nom d'utilisateur TikTok")
-    @app_commands.default_permissions(manage_guild=True)
-    async def notif_tiktok(self, interaction: discord.Interaction, nom: str):
-        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
-
-        channel_id = await self.bot.db.get_notification_channel(interaction.guild_id)
-        if not channel_id:
-            return await interaction.response.send_message(
-                embed=error_embed(t(lang, "notif.no_channel")), ephemeral=True
-            )
-
-        nom = nom.lower().strip().lstrip("@")
-
-        # Vérifier les doublons
-        existing = await self.bot.db.get_notification_feeds(interaction.guild_id)
-        for f in existing:
-            if f["platform"] == "tiktok" and f["username"] == nom:
-                return await interaction.response.send_message(
-                    embed=error_embed(t(lang, "notif.already_tracking", user=nom, platform="TikTok")),
-                    ephemeral=True,
-                )
-
-        await interaction.response.defer()
-
-        # Tester que le RSS fonctionne
-        post = await self.tiktok.get_latest_post(nom)
-
-        await self.bot.db.add_notification_feed(interaction.guild_id, channel_id, "tiktok", nom)
-
-        # Init l'état
-        guild_state = self._state.setdefault(interaction.guild_id, {"twitch": {}, "tiktok": {}})
-        if post:
-            guild_state["tiktok"][nom] = post["link"]
+    async def init(self, interaction: discord.Interaction):
+        lang = await self.cog.bot.db.get_guild_lang(interaction.guild_id)
+        channel_id = await self.cog.bot.db.get_notification_channel(interaction.guild_id)
+        feeds = await self.cog.bot.db.get_notification_feeds(interaction.guild_id)
 
         embed = discord.Embed(
-            title=t(lang, "notif.tiktok_added_title"),
-            description=t(lang, "notif.tiktok_added_desc", user=nom),
-            color=TIKTOK_COLOR,
+            title="🔔 Notifications Sociales",
+            description="Configurez vos alertes pour Twitch et TikTok.",
+            color=discord.Color.from_str("#5865F2")
         )
-
-        if not post:
-            embed.add_field(
-                name="⚠️",
-                value=t(lang, "notif.tiktok_rss_warning"),
-                inline=False,
-            )
-
-        embed.set_footer(text=t(lang, "notif.check_interval"))
-        await interaction.followup.send(embed=embed)
-
-    @notif_group.command(name="remove", description="Retirer un suivi de notifications")
-    @app_commands.describe(plateforme="twitch ou tiktok", nom="Le nom d'utilisateur")
-    @app_commands.choices(plateforme=[
-        app_commands.Choice(name="Twitch", value="twitch"),
-        app_commands.Choice(name="TikTok", value="tiktok"),
-    ])
-    @app_commands.default_permissions(manage_guild=True)
-    async def notif_remove(self, interaction: discord.Interaction, plateforme: str, nom: str):
-        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
-        nom = nom.lower().strip().lstrip("@")
-
-        removed = await self.bot.db.remove_notification_feed(interaction.guild_id, plateforme, nom)
-        if not removed:
-            return await interaction.response.send_message(
-                embed=error_embed(t(lang, "notif.not_tracking", user=nom, platform=plateforme.capitalize())),
-                ephemeral=True,
-            )
-
-        # Clean state
-        guild_state = self._state.get(interaction.guild_id, {})
-        guild_state.get(plateforme, {}).pop(nom, None)
-
-        await interaction.response.send_message(
-            embed=success_embed(t(lang, "notif.removed", user=nom, platform=plateforme.capitalize()))
-        )
-
-    @notif_group.command(name="list", description="Voir les comptes suivis")
-    @app_commands.default_permissions(manage_guild=True)
-    async def notif_list(self, interaction: discord.Interaction):
-        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
-        feeds = await self.bot.db.get_notification_feeds(interaction.guild_id)
-
-        if not feeds:
-            return await interaction.response.send_message(
-                embed=info_embed(t(lang, "notif.empty_list")), ephemeral=True
-            )
-
+        if channel_id:
+            embed.add_field(name="Salon par défaut", value=f"<#{channel_id}>", inline=False)
+        else:
+            embed.add_field(name="Salon par défaut", value="⚠️ Aucun salon défini. Sélectionnez-en un ci-dessous.", inline=False)
+        
         twitch_feeds = [f for f in feeds if f["platform"] == "twitch"]
         tiktok_feeds = [f for f in feeds if f["platform"] == "tiktok"]
+        
+        embed.add_field(name="<:twitch:11200> Twitch", value=f"{len(twitch_feeds)} suivis", inline=True)
+        embed.add_field(name="🎵 TikTok", value=f"{len(tiktok_feeds)} suivis", inline=True)
+
+        self.clear_items()
+        
+        channel_select = discord.ui.ChannelSelect(placeholder="Définir le salon par défaut...", channel_types=[discord.ChannelType.text], row=0)
+        async def channel_callback(inter: discord.Interaction):
+            await self.cog.bot.db.set_notification_channel(inter.guild_id, channel_select.values[0].id)
+            await self.init(inter)
+        channel_select.callback = channel_callback
+        self.add_item(channel_select)
+
+        btn_twitch = discord.ui.Button(label="Ajouter Twitch", style=discord.ButtonStyle.primary, row=1)
+        async def twitch_callback(inter: discord.Interaction):
+            await inter.response.send_modal(AddFeedModal(self.cog, "twitch", self))
+        btn_twitch.callback = twitch_callback
+        self.add_item(btn_twitch)
+
+        btn_tiktok = discord.ui.Button(label="Ajouter TikTok", style=discord.ButtonStyle.danger, emoji="🎵", row=1)
+        async def tiktok_callback(inter: discord.Interaction):
+            await inter.response.send_modal(AddFeedModal(self.cog, "tiktok", self))
+        btn_tiktok.callback = tiktok_callback
+        self.add_item(btn_tiktok)
+
+        if feeds:
+            opts = []
+            for f in feeds[:25]:
+                emoji = "🟣" if f["platform"] == "twitch" else "🎵"
+                opts.append(discord.SelectOption(label=f["username"], value=str(f["id"]), emoji=emoji, description=f["platform"].capitalize()))
+            feed_select = discord.ui.Select(placeholder="Gérer un compte suivi...", options=opts, row=2)
+            async def feed_callback(inter: discord.Interaction):
+                feed_id = int(feed_select.values[0])
+                feed = next(f for f in feeds if f["id"] == feed_id)
+                view = FeedEditView(self.cog, feed)
+                await view.init(inter)
+            feed_select.callback = feed_callback
+            self.add_item(feed_select)
+
+        if interaction.response.is_done():
+            await interaction.edit_original_response(embed=embed, view=self)
+        else:
+            await interaction.response.send_message(embed=embed, view=self, ephemeral=True)
+
+
+class AddFeedModal(discord.ui.Modal):
+    def __init__(self, cog: Notifications, platform: str, dashboard_view: NotifDashboardView):
+        super().__init__(title="Ajouter Twitch" if platform == "twitch" else "Ajouter TikTok")
+        self.cog = cog
+        self.platform = platform
+        self.dashboard_view = dashboard_view
+        self.username = discord.ui.TextInput(
+            label="Nom d'utilisateur",
+            style=discord.TextStyle.short,
+            required=True
+        )
+        self.add_item(self.username)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        nom = self.username.value.lower().strip().lstrip("@")
+        lang = await self.cog.bot.db.get_guild_lang(interaction.guild_id)
+
+        channel_id = await self.cog.bot.db.get_notification_channel(interaction.guild_id)
+        if not channel_id:
+            return await interaction.response.send_message(embed=error_embed(t(lang, "notif.no_channel")), ephemeral=True)
+
+        if self.platform == "twitch":
+            if not self.cog.twitch.configured:
+                return await interaction.response.send_message(embed=error_embed(t(lang, "notif.twitch_not_configured")), ephemeral=True)
+            users = await self.cog.twitch.get_users([nom])
+            if not users:
+                return await interaction.response.send_message(embed=error_embed(t(lang, "notif.twitch_user_not_found", user=nom)), ephemeral=True)
+        else:
+            await interaction.response.defer(ephemeral=True)
+            post = await self.cog.tiktok.get_latest_post(nom)
+
+        existing = await self.cog.bot.db.get_notification_feeds(interaction.guild_id)
+        for f in existing:
+            if f["platform"] == self.platform and f["username"] == nom:
+                msg = error_embed(t(lang, "notif.already_tracking", user=nom, platform=self.platform.capitalize()))
+                return await interaction.followup.send(embed=msg) if interaction.response.is_done() else await interaction.response.send_message(embed=msg, ephemeral=True)
+
+        await self.cog.bot.db.add_notification_feed(interaction.guild_id, channel_id, self.platform, nom)
+
+        guild_state = self.cog._state.setdefault(interaction.guild_id, {"twitch": {}, "tiktok": {}})
+        if self.platform == "twitch":
+            streams = await self.cog.twitch.get_streams([nom])
+            guild_state["twitch"][nom] = bool(streams)
+        else:
+            if post:
+                guild_state["tiktok"][nom] = post["link"]
+
+        if not interaction.response.is_done():
+            await interaction.response.defer()
+            
+        await self.dashboard_view.init(interaction)
+
+
+class FeedEditView(discord.ui.View):
+    def __init__(self, cog: Notifications, feed: dict):
+        super().__init__(timeout=300)
+        self.cog = cog
+        self.feed = feed
+
+    async def init(self, interaction: discord.Interaction):
+        feeds = await self.cog.bot.db.get_notification_feeds(interaction.guild_id)
+        try:
+            self.feed = next(f for f in feeds if f["id"] == self.feed["id"])
+        except StopIteration:
+            view = NotifDashboardView(self.cog)
+            return await view.init(interaction)
 
         embed = discord.Embed(
-            title=t(lang, "notif.list_title"),
-            color=discord.Color.from_str("#5865F2"),
+            title=f"Configuration de {self.feed['username']} ({self.feed['platform'].capitalize()})",
+            color=discord.Color.from_str(self.feed.get("embed_color") or ("#9146FF" if self.feed["platform"]=="twitch" else "#FE2C55"))
         )
-
-        if twitch_feeds:
-            lines = []
-            for f in twitch_feeds:
-                ch = interaction.guild.get_channel(f["channel_id"])
-                ch_text = ch.mention if ch else f"<#{f['channel_id']}>"
-                status = self._state.get(interaction.guild_id, {}).get("twitch", {}).get(f["username"])
-                indicator = "🔴" if status else "⚫"
-                lines.append(f"{indicator} [`{f['username']}`](https://twitch.tv/{f['username']}) → {ch_text}")
-            embed.add_field(
-                name=f"<:twitch:> Twitch ({len(twitch_feeds)})",
-                value="\n".join(lines),
-                inline=False,
-            )
-
-        if tiktok_feeds:
-            lines = []
-            for f in tiktok_feeds:
-                ch = interaction.guild.get_channel(f["channel_id"])
-                ch_text = ch.mention if ch else f"<#{f['channel_id']}>"
-                lines.append(f"🎵 [`@{f['username']}`](https://tiktok.com/@{f['username']}) → {ch_text}")
-            embed.add_field(
-                name=f"🎵 TikTok ({len(tiktok_feeds)})",
-                value="\n".join(lines),
-                inline=False,
-            )
-
-        embed.set_footer(text=t(lang, "notif.check_interval"))
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-
-    @notif_group.command(name="message", description="Personnaliser le message de notification")
-    @app_commands.describe(
-        plateforme="twitch ou tiktok",
-        texte="Variables : {user} {url} {title} {game} (Twitch seulement)"
-    )
-    @app_commands.choices(plateforme=[
-        app_commands.Choice(name="Twitch", value="twitch"),
-        app_commands.Choice(name="TikTok", value="tiktok"),
-    ])
-    @app_commands.default_permissions(manage_guild=True)
-    async def notif_message(self, interaction: discord.Interaction, plateforme: str, texte: str):
-        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
-
-        feeds = await self.bot.db.get_notification_feeds(interaction.guild_id)
-        platform_feeds = [f for f in feeds if f["platform"] == plateforme]
-
-        if not platform_feeds:
-            return await interaction.response.send_message(
-                embed=error_embed(t(lang, "notif.no_feeds_for_platform", platform=plateforme.capitalize())),
-                ephemeral=True,
-            )
-
-        # Appliquer à tous les feeds de cette plateforme
-        for f in platform_feeds:
-            await self.bot.db.update_notification_message(f["id"], texte)
-
-        await interaction.response.send_message(
-            embed=success_embed(t(lang, "notif.message_updated", platform=plateforme.capitalize(), text=texte)),
-            ephemeral=True,
-        )
-
-    @notif_group.command(name="channel", description="Changer le salon d'un suivi spécifique")
-    @app_commands.describe(
-        plateforme="twitch ou tiktok",
-        nom="Le nom d'utilisateur",
-        salon="Le nouveau salon",
-    )
-    @app_commands.choices(plateforme=[
-        app_commands.Choice(name="Twitch", value="twitch"),
-        app_commands.Choice(name="TikTok", value="tiktok"),
-    ])
-    @app_commands.default_permissions(manage_guild=True)
-    async def notif_channel(self, interaction: discord.Interaction, plateforme: str, nom: str, salon: discord.TextChannel):
-        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
-        nom = nom.lower().strip().lstrip("@")
-
-        updated = await self.bot.db.update_notification_channel(interaction.guild_id, plateforme, nom, salon.id)
-        if not updated:
-            return await interaction.response.send_message(
-                embed=error_embed(t(lang, "notif.not_tracking", user=nom, platform=plateforme.capitalize())),
-                ephemeral=True,
-            )
-
-        await interaction.response.send_message(
-            embed=success_embed(t(lang, "notif.channel_updated", user=nom, channel=salon.mention))
-        )
-
-    @notif_group.command(name="role", description="Ajouter ou retirer un rôle à ping pour un suivi")
-    @app_commands.describe(
-        plateforme="twitch ou tiktok",
-        nom="Le nom d'utilisateur",
-        role="Le rôle à ping (laisse vide pour retirer le ping)"
-    )
-    @app_commands.choices(plateforme=[
-        app_commands.Choice(name="Twitch", value="twitch"),
-        app_commands.Choice(name="TikTok", value="tiktok"),
-    ])
-    @app_commands.default_permissions(manage_guild=True)
-    async def notif_role(self, interaction: discord.Interaction, plateforme: str, nom: str, role: discord.Role = None):
-        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
-        nom = nom.lower().strip().lstrip("@")
-
-        updated = await self.bot.db.update_notification_role(interaction.guild_id, plateforme, nom, role.id if role else None)
-        if not updated:
-            return await interaction.response.send_message(
-                embed=error_embed(t(lang, "notif.not_tracking", user=nom, platform=plateforme.capitalize())),
-                ephemeral=True,
-            )
-
-        if role:
-            await interaction.response.send_message(
-                embed=success_embed(t(lang, "notif.role_updated", user=nom, role=role.mention))
-            )
-        else:
-            await interaction.response.send_message(
-                embed=success_embed(t(lang, "notif.role_removed", user=nom))
-            )
-
-    @notif_group.command(name="color", description="Modifier la couleur de l'embed pour un suivi")
-    @app_commands.describe(
-        plateforme="twitch ou tiktok",
-        nom="Le nom d'utilisateur",
-        couleur="Code couleur Hex (ex: #FF0000, laisse vide pour reset)"
-    )
-    @app_commands.choices(plateforme=[
-        app_commands.Choice(name="Twitch", value="twitch"),
-        app_commands.Choice(name="TikTok", value="tiktok"),
-    ])
-    @app_commands.default_permissions(manage_guild=True)
-    async def notif_color(self, interaction: discord.Interaction, plateforme: str, nom: str, couleur: str = None):
-        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
-        nom = nom.lower().strip().lstrip("@")
+        embed.add_field(name="Salon", value=f"<#{self.feed['channel_id']}>", inline=True)
+        embed.add_field(name="Ping Rôle", value=f"<@&{self.feed['ping_role_id']}>" if self.feed.get("ping_role_id") else "Aucun", inline=True)
+        embed.add_field(name="Couleur", value=self.feed.get("embed_color") or "Par défaut", inline=True)
         
-        if couleur and not couleur.startswith("#"):
-            couleur = f"#{couleur}"
+        msg = self.feed.get("message") or "Par défaut"
+        embed.add_field(name="Message", value=f"```{msg}```" if len(msg) < 1000 else "Message trop long...", inline=False)
 
-        # Validate color
-        if couleur:
-            try:
-                discord.Color.from_str(couleur)
-            except ValueError:
-                return await interaction.response.send_message(
-                    embed=error_embed(t(lang, "notif.invalid_color", color=couleur)),
-                    ephemeral=True
-                )
+        self.clear_items()
 
-        updated = await self.bot.db.update_notification_color(interaction.guild_id, plateforme, nom, couleur)
-        if not updated:
-            return await interaction.response.send_message(
-                embed=error_embed(t(lang, "notif.not_tracking", user=nom, platform=plateforme.capitalize())),
-                ephemeral=True,
-            )
+        btn_back = discord.ui.Button(label="Retour", style=discord.ButtonStyle.secondary, row=0, emoji="🔙")
+        async def back_cb(inter: discord.Interaction):
+            view = NotifDashboardView(self.cog)
+            await view.init(inter)
+        btn_back.callback = back_cb
+        self.add_item(btn_back)
 
-        if couleur:
-            await interaction.response.send_message(
-                embed=success_embed(t(lang, "notif.color_updated", user=nom, color=couleur))
-            )
+        btn_delete = discord.ui.Button(label="Supprimer le suivi", style=discord.ButtonStyle.danger, row=0, emoji="🗑️")
+        async def del_cb(inter: discord.Interaction):
+            await self.cog.bot.db.remove_notification_feed(inter.guild_id, self.feed["platform"], self.feed["username"])
+            guild_state = self.cog._state.get(inter.guild_id, {})
+            guild_state.get(self.feed["platform"], {}).pop(self.feed["username"], None)
+            view = NotifDashboardView(self.cog)
+            await view.init(inter)
+        btn_delete.callback = del_cb
+        self.add_item(btn_delete)
+
+        btn_msg = discord.ui.Button(label="Message", style=discord.ButtonStyle.primary, row=1, emoji="📝")
+        async def msg_cb(inter: discord.Interaction):
+            await inter.response.send_modal(EditMessageModal(self.cog, self.feed, self))
+        btn_msg.callback = msg_cb
+        self.add_item(btn_msg)
+
+        btn_color = discord.ui.Button(label="Couleur", style=discord.ButtonStyle.primary, row=1, emoji="🎨")
+        async def color_cb(inter: discord.Interaction):
+            await inter.response.send_modal(EditColorModal(self.cog, self.feed, self))
+        btn_color.callback = color_cb
+        self.add_item(btn_color)
+
+        channel_select = discord.ui.ChannelSelect(placeholder="Changer le salon de ce suivi...", channel_types=[discord.ChannelType.text], row=2)
+        async def ch_cb(inter: discord.Interaction):
+            await self.cog.bot.db.update_notification_channel(inter.guild_id, self.feed["platform"], self.feed["username"], channel_select.values[0].id)
+            await self.init(inter)
+        channel_select.callback = ch_cb
+        self.add_item(channel_select)
+
+        role_select = discord.ui.RoleSelect(placeholder="Changer le rôle à ping...", row=3)
+        async def role_cb(inter: discord.Interaction):
+            await self.cog.bot.db.update_notification_role(inter.guild_id, self.feed["platform"], self.feed["username"], role_select.values[0].id)
+            await self.init(inter)
+        role_select.callback = role_cb
+        self.add_item(role_select)
+        
+        if self.feed.get("ping_role_id"):
+            btn_rm_role = discord.ui.Button(label="Retirer le ping", style=discord.ButtonStyle.secondary, row=4)
+            async def rm_role_cb(inter: discord.Interaction):
+                await self.cog.bot.db.update_notification_role(inter.guild_id, self.feed["platform"], self.feed["username"], None)
+                await self.init(inter)
+            btn_rm_role.callback = rm_role_cb
+            self.add_item(btn_rm_role)
+
+        if interaction.response.is_done():
+            await interaction.edit_original_response(embed=embed, view=self)
         else:
-            await interaction.response.send_message(
-                embed=success_embed(t(lang, "notif.color_removed", user=nom))
-            )
+            await interaction.response.send_message(embed=embed, view=self, ephemeral=True)
+
+
+class EditMessageModal(discord.ui.Modal, title="Modifier le message"):
+    msg = discord.ui.TextInput(label="Message", style=discord.TextStyle.paragraph, required=False, max_length=2000)
+
+    def __init__(self, cog: Notifications, feed: dict, edit_view: FeedEditView):
+        super().__init__()
+        self.cog = cog
+        self.feed = feed
+        self.edit_view = edit_view
+        if feed.get("message"):
+            self.msg.default = feed["message"]
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await self.cog.bot.db.update_notification_message(self.feed["id"], self.msg.value.strip() or None)
+        await self.edit_view.init(interaction)
+
+class EditColorModal(discord.ui.Modal, title="Modifier la couleur"):
+    color = discord.ui.TextInput(label="Couleur Hex (#FFFFFF)", style=discord.TextStyle.short, required=False, max_length=7)
+
+    def __init__(self, cog: Notifications, feed: dict, edit_view: FeedEditView):
+        super().__init__()
+        self.cog = cog
+        self.feed = feed
+        self.edit_view = edit_view
+        if feed.get("embed_color"):
+            self.color.default = feed["embed_color"]
+
+    async def on_submit(self, interaction: discord.Interaction):
+        val = self.color.value.strip() or None
+        if val and not val.startswith("#"):
+            val = "#" + val
+        if val:
+            try:
+                discord.Color.from_str(val)
+            except ValueError:
+                return await interaction.response.send_message("❌ Couleur invalide.", ephemeral=True)
+                
+        await self.cog.bot.db.update_notification_color(interaction.guild_id, self.feed["platform"], self.feed["username"], val)
+        await self.edit_view.init(interaction)
 
 
 async def setup(bot: commands.Bot):

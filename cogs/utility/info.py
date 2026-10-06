@@ -82,19 +82,12 @@ HELP_CATEGORIES = {
     "notifications": {
         "title": "🔔 Notifications Sociales",
         "desc": "Recevez des alertes quand vos créateurs préférés sont actifs !\n\n"
-                "**Configuration**\n"
-                "🔹 `/notifications setup #salon` : Définir le salon de notifications\n\n"
-                "**Twitch**\n"
-                "🔹 `/notifications twitch <nom>` : Suivre un streamer (alerte quand il passe en live)\n\n"
-                "**TikTok**\n"
-                "🔹 `/notifications tiktok <nom>` : Suivre un compte (alerte quand il poste)\n\n"
-                "**Gestion**\n"
-                "🔹 `/notifications list` : Voir tous les comptes suivis\n"
-                "🔹 `/notifications remove <plateforme> <nom>` : Retirer un suivi\n"
-                "🔹 `/notifications channel <plateforme> <nom> #salon` : Changer le salon d'un suivi\n"
-                "🔹 `/notifications message <plateforme> <texte>` : Personnaliser le message\n"
-                "🔹 `/notifications role <plateforme> <nom> @role` : Ping un rôle\n"
-                "🔹 `/notifications color <plateforme> <nom> #couleur` : Changer la couleur",
+                "**Panel de Gestion**\n"
+                "🔹 `/notifications` : Ouvrir le dashboard interactif pour :\n"
+                "  - Configurer le salon des alertes\n"
+                "  - Ajouter ou supprimer des suivis (Twitch / TikTok)\n"
+                "  - Personnaliser les messages et les couleurs\n"
+                "  - Activer un ping de rôle spécifique",
         "emoji": "🔔"
     },
     "config": {
