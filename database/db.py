@@ -376,6 +376,20 @@ class Database:
                 since       TEXT DEFAULT (datetime('now')),
                 PRIMARY KEY (guild_id, user_id)
             )""",
+            """CREATE TABLE IF NOT EXISTS notification_config (
+                guild_id    INTEGER PRIMARY KEY,
+                channel_id  INTEGER
+            )""",
+            """CREATE TABLE IF NOT EXISTS notification_feeds (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id    INTEGER NOT NULL,
+                channel_id  INTEGER NOT NULL,
+                platform    TEXT NOT NULL,
+                username    TEXT NOT NULL,
+                message     TEXT,
+                created_at  TEXT DEFAULT (datetime('now')),
+                UNIQUE(guild_id, platform, username)
+            )""",
         ]
         for stmt in stmts:
             await self.db.execute(stmt)
@@ -1097,3 +1111,47 @@ class Database:
 
     async def delete_stats_channels(self, guild_id: int):
         await self._exec("DELETE FROM stats_channels WHERE guild_id = ?", guild_id)
+
+    # ── Notifications (Twitch / TikTok) ───────────────────────────────────────
+
+    async def set_notification_channel(self, guild_id: int, channel_id: int):
+        await self._exec(
+            "INSERT INTO notification_config (guild_id, channel_id) VALUES (?, ?)"
+            " ON CONFLICT(guild_id) DO UPDATE SET channel_id = excluded.channel_id",
+            guild_id, channel_id
+        )
+
+    async def get_notification_channel(self, guild_id: int) -> int | None:
+        return await self._val("SELECT channel_id FROM notification_config WHERE guild_id = ?", guild_id)
+
+    async def add_notification_feed(self, guild_id: int, channel_id: int, platform: str, username: str):
+        await self._exec(
+            "INSERT OR IGNORE INTO notification_feeds (guild_id, channel_id, platform, username) VALUES (?, ?, ?, ?)",
+            guild_id, channel_id, platform, username
+        )
+
+    async def get_notification_feeds(self, guild_id: int) -> list:
+        return await self._rows(
+            "SELECT * FROM notification_feeds WHERE guild_id = ? ORDER BY platform, username",
+            guild_id
+        )
+
+    async def get_all_notification_feeds(self) -> list:
+        return await self._rows("SELECT * FROM notification_feeds")
+
+    async def remove_notification_feed(self, guild_id: int, platform: str, username: str) -> bool:
+        cur = await self._exec(
+            "DELETE FROM notification_feeds WHERE guild_id = ? AND platform = ? AND username = ?",
+            guild_id, platform, username
+        )
+        return cur.rowcount > 0
+
+    async def update_notification_message(self, feed_id: int, message: str):
+        await self._exec("UPDATE notification_feeds SET message = ? WHERE id = ?", message, feed_id)
+
+    async def update_notification_channel(self, guild_id: int, platform: str, username: str, channel_id: int) -> bool:
+        cur = await self._exec(
+            "UPDATE notification_feeds SET channel_id = ? WHERE guild_id = ? AND platform = ? AND username = ?",
+            channel_id, guild_id, platform, username
+        )
+        return cur.rowcount > 0

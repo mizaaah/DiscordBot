@@ -149,3 +149,11 @@ TypeError: unsupported operand type(s) for -: 'datetime.datetime' and 'str'
 [2026-07-09 21:37:23] [INFO    ] discord.client: logging in using static token
 [2026-07-09 21:37:25] [INFO    ] discord.gateway: Shard ID None has connected to Gateway (Session ID: 092ed21b5617451d85a4c9c39f95a0bd).
 [2026-07-09 22:05:55] [INFO    ] discord.gateway: Shard ID None has successfully RESUMED session 092ed21b5617451d85a4c9c39f95a0bd.
+[2026-09-30 11:24:47] [WARNING ] discord.client: PyNaCl is not installed, voice will NOT be supported
+[2026-09-30 11:24:47] [WARNING ] discord.client: davey is not installed, voice will NOT be supported
+[2026-09-30 11:24:47] [INFO    ] discord.client: logging in using static token
+[2026-09-30 11:24:49] [INFO    ] discord.gateway: Shard ID None has connected to Gateway (Session ID: c321a9977afc75016af7ffa94c462787).
+[2026-10-01 14:18:19] [WARNING ] discord.client: PyNaCl is not installed, voice will NOT be supported
+[2026-10-01 14:18:19] [WARNING ] discord.client: davey is not installed, voice will NOT be supported
+[2026-10-01 14:18:19] [INFO    ] discord.client: logging in using static token
+[2026-10-01 14:18:21] [INFO    ] discord.gateway: Shard ID None has connected to Gateway (Session ID: fa297bf14a9bbb257fc6b0b502dbcad3).
