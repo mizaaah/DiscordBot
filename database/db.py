@@ -704,7 +704,14 @@ class Database:
             row = await self._row("SELECT * FROM ticket_config WHERE guild_id = ?", guild_id)
         raw_cats = json.loads(row.get("categories") or "[]")
         row["categories"] = [{"name": c, "category_id": None} if isinstance(c, str) else c for c in raw_cats]
-        row["questions"] = json.loads(row.get("questions") or "{}")
+        raw_q = row.get("questions")
+        if isinstance(raw_q, str):
+            try:
+                row["questions"] = json.loads(raw_q)
+            except Exception:
+                row["questions"] = {}
+        elif not isinstance(raw_q, dict):
+            row["questions"] = {}
         self._ticket_cache[guild_id] = row
         return row
 
@@ -713,7 +720,7 @@ class Database:
             raise ValueError(f"Paramètre '{setting}' non autorisé.")
         if guild_id in self._ticket_cache:
             self._ticket_cache[guild_id][setting] = value
-        if isinstance(value, list):
+        if isinstance(value, (list, dict)):
             value = json.dumps(value)
         await self._exec(
             f"INSERT INTO ticket_config (guild_id, {setting}) VALUES (?, ?)"

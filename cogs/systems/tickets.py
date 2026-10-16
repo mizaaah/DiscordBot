@@ -881,6 +881,13 @@ class TicketQuestionsModal(discord.ui.Modal):
         
         config = await db.get_ticket_config(gid)
         all_questions = config.get("questions") or {}
+        if isinstance(all_questions, str):
+            try:
+                all_questions = json.loads(all_questions)
+            except Exception:
+                all_questions = {}
+        if not isinstance(all_questions, dict):
+            all_questions = {}
         
         raw = self.questions_input.value.strip()
         if not raw:
