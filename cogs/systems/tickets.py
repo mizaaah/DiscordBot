@@ -269,18 +269,17 @@ class TicketOpenView(discord.ui.LayoutView):
         btn = discord.ui.Button(
             label=label or "Ouvrir un ticket",
             emoji=emoji or "📩",
-            style=discord.ButtonStyle.secondary,
+            style=discord.ButtonStyle.primary,
             custom_id="ticket_open_persistent"
         )
         btn.callback = self.open_ticket
         
         if cont:
-            title_text = title if title else "# 📩 Support et Assistance"
-            desc_text = desc if desc else "Besoin d'aide ? Cliquez sur le bouton ci-contre pour ouvrir un ticket."
-            cont.add_item(discord.ui.Section(
-                discord.ui.TextDisplay(f"# {title_text}\n> {desc_text.replace(chr(10), chr(10) + '> ')}"),
-                accessory=btn
-            ))
+            title_text = title if title else "Support et Assistance"
+            desc_text = desc if desc else "Besoin d'aide ? Cliquez sur le bouton ci-dessous pour ouvrir un ticket."
+            cont.add_item(discord.ui.TextDisplay(f"# {title_text}\n> {desc_text.replace(chr(10), chr(10) + '> ')}"))
+            cont.add_item(discord.ui.Separator())
+            cont.add_item(discord.ui.ActionRow(btn))
             self.add_item(cont)
         else:
             self.add_item(discord.ui.ActionRow(btn))
@@ -344,63 +343,61 @@ class TicketRemoveUserSelect(discord.ui.UserSelect):
         embed = discord.Embed(description=t(lang, "ticket.member_removed", member=membre.mention), color=Colors.WARNING)
         await interaction.response.send_message(embed=embed)
 
+
 class TicketCloseView(discord.ui.LayoutView):
-    def __init__(self, bot: commands.Bot, cont=None, label: str = None, emoji: str = None):
+    def __init__(self, bot: commands.Bot, cont=None, label: str = None, emoji: str = None, is_claimed: bool = False):
         super().__init__(timeout=None)
         self.bot = bot
         
         btn_close = discord.ui.Button(
             label=label or "Fermer",
+            emoji=emoji or "🔒",
             style=discord.ButtonStyle.danger,
             custom_id="ticket_close_persistent"
         )
         btn_close.callback = self.close_ticket
         
-        btn_claim = discord.ui.Button(label="Prendre en charge", style=discord.ButtonStyle.primary, custom_id="ticket_claim")
+        btn_claim = discord.ui.Button(
+            label="Prendre en charge",
+            emoji="✋",
+            style=discord.ButtonStyle.primary,
+            custom_id="ticket_claim"
+        )
         btn_claim.callback = self.claim_ticket
         
-        btn_unclaim = discord.ui.Button(label="Se retirer", style=discord.ButtonStyle.secondary, custom_id="ticket_unclaim")
+        btn_unclaim = discord.ui.Button(
+            label="Se retirer",
+            emoji="👋",
+            style=discord.ButtonStyle.secondary,
+            custom_id="ticket_unclaim"
+        )
         btn_unclaim.callback = self.unclaim_ticket
         
-        btn_add = discord.ui.Button(label="Ajouter", style=discord.ButtonStyle.secondary, custom_id="ticket_add")
+        btn_add = discord.ui.Button(
+            label="Ajouter",
+            emoji="➕",
+            style=discord.ButtonStyle.secondary,
+            custom_id="ticket_add"
+        )
         btn_add.callback = self.add_member
         
-        btn_remove = discord.ui.Button(label="Retirer", style=discord.ButtonStyle.secondary, custom_id="ticket_remove")
+        btn_remove = discord.ui.Button(
+            label="Retirer",
+            emoji="➖",
+            style=discord.ButtonStyle.secondary,
+            custom_id="ticket_remove"
+        )
         btn_remove.callback = self.remove_member
         
         if cont:
             cont.add_item(discord.ui.Separator())
-            cont.add_item(discord.ui.Section(
-                discord.ui.TextDisplay("✋ **Prise en charge**\nS'assigner ce ticket pour le gérer."),
-                accessory=btn_claim
-            ))
-            cont.add_item(discord.ui.Separator())
-            cont.add_item(discord.ui.Section(
-                discord.ui.TextDisplay("👋 **Se retirer**\nNe plus gérer ce ticket."),
-                accessory=btn_unclaim
-            ))
-            cont.add_item(discord.ui.Separator())
-            cont.add_item(discord.ui.Section(
-                discord.ui.TextDisplay("➕ **Ajouter un membre**\nDonner l'accès au ticket à un utilisateur."),
-                accessory=btn_add
-            ))
-            cont.add_item(discord.ui.Separator())
-            cont.add_item(discord.ui.Section(
-                discord.ui.TextDisplay("➖ **Retirer un membre**\nEnlever l'accès au ticket."),
-                accessory=btn_remove
-            ))
-            cont.add_item(discord.ui.Separator())
-            cont.add_item(discord.ui.Section(
-                discord.ui.TextDisplay("🔒 **Fermeture**\nArchiver et clôturer le ticket."),
-                accessory=btn_close
-            ))
+            claim_btn = btn_unclaim if is_claimed else btn_claim
+            cont.add_item(discord.ui.ActionRow(claim_btn, btn_add, btn_remove, btn_close))
             self.add_item(cont)
         else:
-            # Fallback for cog_load persistent view registration
+            # Fallback for cog_load persistent view registration:
+            # all persistent buttons registered so interactions dispatch properly
             self.add_item(discord.ui.ActionRow(btn_claim, btn_unclaim, btn_add, btn_remove, btn_close))
-
-    async def manage_action(self, interaction: discord.Interaction):
-        pass
 
     async def unclaim_ticket(self, interaction: discord.Interaction):
         lang = await self.bot.db.get_guild_lang(interaction.guild_id)
@@ -418,7 +415,7 @@ class TicketCloseView(discord.ui.LayoutView):
         # Rebuild view
         cont = await build_ticket_container(self.bot, interaction.guild, interaction.channel.id, lang)
         config = await self.bot.db.get_ticket_config(interaction.guild.id)
-        new_view = TicketCloseView(self.bot, cont, config.get("close_button_label"), config.get("close_button_emoji"))
+        new_view = TicketCloseView(self.bot, cont, config.get("close_button_label"), config.get("close_button_emoji"), is_claimed=False)
         if interaction.message:
             await interaction.message.edit(view=new_view)
                 
@@ -448,7 +445,7 @@ class TicketCloseView(discord.ui.LayoutView):
         # Rebuild view
         cont = await build_ticket_container(self.bot, interaction.guild, interaction.channel.id, lang)
         config = await self.bot.db.get_ticket_config(interaction.guild.id)
-        new_view = TicketCloseView(self.bot, cont, config.get("close_button_label"), config.get("close_button_emoji"))
+        new_view = TicketCloseView(self.bot, cont, config.get("close_button_label"), config.get("close_button_emoji"), is_claimed=True)
         if interaction.message:
             await interaction.message.edit(view=new_view)
 
@@ -460,9 +457,13 @@ class TicketCloseView(discord.ui.LayoutView):
         if not is_staff:
             return await interaction.response.send_message(embed=error_embed("Seul le staff peut ajouter des membres."), ephemeral=True)
             
-        view = discord.ui.View(timeout=30)
-        view.add_item(TicketAddUserSelect(lang))
-        await interaction.response.send_message(embed=info_embed("Sélectionnez le membre à ajouter au ticket :"), view=view, ephemeral=True)
+        view = discord.ui.LayoutView(timeout=60)
+        cont = discord.ui.Container(accent_color=Colors.INFO.value)
+        cont.add_item(discord.ui.TextDisplay("### ➕ Ajouter un membre\n> Sélectionnez un membre pour lui donner accès au ticket."))
+        cont.add_item(discord.ui.Separator())
+        cont.add_item(discord.ui.ActionRow(TicketAddUserSelect(lang)))
+        view.add_item(cont)
+        await interaction.response.send_message(view=view, ephemeral=True)
 
     async def remove_member(self, interaction: discord.Interaction):
         lang = await self.bot.db.get_guild_lang(interaction.guild_id)
@@ -472,9 +473,13 @@ class TicketCloseView(discord.ui.LayoutView):
         if not is_staff:
             return await interaction.response.send_message(embed=error_embed("Seul le staff peut retirer des membres."), ephemeral=True)
             
-        view = discord.ui.View(timeout=30)
-        view.add_item(TicketRemoveUserSelect(lang))
-        await interaction.response.send_message(embed=info_embed("Sélectionnez le membre à retirer du ticket :"), view=view, ephemeral=True)
+        view = discord.ui.LayoutView(timeout=60)
+        cont = discord.ui.Container(accent_color=Colors.WARNING.value)
+        cont.add_item(discord.ui.TextDisplay("### ➖ Retirer un membre\n> Sélectionnez un membre pour lui retirer l'accès au ticket."))
+        cont.add_item(discord.ui.Separator())
+        cont.add_item(discord.ui.ActionRow(TicketRemoveUserSelect(lang)))
+        view.add_item(cont)
+        await interaction.response.send_message(view=view, ephemeral=True)
 
     async def close_ticket(self, interaction: discord.Interaction):
         lang = await self.bot.db.get_guild_lang(interaction.guild_id)
@@ -495,8 +500,8 @@ class TicketCloseView(discord.ui.LayoutView):
                 embed=error_embed(t(lang, "ticket.close_denied")), ephemeral=True
             )
 
-        cont = discord.ui.Container(accent_color=Colors.WARNING.value)
-        cont.add_item(discord.ui.TextDisplay(f"# Confirmation\n{t(lang, 'ticket.close_confirm_prompt')}"))
+        cont = discord.ui.Container(accent_color=Colors.ERROR.value)
+        cont.add_item(discord.ui.TextDisplay(f"# 🔒 Confirmation de fermeture\n> {t(lang, 'ticket.close_confirm_prompt')}"))
         
         await interaction.response.send_message(
             view=TicketCloseConfirmView(self.bot, ticket, config, lang, cont),
@@ -512,16 +517,18 @@ class TicketCloseConfirmView(discord.ui.LayoutView):
         self.config = config
         self.lang   = lang
 
-        if cont:
-            self.add_item(cont)
-
-        btn_confirm = discord.ui.Button(label="✅ Confirmer", style=discord.ButtonStyle.danger)
+        btn_confirm = discord.ui.Button(label="Fermer le ticket", emoji="🔒", style=discord.ButtonStyle.danger)
         btn_confirm.callback = self.confirm
         
-        btn_cancel = discord.ui.Button(label="❌ Annuler", style=discord.ButtonStyle.secondary)
+        btn_cancel = discord.ui.Button(label="Annuler", emoji="✖️", style=discord.ButtonStyle.secondary)
         btn_cancel.callback = self.cancel
-        
-        self.add_item(discord.ui.ActionRow(btn_confirm, btn_cancel))
+
+        if cont:
+            cont.add_item(discord.ui.Separator())
+            cont.add_item(discord.ui.ActionRow(btn_confirm, btn_cancel))
+            self.add_item(cont)
+        else:
+            self.add_item(discord.ui.ActionRow(btn_confirm, btn_cancel))
 
     async def confirm(self, interaction: discord.Interaction):
         lang = self.lang
@@ -1191,5 +1198,60 @@ class Tickets(commands.Cog):
         await view.build(interaction.guild)
         await interaction.response.send_message(view=view, ephemeral=True)
 
+    @ticket_group.command(name="close", description="Ferme et archive le ticket actuel")
+    async def ticket_close(self, interaction: discord.Interaction):
+        view = TicketCloseView(self.bot)
+        await view.close_ticket(interaction)
+
+    @ticket_group.command(name="claim", description="Prend en charge le ticket actuel")
+    async def ticket_claim(self, interaction: discord.Interaction):
+        view = TicketCloseView(self.bot)
+        await view.claim_ticket(interaction)
+
+    @ticket_group.command(name="unclaim", description="Se retire de la prise en charge du ticket actuel")
+    async def ticket_unclaim(self, interaction: discord.Interaction):
+        view = TicketCloseView(self.bot)
+        await view.unclaim_ticket(interaction)
+
+    @ticket_group.command(name="add", description="Ajoute un membre au ticket actuel")
+    @app_commands.describe(membre="Membre à ajouter au ticket")
+    async def ticket_cmd_add(self, interaction: discord.Interaction, membre: discord.Member):
+        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
+        config = await self.bot.db.get_ticket_config(interaction.guild.id)
+        staff_id = config.get("staff_role_id")
+        is_staff = interaction.user.guild_permissions.manage_channels or (staff_id and any(r.id == staff_id for r in interaction.user.roles))
+        if not is_staff:
+            return await interaction.response.send_message(embed=error_embed("Seul le staff peut ajouter des membres."), ephemeral=True)
+        if not await self.bot.db.get_ticket(interaction.channel.id):
+            return await interaction.response.send_message(embed=error_embed(t(lang, "ticket.not_a_ticket")), ephemeral=True)
+        await interaction.channel.set_permissions(
+            membre, view_channel=True, send_messages=True,
+            read_message_history=True, attach_files=True
+        )
+        embed = discord.Embed(description=t(lang, "ticket.member_added", member=membre.mention), color=Colors.SUCCESS)
+        await interaction.response.send_message(embed=embed)
+
+    @ticket_group.command(name="remove", description="Retire un membre du ticket actuel")
+    @app_commands.describe(membre="Membre à retirer du ticket")
+    async def ticket_cmd_remove(self, interaction: discord.Interaction, membre: discord.Member):
+        lang = await self.bot.db.get_guild_lang(interaction.guild_id)
+        config = await self.bot.db.get_ticket_config(interaction.guild.id)
+        staff_id = config.get("staff_role_id")
+        is_staff = interaction.user.guild_permissions.manage_channels or (staff_id and any(r.id == staff_id for r in interaction.user.roles))
+        if not is_staff:
+            return await interaction.response.send_message(embed=error_embed("Seul le staff peut retirer des membres."), ephemeral=True)
+        ticket = await self.bot.db.get_ticket(interaction.channel.id)
+        if not ticket:
+            return await interaction.response.send_message(embed=error_embed(t(lang, "ticket.not_a_ticket")), ephemeral=True)
+        if ticket["user_id"] == membre.id:
+            return await interaction.response.send_message(
+                embed=error_embed(t(lang, "ticket.cant_remove_creator")), ephemeral=True
+            )
+        await interaction.channel.set_permissions(membre, overwrite=None)
+        embed = discord.Embed(description=t(lang, "ticket.member_removed", member=membre.mention), color=Colors.WARNING)
+        await interaction.response.send_message(embed=embed)
+
+
 async def setup(bot: commands.Bot):
     await bot.add_cog(Tickets(bot))
+

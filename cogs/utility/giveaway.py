@@ -1,6 +1,7 @@
 import json
 import random
-from datetime import datetime, timezone
+import re
+from datetime import datetime, timezone, timedelta
 
 import discord
 from discord import app_commands
@@ -13,6 +14,58 @@ from utils.embeds import error_embed, info_embed, success_embed
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _recover_giveaway_from_message(message: discord.Message) -> dict | None:
+    if not message.embeds:
+        return None
+    embed = message.embeds[0]
+    if not embed.title or "GIVEAWAY" not in embed.title.upper():
+        return None
+
+    gid = None
+    if embed.footer and embed.footer.text:
+        m = re.search(r"ID\s*:\s*(\d+)", embed.footer.text)
+        if m:
+            gid = int(m.group(1))
+
+    prize = "Giveaway"
+    winners_count = 1
+    ends_at_iso = None
+    host_id = message.author.id
+
+    for field in embed.fields:
+        fname = field.name.lower()
+        fval = field.value
+        if "lot" in fname or "prize" in fname:
+            prize = fval.strip()
+        elif "gagnant" in fname or "winner" in fname:
+            m = re.search(r"\d+", fval)
+            if m:
+                winners_count = max(1, int(m.group(0)))
+        elif "fin" in fname or "end" in fname:
+            ts_m = re.search(r"<t:(\d+)", fval)
+            if ts_m:
+                ts = int(ts_m.group(1))
+                ends_at_iso = datetime.fromtimestamp(ts, tz=timezone.utc).isoformat()
+        elif "organisé" in fname or "host" in fname:
+            u_m = re.search(r"<@!?(\d+)>", fval)
+            if u_m:
+                host_id = int(u_m.group(1))
+
+    if not ends_at_iso:
+        ends_at_iso = (datetime.now(timezone.utc) + timedelta(days=2)).isoformat()
+
+    return {
+        "id": gid,
+        "guild_id": message.guild.id if message.guild else None,
+        "channel_id": message.channel.id,
+        "message_id": message.id,
+        "prize": prize,
+        "winners_count": winners_count,
+        "host_id": host_id,
+        "ends_at": ends_at_iso,
+    }
+
 
 def _parse_dt(value) -> datetime | None:
     if isinstance(value, datetime):
@@ -78,6 +131,41 @@ class GiveawayButton(discord.ui.Button):
         bot = interaction.client
         row = await bot.db.get_giveaway_by_msg(interaction.message.id)
         if not row:
+            # Auto-recovery from message embed
+            recovered = _recover_giveaway_from_message(interaction.message)
+            if recovered and recovered.get("guild_id"):
+                gid = recovered.get("id")
+                if gid:
+                    existing = await bot.db.get_giveaway(gid)
+                    if existing:
+                        await bot.db.set_giveaway_message(gid, interaction.message.id)
+                        row = await bot.db.get_giveaway(gid)
+                    else:
+                        await bot.db._exec(
+                            "INSERT OR REPLACE INTO giveaways (id, guild_id, channel_id, message_id, prize, winners_count, host_id, ends_at, ended, winner_ids, participants) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, '[]', '[]')",
+                            gid,
+                            recovered["guild_id"],
+                            recovered["channel_id"],
+                            recovered["message_id"],
+                            recovered["prize"],
+                            recovered["winners_count"],
+                            recovered["host_id"],
+                            recovered["ends_at"],
+                        )
+                        row = await bot.db.get_giveaway(gid)
+                else:
+                    new_id = await bot.db.create_giveaway(
+                        guild_id=recovered["guild_id"],
+                        channel_id=recovered["channel_id"],
+                        prize=recovered["prize"],
+                        winners_count=recovered["winners_count"],
+                        host_id=recovered["host_id"],
+                        ends_at=recovered["ends_at"],
+                    )
+                    await bot.db.set_giveaway_message(new_id, interaction.message.id)
+                    row = await bot.db.get_giveaway(new_id)
+
+        if not row:
             return await interaction.response.send_message(embed=error_embed("❌ Giveaway introuvable."), ephemeral=True)
 
         lang = await bot.db.get_guild_lang(interaction.guild_id)
@@ -138,6 +226,19 @@ class Giveaway(commands.Cog):
 
         self.bot.add_view(GiveawayView())
         self.check_expired_giveaways.start()
+        self.bot.loop.create_task(self._auto_recover_giveaways())
+
+    async def _auto_recover_giveaways(self):
+        await self.bot.wait_until_ready()
+        try:
+            active_1 = await self.bot.db.get_giveaway(1)
+            if not active_1:
+                await self.bot.db._exec(
+                    "INSERT OR REPLACE INTO giveaways (id, guild_id, channel_id, message_id, prize, winners_count, host_id, ends_at, ended, winner_ids, participants) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, '[]', '[]')",
+                    1, 1461480122518606036, 1560630217477718098, 1560632824695103529, "Pack Yeat Fortnite", 1, 938847960509325342, "2026-10-18T12:37:40+00:00"
+                )
+        except Exception:
+            pass
 
     def cog_unload(self):
         self.check_expired_giveaways.cancel()
@@ -345,6 +446,29 @@ class Giveaway(commands.Cog):
 
         await interaction.followup.send(embed=embed, ephemeral=True)
 
+    @giveaway_group.command(name="sync", description="Synchronise et restaure un giveaway actif trouvé dans ce salon")
+    @app_commands.default_permissions(manage_guild=True)
+    async def giveaway_sync(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        count = 0
+        async for msg in interaction.channel.history(limit=50):
+            recovered = _recover_giveaway_from_message(msg)
+            if recovered and recovered.get("id"):
+                gid = recovered["id"]
+                existing = await self.bot.db.get_giveaway(gid)
+                if not existing:
+                    await self.bot.db._exec(
+                        "INSERT OR REPLACE INTO giveaways (id, guild_id, channel_id, message_id, prize, winners_count, host_id, ends_at, ended, winner_ids, participants) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, '[]', '[]')",
+                        gid, recovered["guild_id"], recovered["channel_id"], recovered["message_id"],
+                        recovered["prize"], recovered["winners_count"], recovered["host_id"], recovered["ends_at"]
+                    )
+                    count += 1
+                elif not existing.get("message_id"):
+                    await self.bot.db.set_giveaway_message(gid, msg.id)
+                    count += 1
+        await interaction.followup.send(embed=success_embed(f"Synchronisation terminée : {count} giveaway(s) restauré(s)."), ephemeral=True)
+
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(Giveaway(bot))
+
