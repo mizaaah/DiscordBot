@@ -30,7 +30,7 @@ ALLOWED_TICKET_SETTINGS = {
     "embed_color", "welcome_message", "categories",
     "channel_name_format", "open_button_label", "open_button_emoji",
     "close_button_label", "close_button_emoji",
-    "panel_title", "panel_desc"
+    "panel_title", "panel_desc", "questions"
 }
 
 ALLOWED_ANTIRAID_SETTINGS = {
@@ -207,7 +207,8 @@ class Database:
                 close_button_label  TEXT DEFAULT 'Fermer le ticket',
                 close_button_emoji  TEXT DEFAULT '🔒',
                 panel_title         TEXT,
-                panel_desc          TEXT
+                panel_desc          TEXT,
+                questions           TEXT DEFAULT '{}'
             )""",
             """CREATE TABLE IF NOT EXISTS tickets (
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -220,7 +221,8 @@ class Database:
                 status          TEXT DEFAULT 'open',
                 created_at      TEXT DEFAULT (datetime('now')),
                 closed_at       TEXT,
-                closed_by       INTEGER
+                closed_by       INTEGER,
+                form_responses  TEXT
             )""",
             """CREATE TABLE IF NOT EXISTS stats_channels (
                 guild_id            INTEGER PRIMARY KEY,
@@ -449,6 +451,8 @@ class Database:
             "ALTER TABLE rr_panels ADD COLUMN exclusive INTEGER DEFAULT 0",
             "ALTER TABLE notification_feeds ADD COLUMN ping_role_id INTEGER",
             "ALTER TABLE notification_feeds ADD COLUMN embed_color TEXT",
+            "ALTER TABLE ticket_config ADD COLUMN questions TEXT DEFAULT '{}'",
+            "ALTER TABLE tickets ADD COLUMN form_responses TEXT",
         ]:
             try:
                 await self.db.execute(migration)
@@ -613,6 +617,7 @@ class Database:
             row = await self._row("SELECT * FROM ticket_config WHERE guild_id = ?", guild_id)
         raw_cats = json.loads(row.get("categories") or "[]")
         row["categories"] = [{"name": c, "category_id": None} if isinstance(c, str) else c for c in raw_cats]
+        row["questions"] = json.loads(row.get("questions") or "{}")
         self._ticket_cache[guild_id] = row
         return row
 
@@ -636,10 +641,11 @@ class Database:
         )
         return await self._val("SELECT ticket_counter FROM ticket_config WHERE guild_id = ?", guild_id)
 
-    async def create_ticket(self, guild_id: int, channel_id: int, user_id: int, ticket_number: int, category: str = None):
+    async def create_ticket(self, guild_id: int, channel_id: int, user_id: int, ticket_number: int, category: str = None, form_responses: dict = None):
+        responses_json = json.dumps(form_responses) if form_responses else None
         await self._exec(
-            "INSERT INTO tickets (guild_id, channel_id, user_id, ticket_number, category) VALUES (?, ?, ?, ?, ?)",
-            guild_id, channel_id, user_id, ticket_number, category
+            "INSERT INTO tickets (guild_id, channel_id, user_id, ticket_number, category, form_responses) VALUES (?, ?, ?, ?, ?, ?)",
+            guild_id, channel_id, user_id, ticket_number, category, responses_json
         )
 
     async def claim_ticket(self, channel_id: int, user_id: int):

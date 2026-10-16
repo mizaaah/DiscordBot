@@ -1,5 +1,6 @@
 import asyncio
 import io
+import json
 from datetime import datetime, timezone
 
 import discord
@@ -74,18 +75,63 @@ async def build_ticket_container(bot, guild, channel_id, lang):
     
     if thumb:
         cont.add_item(discord.ui.Section(
-            discord.ui.TextDisplay(f"# {title}\n> {welcome.replace('\n', '\n> ')}"),
+            discord.ui.TextDisplay(f"# {title}\n> {welcome.replace(chr(10), chr(10) + '> ')}"),
             accessory=thumb
         ))
     else:
-        cont.add_item(discord.ui.TextDisplay(f"# {title}\n> {welcome.replace('\n', '\n> ')}"))
+        cont.add_item(discord.ui.TextDisplay(f"# {title}\n> {welcome.replace(chr(10), chr(10) + '> ')}"))
         
     cont.add_item(discord.ui.Separator())
     cont.add_item(discord.ui.TextDisplay(info_text))
     
+    # ── Afficher les réponses du formulaire ────────────────────────────────
+    form_responses_raw = ticket.get("form_responses")
+    if form_responses_raw:
+        try:
+            responses = json.loads(form_responses_raw) if isinstance(form_responses_raw, str) else form_responses_raw
+        except (json.JSONDecodeError, TypeError):
+            responses = None
+        if responses:
+            cont.add_item(discord.ui.Separator())
+            resp_text = "**📋 Réponses du formulaire**\n"
+            for question, answer in responses.items():
+                resp_text += f"> **{question}**\n> {answer}\n"
+            cont.add_item(discord.ui.TextDisplay(resp_text))
+    
     return cont
     
-async def _open_ticket(bot: commands.Bot, interaction: discord.Interaction, category: str = None):
+
+# ── Ticket Form Modal ─────────────────────────────────────────────────────────
+
+class TicketFormModal(discord.ui.Modal):
+    """Dynamic modal with up to 5 questions for opening a ticket."""
+    
+    def __init__(self, bot: commands.Bot, questions: list[dict], category: str = None):
+        super().__init__(title="📋 Formulaire de ticket")
+        self.bot = bot
+        self.category = category
+        self.question_inputs = []
+        
+        for q in questions[:5]:
+            text_input = discord.ui.TextInput(
+                label=q.get("label", "Question")[:45],
+                placeholder=q.get("placeholder", "")[:100],
+                style=discord.TextStyle.long if q.get("long", False) else discord.TextStyle.short,
+                required=q.get("required", True),
+                max_length=q.get("max_length", 1024),
+            )
+            self.add_item(text_input)
+            self.question_inputs.append((q.get("label", "Question"), text_input))
+    
+    async def on_submit(self, interaction: discord.Interaction):
+        responses = {}
+        for label, text_input in self.question_inputs:
+            responses[label] = text_input.value
+        
+        await _open_ticket(self.bot, interaction, self.category, form_responses=responses)
+
+
+async def _open_ticket(bot: commands.Bot, interaction: discord.Interaction, category: str = None, form_responses: dict = None):
     guild = interaction.guild
     user = interaction.user
     lang = await bot.db.get_guild_lang(guild.id)
@@ -154,7 +200,7 @@ async def _open_ticket(bot: commands.Bot, interaction: discord.Interaction, cate
     except discord.Forbidden:
         return await reply(embed=error_embed(t(lang, "ticket.cant_create_channel")), ephemeral=True)
 
-    await bot.db.create_ticket(guild.id, channel.id, user.id, ticket_num, category)
+    await bot.db.create_ticket(guild.id, channel.id, user.id, ticket_num, category, form_responses)
 
     cont = await build_ticket_container(bot, guild, channel.id, lang)
     view = TicketCloseView(bot, cont, config.get("close_button_label"), config.get("close_button_emoji"))
@@ -191,7 +237,17 @@ class TicketCategorySelect(discord.ui.Select):
         super().__init__(placeholder="📂 Choisis une catégorie...", options=options)
 
     async def callback(self, interaction: discord.Interaction):
-        await _open_ticket(self.bot, interaction, self.values[0])
+        category = self.values[0]
+        config = await self.bot.db.get_ticket_config(interaction.guild.id)
+        questions = config.get("questions") or {}
+        
+        # Check if this category has questions defined
+        cat_questions = questions.get(category)
+        if cat_questions:
+            modal = TicketFormModal(self.bot, cat_questions, category)
+            await interaction.response.send_modal(modal)
+        else:
+            await _open_ticket(self.bot, interaction, category)
 
 
 class TicketCategoryView(discord.ui.LayoutView):
@@ -222,7 +278,7 @@ class TicketOpenView(discord.ui.LayoutView):
             title_text = title if title else "# 📩 Support et Assistance"
             desc_text = desc if desc else "Besoin d'aide ? Cliquez sur le bouton ci-contre pour ouvrir un ticket."
             cont.add_item(discord.ui.Section(
-                discord.ui.TextDisplay(f"# {title_text}\n> {desc_text.replace('\n', '\n> ')}"),
+                discord.ui.TextDisplay(f"# {title_text}\n> {desc_text.replace(chr(10), chr(10) + '> ')}"),
                 accessory=btn
             ))
             self.add_item(cont)
@@ -233,6 +289,7 @@ class TicketOpenView(discord.ui.LayoutView):
         lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         config = await self.bot.db.get_ticket_config(interaction.guild.id)
         categories = [c for c in (config.get("categories") or []) if c]
+        questions = config.get("questions") or {}
 
         if categories:
             await interaction.response.send_message(
@@ -240,7 +297,13 @@ class TicketOpenView(discord.ui.LayoutView):
                 ephemeral=True
             )
         else:
-            await _open_ticket(self.bot, interaction)
+            # No categories — check if global questions exist
+            global_questions = questions.get("__global__")
+            if global_questions:
+                modal = TicketFormModal(self.bot, global_questions)
+                await interaction.response.send_modal(modal)
+            else:
+                await _open_ticket(self.bot, interaction)
 
 
 
@@ -506,7 +569,22 @@ class TicketCloseConfirmView(discord.ui.LayoutView):
             f"  Durée       : {duration or 'inconnue'}\n"
             f"{sep}\n\n"
         )
-        txt_content = header + "\n".join(lines)
+        
+        # Include form responses in transcript
+        form_resp_raw = self.ticket.get("form_responses")
+        form_section = ""
+        if form_resp_raw:
+            try:
+                responses = json.loads(form_resp_raw) if isinstance(form_resp_raw, str) else form_resp_raw
+                if responses:
+                    form_section = "── Réponses au formulaire ──\n"
+                    for q, a in responses.items():
+                        form_section += f"  {q}: {a}\n"
+                    form_section += "\n"
+            except (json.JSONDecodeError, TypeError):
+                pass
+        
+        txt_content = header + form_section + "\n".join(lines)
 
         # ── Envoyer dans le salon de logs ─────────────────────────────────
         log_ch_id = self.config.get("log_channel_id")
@@ -757,12 +835,78 @@ class TicketPanelModal(discord.ui.Modal):
             await db.update_ticket_config(gid, "panel_desc", self.panel_desc.value.strip())
         await self._view.refresh(interaction)
 
+
+# ── Questions Setup Modal ──────────────────────────────────────────────────────
+
+class TicketQuestionsModal(discord.ui.Modal):
+    """Modal to configure questions for a specific category or globally."""
+    
+    def __init__(self, view: "TicketSetupDashboardView", target_category: str, current_questions: list):
+        title_label = f"Questions — {target_category}" if target_category != "__global__" else "Questions globales"
+        super().__init__(title=title_label[:45])
+        self._view = view
+        self._target = target_category
+        
+        # Combine current questions into a single text block for easy editing
+        current_text = ""
+        if current_questions:
+            lines = []
+            for q in current_questions:
+                label = q.get("label", "")
+                placeholder = q.get("placeholder", "")
+                required_str = "oui" if q.get("required", True) else "non"
+                long_str = "long" if q.get("long", False) else "court"
+                lines.append(f"{label} | {placeholder} | {required_str} | {long_str}")
+            current_text = "\n".join(lines)
+        
+        self.questions_input = discord.ui.TextInput(
+            label="Questions (1 par ligne, max 5)",
+            style=discord.TextStyle.long,
+            required=False,
+            default=current_text,
+            placeholder="Question | Placeholder | oui/non | court/long\nEx: Ton pseudo IG | Entrez votre pseudo | oui | court"
+        )
+        self.add_item(self.questions_input)
+    
+    async def on_submit(self, interaction: discord.Interaction):
+        db = interaction.client.db
+        gid = interaction.guild.id
+        
+        config = await db.get_ticket_config(gid)
+        all_questions = config.get("questions") or {}
+        
+        raw = self.questions_input.value.strip()
+        if not raw:
+            # Remove questions for this category
+            all_questions.pop(self._target, None)
+        else:
+            parsed = []
+            for line in raw.strip().split("\n")[:5]:
+                parts = [p.strip() for p in line.split("|")]
+                label = parts[0] if len(parts) > 0 else "Question"
+                placeholder = parts[1] if len(parts) > 1 else ""
+                required = parts[2].lower() != "non" if len(parts) > 2 else True
+                long_format = parts[3].lower() == "long" if len(parts) > 3 else False
+                parsed.append({
+                    "label": label[:45],
+                    "placeholder": placeholder[:100],
+                    "required": required,
+                    "long": long_format,
+                    "max_length": 1024
+                })
+            all_questions[self._target] = parsed
+        
+        await db.update_ticket_config(gid, "questions", all_questions)
+        await self._view.refresh(interaction)
+
+
 class TicketSetupDashboardView(discord.ui.LayoutView):
     def __init__(self, bot: commands.Bot, lang: str, guild_id: int):
         super().__init__(timeout=300)
         self.bot = bot
         self.lang = lang
         self.guild_id = guild_id
+
     async def execute_action(self, interaction: discord.Interaction, val: str):
         lang = self.lang
         
@@ -862,6 +1006,51 @@ class TicketSetupDashboardView(discord.ui.LayoutView):
             
             cont.add_item(discord.ui.ActionRow(btn_format, btn_panel))
             
+        elif val == "questions":
+            config = await interaction.client.db.get_ticket_config(interaction.guild.id)
+            cats = config.get("categories") or []
+            questions = config.get("questions") or {}
+            
+            cont.add_item(discord.ui.TextDisplay("📋 **Formulaires de Tickets**\n> Configurez les questions posées aux membres avant l'ouverture d'un ticket.\n> Chaque type de ticket peut avoir ses propres questions (max 5)."))
+            cont.add_item(discord.ui.Separator())
+            
+            # Global questions button
+            global_qs = questions.get("__global__", [])
+            global_status = f"`{len(global_qs)} question(s)`" if global_qs else "`Aucune`"
+            
+            async def open_global_questions(inter: discord.Interaction):
+                cfg = await inter.client.db.get_ticket_config(inter.guild.id)
+                qs = (cfg.get("questions") or {}).get("__global__", [])
+                await inter.response.send_modal(TicketQuestionsModal(self, "__global__", qs))
+            
+            btn_global = discord.ui.Button(label="Modifier", style=discord.ButtonStyle.secondary)
+            btn_global.callback = open_global_questions
+            cont.add_item(discord.ui.Section(
+                discord.ui.TextDisplay(f"🌐 **Questions globales** (sans catégorie)\n> {global_status}"),
+                accessory=btn_global
+            ))
+            
+            # Per-category questions
+            for cat in cats:
+                cat_name = cat["name"]
+                cat_qs = questions.get(cat_name, [])
+                cat_status = f"`{len(cat_qs)} question(s)`" if cat_qs else "`Aucune`"
+                
+                def make_cat_callback(cname):
+                    async def open_cat_questions(inter: discord.Interaction):
+                        cfg = await inter.client.db.get_ticket_config(inter.guild.id)
+                        qs = (cfg.get("questions") or {}).get(cname, [])
+                        await inter.response.send_modal(TicketQuestionsModal(self, cname, qs))
+                    return open_cat_questions
+                
+                btn_cat_q = discord.ui.Button(label="Modifier", style=discord.ButtonStyle.secondary)
+                btn_cat_q.callback = make_cat_callback(cat_name)
+                cont.add_item(discord.ui.Separator())
+                cont.add_item(discord.ui.Section(
+                    discord.ui.TextDisplay(f"🏷️ **{cat_name}**\n> {cat_status}"),
+                    accessory=btn_cat_q
+                ))
+            
         elif val == "deploy":
             cont = discord.ui.Container(accent_color=Colors.SUCCESS.value)
             cont.add_item(discord.ui.TextDisplay("🚀 **Déploiement du Panel**\n> Sélectionnez le salon où les membres pourront cliquer sur le bouton pour ouvrir un ticket."))
@@ -945,6 +1134,15 @@ class TicketSetupDashboardView(discord.ui.LayoutView):
         btn_link = discord.ui.Button(label="Lier une catégorie", style=discord.ButtonStyle.secondary)
         btn_link.callback = make_nav("link_category")
         cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🔗 **Liaison des Dossiers**\n> Redirigez certains types de tickets dans des dossiers Discord spécifiques."), accessory=btn_link))
+        cont.add_item(discord.ui.Separator())
+
+        # Formulaires/Questions
+        questions = config.get("questions") or {}
+        total_q = sum(len(v) for v in questions.values())
+        q_status = f"`{total_q} question(s)` sur `{len(questions)}` formulaire(s)" if total_q else "`Aucun formulaire`"
+        btn_questions = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.secondary)
+        btn_questions.callback = make_nav("questions")
+        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"📋 **Formulaires**\n> **Actuels :** {q_status}\n> Questions posées aux membres avant l'ouverture d'un ticket."), accessory=btn_questions))
         cont.add_item(discord.ui.Separator())
 
         # Personnalisation
