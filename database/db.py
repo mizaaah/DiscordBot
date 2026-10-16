@@ -1,6 +1,10 @@
 import aiosqlite
 import json
+import logging
 import os
+import shutil
+import sqlite3
+import subprocess
 from datetime import datetime, timezone
 
 DB_PATH = os.getenv("DB_PATH", "bot.db")
@@ -84,11 +88,86 @@ class Database:
         db_dir = os.path.dirname(DB_PATH)
         if db_dir:
             os.makedirs(db_dir, exist_ok=True)
+
+        try:
+            await self._open_connection()
+        except (sqlite3.DatabaseError, aiosqlite.DatabaseError) as e:
+            err_str = str(e).lower()
+            if "malformed" in err_str or "corrupt" in err_str or "file is not a database" in err_str:
+                logging.error(f"❌ La base de données '{DB_PATH}' est corrompue ({e}). Auto-récupération en cours...")
+                await self._handle_corrupted_db()
+                await self._open_connection()
+            else:
+                raise
+
+    async def _open_connection(self):
+        if self.db:
+            try:
+                await self.db.close()
+            except Exception:
+                pass
+            self.db = None
+
         self.db = await aiosqlite.connect(DB_PATH)
         self.db.row_factory = aiosqlite.Row
         await self.db.execute("PRAGMA journal_mode=WAL")
+        await self.db.execute("PRAGMA synchronous=NORMAL")
         await self.db.execute("PRAGMA foreign_keys=ON")
         await self._init_tables()
+
+    async def _handle_corrupted_db(self):
+        if self.db:
+            try:
+                await self.db.close()
+            except Exception:
+                pass
+            self.db = None
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_base = f"{DB_PATH}.corrupted_{timestamp}"
+
+        # Sauvegarder les fichiers corrompus existants
+        if os.path.exists(DB_PATH):
+            try:
+                shutil.copy2(DB_PATH, backup_base)
+            except Exception as e:
+                logging.warning(f"Impossible de sauvegarder {DB_PATH}: {e}")
+
+        for ext in ["-wal", "-shm"]:
+            f = f"{DB_PATH}{ext}"
+            if os.path.exists(f):
+                try:
+                    shutil.move(f, f"{backup_base}{ext}")
+                except Exception as e:
+                    logging.warning(f"Impossible de déplacer {f}: {e}")
+
+        # Tenter une récupération avec sqlite3 CLI (.recover) si disponible
+        salvaged = False
+        try:
+            proc = subprocess.run(
+                ["sqlite3", backup_base, ".recover"],
+                capture_output=True,
+                text=True,
+                timeout=15
+            )
+            if proc.returncode == 0 and proc.stdout.strip():
+                if os.path.exists(DB_PATH):
+                    os.remove(DB_PATH)
+                con = sqlite3.connect(DB_PATH)
+                con.executescript(proc.stdout)
+                con.close()
+                salvaged = True
+                logging.info("✅ Données de la base récupérées avec succès via l'outil SQLite .recover !")
+        except Exception:
+            pass
+
+        # Si pas récupérable, supprimer le fichier corrompu pour permettre l'initialisation propre
+        if not salvaged and os.path.exists(DB_PATH):
+            try:
+                os.remove(DB_PATH)
+                logging.info(f"ℹ️ Ancienne base corrompue archivée sous '{backup_base}'. Une nouvelle base propre sera initialisée.")
+            except Exception as e:
+                logging.error(f"Erreur lors de la suppression de la base corrompue: {e}")
 
     async def _init_tables(self):
         stmts = [
@@ -462,7 +541,15 @@ class Database:
 
     async def close(self):
         if self.db:
-            await self.db.close()
+            try:
+                await self.db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            except Exception:
+                pass
+            try:
+                await self.db.close()
+            except Exception:
+                pass
+            self.db = None
 
     # ── Guild settings ────────────────────────────────────────────────────────
 
