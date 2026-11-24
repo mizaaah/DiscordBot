@@ -337,7 +337,16 @@ class EmbedChannelSelect(discord.ui.ChannelSelect):
         v: EmbedBuilderView = self.view
         lang    = v.lang
         embed   = v._build()
-        channel = self.values[0]
+        selected = self.values[0]
+        channel = interaction.guild.get_channel(selected.id)
+        if channel is None:
+            try:
+                channel = await interaction.guild.fetch_channel(selected.id)
+            except (discord.NotFound, discord.Forbidden):
+                channel = None
+
+        if channel is None:
+            return await interaction.response.send_message(embed=error_embed("Salon introuvable."), ephemeral=True)
 
         if not embed.title and not embed.description and not embed.fields:
             return await interaction.response.send_message(embed=error_embed(t(lang, "eb.empty_embed")), ephemeral=True)
