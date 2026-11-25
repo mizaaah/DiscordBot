@@ -1,3 +1,4 @@
+import re
 import discord
 from discord.ext import commands
 from utils.i18n import t
@@ -9,12 +10,24 @@ class Welcome(commands.Cog):
         self.bot = bot
 
     def _format_message(self, template: str, member: discord.Member) -> str:
+        def _replace_channel(m):
+            ch_name = m.group(1).lower().strip()
+            for ch in member.guild.text_channels:
+                if ch.name.lower() == ch_name:
+                    return ch.mention
+            return m.group(0)
+
+        formatted = re.sub(r'\{#([^}]+)\}', _replace_channel, template)
         return (
-            template
+            formatted
             .replace("{mention}", member.mention)
-            .replace("{name}", str(member))
+            .replace("{user}", member.mention)
+            .replace("{member}", member.mention)
+            .replace("{name}", member.display_name)
             .replace("{username}", member.name)
             .replace("{server}", member.guild.name)
+            .replace("{server.name}", member.guild.name)
+            .replace("{server.member_count}", str(member.guild.member_count))
             .replace("{count}", str(member.guild.member_count))
         )
 
@@ -90,18 +103,10 @@ class Welcome(commands.Cog):
             cont.add_item(discord.ui.Separator())
             cont.add_item(discord.ui.MediaGallery(discord.ui.MediaGalleryItem(media=welcome_image)))
 
-        # Footer avec icône du serveur
+        # Footer
         footer_text = t(lang, "welcome.footer_join", count=member_count, days=age)
-        guild_icon = member.guild.icon.url if member.guild.icon else None
-        if guild_icon:
-            cont.add_item(discord.ui.Separator())
-            cont.add_item(discord.ui.Section(
-                discord.ui.TextDisplay(f"-# {footer_text}"),
-                accessory=discord.ui.Thumbnail(media=guild_icon)
-            ))
-        else:
-            cont.add_item(discord.ui.Separator())
-            cont.add_item(discord.ui.TextDisplay(f"-# {footer_text}"))
+        cont.add_item(discord.ui.Separator())
+        cont.add_item(discord.ui.TextDisplay(f"-# {footer_text}"))
 
         view.add_item(cont)
         await channel.send(view=view)
