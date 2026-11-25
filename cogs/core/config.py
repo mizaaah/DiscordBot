@@ -192,6 +192,47 @@ class SetupColorButton(discord.ui.Button):
         await interaction.response.send_modal(SetupColorModal(view, self.setting_key, self.modal_title, self.current))
 
 
+class SetupResetSettingButton(discord.ui.Button):
+    def __init__(self, setting_key: str, label: str, confirm_msg: str, emoji: str = "❌", row: int = 2):
+        super().__init__(label=label, emoji=emoji, style=discord.ButtonStyle.danger, row=row)
+        self.setting_key = setting_key
+        self.confirm_msg = confirm_msg
+
+    async def callback(self, interaction: discord.Interaction):
+        view: SetupView = self.view
+        await interaction.client.db.update_guild_setting(interaction.guild.id, self.setting_key, None)
+        await view.refresh(interaction, self.confirm_msg)
+
+
+class SetupResetLogsButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label="Désactiver les logs", emoji="❌", style=discord.ButtonStyle.danger, row=2)
+
+    async def callback(self, interaction: discord.Interaction):
+        view: SetupView = self.view
+        db = interaction.client.db
+        gid = interaction.guild.id
+        await db.update_guild_setting(gid, "log_category_id", None)
+        await db.update_guild_setting(gid, "log_messages_id", None)
+        await db.update_guild_setting(gid, "log_voice_id", None)
+        await db.update_guild_setting(gid, "log_mod_id", None)
+        await db.update_guild_setting(gid, "log_server_id", None)
+        await view.refresh(interaction, "Le système de logs a bien été désactivé !")
+
+
+class SetupResetTVButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label="Désactiver TempVoice", emoji="❌", style=discord.ButtonStyle.danger, row=3)
+
+    async def callback(self, interaction: discord.Interaction):
+        view: SetupView = self.view
+        db = interaction.client.db
+        gid = interaction.guild.id
+        await db.update_tempvoice_config(gid, "trigger_channel_id", None)
+        await db.update_tempvoice_config(gid, "category_id", None)
+        await view.refresh(interaction, "Le système TempVoice a bien été désactivé !")
+
+
 class StatsToggleButton(discord.ui.Button):
     def __init__(self, current: bool):
         super().__init__(label="Désactiver les stats" if current else "Générer les salons de stats", style=discord.ButtonStyle.danger if current else discord.ButtonStyle.success, row=1)
@@ -622,22 +663,26 @@ class SetupView(discord.ui.LayoutView):
         cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"☢️ **Anti-Nuke**\n> **État :** {'✅ Activé' if an_status else '❌ Désactivé'}\n> Limite les actions destructrices de masse (ban, suppression de salons/rôles)."), accessory=btn_an))
 
         # Logs
-        btn_logs = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.secondary)
+        logs_status = bool(settings.get("log_category_id"))
+        btn_logs = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.success if logs_status else discord.ButtonStyle.secondary)
         btn_logs.callback = make_nav("logs")
         cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🪵 **Logs**\n> **Catégorie actuelle :** {ch(settings.get('log_category_id'))}\n> Traçage complet des actions sur le serveur."), accessory=btn_logs))
 
         # Bienvenue
-        btn_welc = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.secondary)
+        welc_status = bool(settings.get("welcome_channel_id"))
+        btn_welc = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.success if welc_status else discord.ButtonStyle.secondary)
         btn_welc.callback = make_nav("welcome")
         cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"👋 **Accueil**\n> **Salon actuel :** {ch(settings.get('welcome_channel_id'))}\n> Accueillez les nouveaux membres avec style."), accessory=btn_welc))
 
         # Auto-Rôle
-        btn_auto = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.secondary)
+        ar_status = bool(settings.get("autorole_id"))
+        btn_auto = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.success if ar_status else discord.ButtonStyle.secondary)
         btn_auto.callback = make_nav("autorole")
         cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🎭 **Auto-Rôle**\n> **Rôle actuel :** {role(settings.get('autorole_id'))}\n> Rôle attribué automatiquement aux nouveaux membres."), accessory=btn_auto))
 
         # Signalement
-        btn_rep = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.secondary)
+        rep_status = bool(settings.get("report_channel_id"))
+        btn_rep = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.success if rep_status else discord.ButtonStyle.secondary)
         btn_rep.callback = make_nav("report")
         cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🚨 **Signalement**\n> Configuration des signalements de messages au Staff."), accessory=btn_rep))
 
@@ -647,7 +692,8 @@ class SetupView(discord.ui.LayoutView):
         cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🌐 **Langue**\n> **Actuelle :** `{self.lang.upper()}`\n> Définissez la langue du bot pour le serveur."), accessory=btn_lang))
 
         # XP
-        btn_xp = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.secondary)
+        xp_status = bool(settings.get("levelup_channel_id"))
+        btn_xp = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.success if xp_status else discord.ButtonStyle.secondary)
         btn_xp.callback = make_nav("xp")
         cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"✨ **Système XP**\n> **Salon Level Up :** {ch(settings.get('levelup_channel_id'))}\n> Gérer l'évolution des niveaux des membres."), accessory=btn_xp))
 
@@ -689,11 +735,15 @@ class SetupView(discord.ui.LayoutView):
         cont.add_item(discord.ui.TextDisplay(header_text))
 
         if category == "logs":
-            cont.add_item(discord.ui.TextDisplay("🪵 **Catégorie des Logs**\n> Définit la catégorie Discord où le bot créera automatiquement les salons de logs avancés (messages, vocal, modération, serveur)."))
+            curr_cat = ch(settings.get('log_category_id'))
+            cont.add_item(discord.ui.TextDisplay(f"🪵 **Catégorie des Logs**\n> **Catégorie actuelle :** {curr_cat}\n> Définit la catégorie Discord où le bot créera automatiquement les salons de logs avancés (messages, vocal, modération, serveur)."))
             cont.add_item(discord.ui.ActionRow(SetupLogsCategorySelect(lang)))
+            if settings.get("log_category_id"):
+                cont.add_item(discord.ui.ActionRow(SetupResetLogsButton()))
             
         elif category == "welcome":
-            cont.add_item(discord.ui.TextDisplay("👋 **Salon de Bienvenue**\n> Définit le salon où envoyer les messages d'arrivée."))
+            curr_ch = ch(settings.get('welcome_channel_id'))
+            cont.add_item(discord.ui.TextDisplay(f"👋 **Salon de Bienvenue**\n> **Salon actuel :** {curr_ch}\n> Définit le salon où envoyer les messages d'arrivée."))
             cont.add_item(discord.ui.ActionRow(SetupChannelSelect(lang, "welcome_channel_id", "setup.welcome_placeholder")))
             cont.add_item(discord.ui.ActionRow(
                 SetupTitleButton(lang, "welcome_title", "Titre de bienvenue", settings.get("welcome_title")),
@@ -701,24 +751,46 @@ class SetupView(discord.ui.LayoutView):
                 SetupImageButton(lang, "welcome_image", "Bannière / GIF", settings.get("welcome_image")),
                 SetupColorButton(lang, "welcome_color", "Couleur Bienvenue", settings.get("welcome_color"))
             ))
-            
+            reset_buttons = []
+            if settings.get("welcome_channel_id"):
+                reset_buttons.append(SetupResetSettingButton("welcome_channel_id", "Désactiver le salon", "Le salon de bienvenue a été désactivé !"))
+            if settings.get("welcome_image"):
+                reset_buttons.append(SetupResetSettingButton("welcome_image", "Retirer l'image", "L'image de bienvenue a été retirée !", emoji="🗑️"))
+            if settings.get("welcome_title"):
+                reset_buttons.append(SetupResetSettingButton("welcome_title", "Reset Titre", "Le titre de bienvenue a été réinitialisé !", emoji="🔄"))
+            if reset_buttons:
+                cont.add_item(discord.ui.ActionRow(*reset_buttons))
 
         elif category == "autorole":
-            cont.add_item(discord.ui.TextDisplay("🎭 **Auto-Rôle**\n> Rôle donné automatiquement aux nouveaux membres."))
+            curr_role = role(settings.get('autorole_id'))
+            cont.add_item(discord.ui.TextDisplay(f"🎭 **Auto-Rôle**\n> **Rôle actuel :** {curr_role}\n> Rôle donné automatiquement aux nouveaux membres."))
             cont.add_item(discord.ui.ActionRow(SetupRoleSelect(lang)))
+            if settings.get("autorole_id"):
+                cont.add_item(discord.ui.ActionRow(
+                    SetupResetSettingButton("autorole_id", "Désactiver l'auto-rôle", "L'auto-rôle a bien été désactivé !")
+                ))
             
         elif category == "report":
-            cont.add_item(discord.ui.TextDisplay("🚨 **Salon des Signalements**\n> Reçoit les signalements effectués par les membres."))
+            curr_rep = ch(settings.get('report_channel_id'))
+            cont.add_item(discord.ui.TextDisplay(f"🚨 **Salon des Signalements**\n> **Salon actuel :** {curr_rep}\n> Reçoit les signalements effectués par les membres."))
             cont.add_item(discord.ui.ActionRow(SetupChannelSelect(lang, "report_channel_id", "setup.report_placeholder")))
+            if settings.get("report_channel_id"):
+                cont.add_item(discord.ui.ActionRow(
+                    SetupResetSettingButton("report_channel_id", "Désactiver les signalements", "Le salon des signalements a été désactivé !")
+                ))
             
         elif category == "language":
             cont.add_item(discord.ui.TextDisplay("🌐 **Langue du bot**\n> Définit la langue utilisée par le bot sur ce serveur."))
             cont.add_item(discord.ui.ActionRow(SetupLanguageSelect(lang)))
             
         elif category == "xp":
-            cont.add_item(discord.ui.TextDisplay("✨ **Système XP & Rank**\n> Définit le salon où envoyer les annonces de Level Up."))
+            curr_xp = ch(settings.get('levelup_channel_id'))
+            cont.add_item(discord.ui.TextDisplay(f"✨ **Système XP & Rank**\n> **Salon Level Up actuel :** {curr_xp}\n> Définit le salon où envoyer les annonces de Level Up."))
             cont.add_item(discord.ui.ActionRow(SetupChannelSelect(lang, "levelup_channel_id", "Sélectionner un salon pour le Level Up")))
-            
+            if settings.get("levelup_channel_id"):
+                cont.add_item(discord.ui.ActionRow(
+                    SetupResetSettingButton("levelup_channel_id", "Désactiver Level Up", "Les annonces de Level Up ont été désactivées !")
+                ))
 
         elif category == "stats":
             stats_channels = await self.bot.db.get_stats_channels(self.guild_id)
@@ -728,10 +800,15 @@ class SetupView(discord.ui.LayoutView):
 
         elif category == "tempvoice":
             tv_config = await self.bot.db.get_tempvoice_config(self.guild_id)
-            cont.add_item(discord.ui.TextDisplay("🔊 **Salons Vocaux Temporaires**\n> Permet aux membres de créer leurs propres salons vocaux en rejoignant un salon défini."))
+            trig_ch = ch(tv_config.get("trigger_channel_id"))
+            cat_ch = ch(tv_config.get("category_id"))
+            cont.add_item(discord.ui.TextDisplay(f"🔊 **Salons Vocaux Temporaires**\n> **Salon déclencheur :** {trig_ch}\n> **Catégorie :** {cat_ch}\n> Permet aux membres de créer leurs propres salons vocaux en rejoignant un salon défini."))
             cont.add_item(discord.ui.ActionRow(SetupTVChannelSelect("Sélectionner le salon déclencheur (Vocal)", is_category=False)))
             cont.add_item(discord.ui.ActionRow(SetupTVChannelSelect("Sélectionner la catégorie d'accueil", is_category=True)))
-            cont.add_item(discord.ui.ActionRow(SetupTVButton(tv_config)))
+            action_items = [SetupTVButton(tv_config)]
+            if tv_config.get("trigger_channel_id") or tv_config.get("category_id"):
+                action_items.append(SetupResetTVButton())
+            cont.add_item(discord.ui.ActionRow(*action_items))
             
         elif category == "automod":
             am_cfg = await self.bot.db.get_automod_config(self.guild_id)
@@ -803,7 +880,7 @@ class Config(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    # ── /config ───────────────────────────────────────────────────────────────
+    # ── /config & /setup & /autorole ──────────────────────────────────────────
 
     @app_commands.command(name="config", description="Affiche la configuration actuelle du bot")
     @app_commands.default_permissions(manage_guild=True)
@@ -813,7 +890,25 @@ class Config(commands.Cog):
         await view.init_home(interaction.guild)
         await interaction.response.send_message(view=view, ephemeral=True)
 
-    # (Standalone config commands removed in favor of /setup)
+    @app_commands.command(name="setup", description="Panneau de configuration du bot")
+    @app_commands.default_permissions(manage_guild=True)
+    async def setup(self, interaction: discord.Interaction):
+        await self.config(interaction)
+
+    @app_commands.command(name="autorole", description="Configure ou désactive le rôle automatique à l'arrivée")
+    @app_commands.describe(role="Le rôle à attribuer (laissez vide pour désactiver l'auto-rôle)")
+    @app_commands.default_permissions(manage_guild=True)
+    async def autorole(self, interaction: discord.Interaction, role: discord.Role = None):
+        if role is None:
+            await self.bot.db.update_guild_setting(interaction.guild.id, "autorole_id", None)
+            return await interaction.response.send_message("✅ L'auto-rôle a été **désactivé** avec succès. 🎭", ephemeral=True)
+
+        me = interaction.guild.me
+        if me and me.top_role and role >= me.top_role:
+            return await interaction.response.send_message(embed=error_embed("❌ Ce rôle est supérieur ou égal au rôle du bot."), ephemeral=True)
+
+        await self.bot.db.update_guild_setting(interaction.guild.id, "autorole_id", role.id)
+        await interaction.response.send_message(embed=success_embed(f"✅ L'auto-rôle a été défini sur {role.mention}."), ephemeral=True)
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(Config(bot))
