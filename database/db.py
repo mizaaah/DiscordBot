@@ -12,6 +12,7 @@ DB_PATH = os.getenv("DB_PATH", "bot.db")
 ALLOWED_SETTINGS = {
     "log_channel_id", "welcome_channel_id", "goodbye_channel_id",
     "autorole_id", "welcome_message", "goodbye_message",
+    "welcome_title", "goodbye_title",
     "report_channel_id", "ghostping_enabled", "language",
     "welcome_image", "goodbye_image", "welcome_color", "goodbye_color",
     "log_category_id", "log_messages_id", "log_mod_id", "log_server_id", "log_voice_id",
@@ -177,7 +178,9 @@ class Database:
                 welcome_channel_id  INTEGER,
                 goodbye_channel_id  INTEGER,
                 autorole_id         INTEGER,
+                welcome_title       TEXT,
                 welcome_message     TEXT DEFAULT 'Bienvenue {mention} sur **{server}** !',
+                goodbye_title       TEXT,
                 goodbye_message     TEXT DEFAULT 'Au revoir **{name}**, bonne continuation !',
                 report_channel_id   INTEGER,
                 ghostping_enabled   INTEGER DEFAULT 0,
@@ -532,6 +535,8 @@ class Database:
             "ALTER TABLE notification_feeds ADD COLUMN embed_color TEXT",
             "ALTER TABLE ticket_config ADD COLUMN questions TEXT DEFAULT '{}'",
             "ALTER TABLE tickets ADD COLUMN form_responses TEXT",
+            "ALTER TABLE guild_settings ADD COLUMN welcome_title TEXT",
+            "ALTER TABLE guild_settings ADD COLUMN goodbye_title TEXT",
         ]:
             try:
                 await self.db.execute(migration)

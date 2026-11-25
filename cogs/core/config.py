@@ -4,6 +4,7 @@ from discord.ext import commands
 from utils.i18n import t, SUPPORTED
 from utils.colors import Colors
 from utils.embeds import error_embed, success_embed
+from utils.media import resolve_media_url
 
 
 def get_logs(bot: commands.Bot):
@@ -93,8 +94,42 @@ class SetupMessageButton(discord.ui.Button):
         await interaction.response.send_modal(SetupMessageModal(view, self.setting_key, self.modal_title, self.current))
 
 
+class SetupTitleModal(discord.ui.Modal):
+    title_text = discord.ui.TextInput(
+        label="Titre de bienvenue",
+        style=discord.TextStyle.short,
+        required=False,
+        max_length=200,
+        placeholder="ex: 👋 Bienvenue sur {server} !"
+    )
+
+    def __init__(self, setup_view: "SetupView", setting_key: str, title: str, current: str = None):
+        super().__init__(title=title)
+        self._setup_view = setup_view
+        self.setting_key = setting_key
+        if current:
+            self.title_text.default = current
+
+    async def on_submit(self, interaction: discord.Interaction):
+        value = self.title_text.value.strip() or None
+        await interaction.client.db.update_guild_setting(interaction.guild.id, self.setting_key, value)
+        await self._setup_view.refresh(interaction, "Le titre a bien été sauvegardé ! 🏷️")
+
+
+class SetupTitleButton(discord.ui.Button):
+    def __init__(self, lang: str, setting_key: str, modal_title: str, current: str = None):
+        super().__init__(label="🏷️ Titre", style=discord.ButtonStyle.secondary, row=2)
+        self.setting_key = setting_key
+        self.modal_title = modal_title
+        self.current = current
+
+    async def callback(self, interaction: discord.Interaction):
+        view: SetupView = self.view
+        await interaction.response.send_modal(SetupTitleModal(view, self.setting_key, self.modal_title, self.current))
+
+
 class SetupImageModal(discord.ui.Modal):
-    image_url = discord.ui.TextInput(label="URL de l'image (PNG/GIF)", style=discord.TextStyle.short, required=False, max_length=500, placeholder="https://...")
+    image_url = discord.ui.TextInput(label="URL de l'image (PNG/GIF/Klipy/Tenor)", style=discord.TextStyle.short, required=False, max_length=500, placeholder="https://...")
 
     def __init__(self, setup_view: "SetupView", setting_key: str, title: str, current: str = None):
         super().__init__(title=title)
@@ -106,13 +141,16 @@ class SetupImageModal(discord.ui.Modal):
     async def on_submit(self, interaction: discord.Interaction):
         value = self.image_url.value.strip() or None
         if value:
-            await interaction.client.db.update_guild_setting(interaction.guild.id, self.setting_key, value)
+            resolved = await resolve_media_url(value)
+            await interaction.client.db.update_guild_setting(interaction.guild.id, self.setting_key, resolved)
+        else:
+            await interaction.client.db.update_guild_setting(interaction.guild.id, self.setting_key, None)
         await self._setup_view.refresh(interaction, "L'image a bien été sauvegardée ! 🖼️")
 
 
 class SetupImageButton(discord.ui.Button):
     def __init__(self, lang: str, setting_key: str, modal_title: str, current: str = None):
-        super().__init__(label="🖼️ Ajouter une Bannière", style=discord.ButtonStyle.secondary, row=2)
+        super().__init__(label="🖼️ Bannière / GIF", style=discord.ButtonStyle.secondary, row=2)
         self.setting_key = setting_key
         self.modal_title = modal_title
         self.current = current
@@ -658,8 +696,9 @@ class SetupView(discord.ui.LayoutView):
             cont.add_item(discord.ui.TextDisplay("👋 **Salon de Bienvenue**\n> Définit le salon où envoyer les messages d'arrivée."))
             cont.add_item(discord.ui.ActionRow(SetupChannelSelect(lang, "welcome_channel_id", "setup.welcome_placeholder")))
             cont.add_item(discord.ui.ActionRow(
+                SetupTitleButton(lang, "welcome_title", "Titre de bienvenue", settings.get("welcome_title")),
                 SetupMessageButton(lang, "welcome_message", t(lang, "setup.welcome_modal_title"), settings.get("welcome_message")),
-                SetupImageButton(lang, "welcome_image", "Bannière", settings.get("welcome_image")),
+                SetupImageButton(lang, "welcome_image", "Bannière / GIF", settings.get("welcome_image")),
                 SetupColorButton(lang, "welcome_color", "Couleur Bienvenue", settings.get("welcome_color"))
             ))
             
