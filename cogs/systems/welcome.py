@@ -100,8 +100,11 @@ class Welcome(commands.Cog):
         # Image de bienvenue personnalisée
         welcome_image = settings.get("welcome_image")
         if welcome_image:
-            cont.add_item(discord.ui.Separator())
-            cont.add_item(discord.ui.MediaGallery(discord.ui.MediaGalleryItem(media=welcome_image)))
+            try:
+                cont.add_item(discord.ui.Separator())
+                cont.add_item(discord.ui.MediaGallery(discord.MediaGalleryItem(media=welcome_image)))
+            except Exception:
+                pass
 
         # Footer
         footer_text = t(lang, "welcome.footer_join", count=member_count, days=age)
