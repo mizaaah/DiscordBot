@@ -27,7 +27,8 @@ class SetupCategorySelect(discord.ui.Select):
             discord.SelectOption(label="AutoMod",                     value="automod",  emoji="🛡️"),
             discord.SelectOption(label="Anti-Raid",                   value="antiraid", emoji="⚔️"),
             discord.SelectOption(label="Statistiques",                value="stats",    emoji="📊"),
-            discord.SelectOption(label="TempVoice", value="tempvoice", emoji="🔊"),
+            discord.SelectOption(label="TempVoice",                   value="tempvoice", emoji="🔊"),
+            discord.SelectOption(label="Auto-Réaction Photos",        value="autoreact", emoji="📸"),
         ]
         super().__init__(placeholder=t(lang, "setup.select_placeholder"), options=options, row=0)
 
@@ -231,6 +232,121 @@ class SetupResetTVButton(discord.ui.Button):
         await db.update_tempvoice_config(gid, "trigger_channel_id", None)
         await db.update_tempvoice_config(gid, "category_id", None)
         await view.refresh(interaction, "Le système TempVoice a bien été désactivé !")
+
+
+class SetupAutoReactChannelSelect(discord.ui.ChannelSelect):
+    def __init__(self):
+        super().__init__(placeholder="Sélectionner un salon pour l'auto-réaction...", channel_types=[discord.ChannelType.text], row=1)
+
+    async def callback(self, interaction: discord.Interaction):
+        view: SetupView = self.view
+        channel = self.values[0]
+        db = interaction.client.db
+        gid = interaction.guild.id
+        await db.add_autoreact_channel(gid, channel.id, ["❤️"], photos_only=True)
+        
+        cog = interaction.client.get_cog("AutoReact")
+        if cog:
+            cog._cache[channel.id] = {
+                "guild_id": gid,
+                "channel_id": channel.id,
+                "emojis": ["❤️"],
+                "photos_only": 1
+            }
+        view.selected_autoreact_channel = channel.id
+        await view.refresh(interaction, f"Salon {channel.mention} ajouté aux auto-réactions photos (réaction par défaut : ❤️) !")
+
+
+class SetupAutoReactEmojisModal(discord.ui.Modal):
+    emojis_input = discord.ui.TextInput(
+        label="Emojis de réaction (séparés par un espace)",
+        style=discord.TextStyle.short,
+        required=True,
+        max_length=100,
+        placeholder="ex: ❤️ 🔥 ⭐"
+    )
+
+    def __init__(self, setup_view: "SetupView", channel_id: int, current: str):
+        super().__init__(title="Modifier les réactions")
+        self._setup_view = setup_view
+        self.channel_id = channel_id
+        if current:
+            self.emojis_input.default = current
+
+    async def on_submit(self, interaction: discord.Interaction):
+        from cogs.systems.autoreact import parse_emojis
+        emojis = parse_emojis(self.emojis_input.value.strip())
+        db = interaction.client.db
+        gid = interaction.guild.id
+        cfg = await db.get_autoreact_channel(gid, self.channel_id)
+        p_only = bool(cfg.get("photos_only", 1)) if cfg else True
+        await db.add_autoreact_channel(gid, self.channel_id, emojis, photos_only=p_only)
+        
+        cog = interaction.client.get_cog("AutoReact")
+        if cog:
+            cog._cache[self.channel_id] = {
+                "guild_id": gid,
+                "channel_id": self.channel_id,
+                "emojis": emojis,
+                "photos_only": 1 if p_only else 0
+            }
+        await self._setup_view.refresh(interaction, f"Réactions mises à jour : {' '.join(emojis)} !")
+
+
+class SetupAutoReactEmojisButton(discord.ui.Button):
+    def __init__(self, channel_id: int, current_emojis: str):
+        super().__init__(label="✏️ Emojis", style=discord.ButtonStyle.secondary, row=2)
+        self.channel_id = channel_id
+        self.current_emojis = current_emojis
+
+    async def callback(self, interaction: discord.Interaction):
+        view: SetupView = self.view
+        await interaction.response.send_modal(SetupAutoReactEmojisModal(view, self.channel_id, self.current_emojis))
+
+
+class SetupAutoReactToggleModeButton(discord.ui.Button):
+    def __init__(self, channel_id: int, current_photos_only: bool):
+        lbl = "📸 Photos uniquement" if current_photos_only else "💬 Tous les messages"
+        super().__init__(label=lbl, style=discord.ButtonStyle.primary if current_photos_only else discord.ButtonStyle.secondary, row=2)
+        self.channel_id = channel_id
+        self.current_photos_only = current_photos_only
+
+    async def callback(self, interaction: discord.Interaction):
+        view: SetupView = self.view
+        db = interaction.client.db
+        gid = interaction.guild.id
+        cfg = await db.get_autoreact_channel(gid, self.channel_id)
+        emojis = cfg.get("emojis", ["❤️"]) if cfg else ["❤️"]
+        new_mode = not self.current_photos_only
+        await db.add_autoreact_channel(gid, self.channel_id, emojis, photos_only=new_mode)
+        
+        cog = interaction.client.get_cog("AutoReact")
+        if cog:
+            cog._cache[self.channel_id] = {
+                "guild_id": gid,
+                "channel_id": self.channel_id,
+                "emojis": emojis,
+                "photos_only": 1 if new_mode else 0
+            }
+        mode_text = "Photos uniquement" if new_mode else "Tous les messages"
+        await view.refresh(interaction, f"Mode d'auto-réaction changé sur `{mode_text}` !")
+
+
+class SetupAutoReactRemoveButton(discord.ui.Button):
+    def __init__(self, channel_id: int):
+        super().__init__(label="❌ Retirer ce salon", style=discord.ButtonStyle.danger, row=2)
+        self.channel_id = channel_id
+
+    async def callback(self, interaction: discord.Interaction):
+        view: SetupView = self.view
+        db = interaction.client.db
+        gid = interaction.guild.id
+        await db.remove_autoreact_channel(gid, self.channel_id)
+        cog = interaction.client.get_cog("AutoReact")
+        if cog:
+            cog._cache.pop(self.channel_id, None)
+        view.selected_autoreact_channel = None
+        await view.refresh(interaction, "Le salon a été retiré des auto-réactions !")
 
 
 class StatsToggleButton(discord.ui.Button):
@@ -610,6 +726,7 @@ class SetupView(discord.ui.LayoutView):
         self.guild_id = guild_id
         self.automod_module = None
         self.current_category = None
+        self.selected_autoreact_channel = None
 
     async def init_home(self, guild: discord.Guild):
         await self._build_home(guild)
@@ -711,6 +828,23 @@ class SetupView(discord.ui.LayoutView):
         btn_tv.callback = make_nav("tempvoice")
         cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🔊 **TempVoice**\n> **État :** {'✅ Configurés' if tv_status else '❌ Non configurés'}\n> Salons vocaux temporaires personnels."), accessory=btn_tv))
         
+        # Auto-Réactions Photos
+        ar_channels = await self.bot.db.get_autoreact_channels(self.guild_id)
+        ar_active = bool(ar_channels)
+        btn_ar_photos = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.success if ar_active else discord.ButtonStyle.secondary)
+        btn_ar_photos.callback = make_nav("autoreact")
+        if ar_channels:
+            ch_list = ", ".join(f"<#{c['channel_id']}> ({' '.join(c.get('emojis', ['❤️']))})" for c in ar_channels[:2])
+            if len(ar_channels) > 2:
+                ch_list += f" +{len(ar_channels)-2}"
+            ar_desc = f"Salons actifs : {ch_list}"
+        else:
+            ar_desc = "Non configuré"
+        cont.add_item(discord.ui.Section(
+            discord.ui.TextDisplay(f"📸 **Auto-Réactions Photos**\n> **État :** {'✅ Activé' if ar_active else '❌ Désactivé'}\n> {ar_desc}\n> Ajoute automatiquement des réactions aux photos postées dans vos salons dédiés."),
+            accessory=btn_ar_photos
+        ))
+
         self.add_item(cont)
 
     async def show_home(self, interaction: discord.Interaction):
@@ -725,8 +859,15 @@ class SetupView(discord.ui.LayoutView):
         self.clear_items()
         
         cont = discord.ui.Container(accent_color=Colors.INFO.value)
-        title = t(lang, f"setup.opt_{category}") if category not in ["automod", "antiraid"] else ("🛡️ Configuration AutoMod" if category == "automod" else "⚔️ Configuration Anti-Raid")
-        desc = t(lang, f"setup.{category}_desc") if category not in ["automod", "antiraid"] else ("Activez ou désactivez l'AutoMod global.\nChoisissez un sous-module pour affiner la configuration." if category == "automod" else "Configurez les seuils et actions du système Anti-Raid.")
+        if category == "autoreact":
+            title = "📸 Auto-Réactions Photos"
+            desc = "Configurez des réactions automatiques dès qu'une photo ou un média est posté dans un salon dédié."
+        elif category in ["automod", "antiraid"]:
+            title = "🛡️ Configuration AutoMod" if category == "automod" else "⚔️ Configuration Anti-Raid"
+            desc = ("Activez ou désactivez l'AutoMod global.\nChoisissez un sous-module pour affiner la configuration." if category == "automod" else "Configurez les seuils et actions du système Anti-Raid.")
+        else:
+            title = t(lang, f"setup.opt_{category}")
+            desc = t(lang, f"setup.{category}_desc")
         
         header_text = f"# {title}\n{desc}\n\n"
         if confirm_text:
@@ -809,6 +950,41 @@ class SetupView(discord.ui.LayoutView):
             if tv_config.get("trigger_channel_id") or tv_config.get("category_id"):
                 action_items.append(SetupResetTVButton())
             cont.add_item(discord.ui.ActionRow(*action_items))
+
+        elif category == "autoreact":
+            ar_channels = await self.bot.db.get_autoreact_channels(self.guild_id)
+            desc_lines = ["📸 **Salons d'auto-réaction configurés :**"]
+            if ar_channels:
+                for c in ar_channels:
+                    ch_obj = interaction.guild.get_channel(c["channel_id"])
+                    ch_mention = ch_obj.mention if ch_obj else f"`#{c['channel_id']}`"
+                    mode = "Photos uniquement" if c.get("photos_only", 1) else "Tous messages"
+                    emojis_str = " ".join(c.get("emojis", ["❤️"]))
+                    desc_lines.append(f"> • {ch_mention} ➔ {emojis_str} *({mode})*")
+            else:
+                desc_lines.append("> *Aucun salon configuré pour le moment.*")
+
+            desc_lines.append("\n> Sélectionnez un salon ci-dessous pour l'ajouter ou modifier sa configuration.")
+            cont.add_item(discord.ui.TextDisplay("\n".join(desc_lines)))
+            cont.add_item(discord.ui.ActionRow(SetupAutoReactChannelSelect()))
+
+            # Déterminer quel salon afficher pour les boutons d'action
+            active_target = None
+            if self.selected_autoreact_channel and any(c["channel_id"] == self.selected_autoreact_channel for c in ar_channels):
+                active_target = next(c for c in ar_channels if c["channel_id"] == self.selected_autoreact_channel)
+            elif ar_channels:
+                active_target = ar_channels[0]
+
+            if active_target:
+                t_chid = active_target["channel_id"]
+                t_emojis = " ".join(active_target.get("emojis", ["❤️"]))
+                t_p_only = bool(active_target.get("photos_only", 1))
+                cont.add_item(discord.ui.TextDisplay(f"⚙️ **Configuration pour <#{t_chid}> :**"))
+                cont.add_item(discord.ui.ActionRow(
+                    SetupAutoReactEmojisButton(t_chid, t_emojis),
+                    SetupAutoReactToggleModeButton(t_chid, t_p_only),
+                    SetupAutoReactRemoveButton(t_chid)
+                ))
             
         elif category == "automod":
             am_cfg = await self.bot.db.get_automod_config(self.guild_id)

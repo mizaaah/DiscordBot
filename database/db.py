@@ -476,6 +476,13 @@ class Database:
                 created_at  TEXT DEFAULT (datetime('now')),
                 UNIQUE(guild_id, platform, username)
             )""",
+            """CREATE TABLE IF NOT EXISTS autoreact_channels (
+                guild_id    INTEGER NOT NULL,
+                channel_id  INTEGER NOT NULL,
+                emojis      TEXT NOT NULL DEFAULT '["❤️"]',
+                photos_only INTEGER NOT NULL DEFAULT 1,
+                PRIMARY KEY (guild_id, channel_id)
+            )""",
         ]
         for stmt in stmts:
             await self.db.execute(stmt)
@@ -1124,6 +1131,46 @@ class Database:
 
     async def delete_starboard_post(self, original_msg_id: int):
         await self._exec("DELETE FROM starboard_posts WHERE original_msg_id = ?", original_msg_id)
+
+    # ── Auto-React Channels ───────────────────────────────────────────────────
+
+    async def get_autoreact_channels(self, guild_id: int) -> list[dict]:
+        rows = await self._rows("SELECT * FROM autoreact_channels WHERE guild_id = ?", guild_id)
+        result = []
+        for r in rows:
+            d = dict(r)
+            try:
+                d["emojis"] = json.loads(d["emojis"])
+            except Exception:
+                d["emojis"] = ["❤️"]
+            result.append(d)
+        return result
+
+    async def get_autoreact_channel(self, guild_id: int, channel_id: int) -> dict | None:
+        row = await self._row("SELECT * FROM autoreact_channels WHERE guild_id = ? AND channel_id = ?", guild_id, channel_id)
+        if not row:
+            return None
+        d = dict(row)
+        try:
+            d["emojis"] = json.loads(d["emojis"])
+        except Exception:
+            d["emojis"] = ["❤️"]
+        return d
+
+    async def add_autoreact_channel(self, guild_id: int, channel_id: int, emojis: list[str], photos_only: bool = True):
+        emojis_json = json.dumps(emojis if emojis else ["❤️"])
+        p_only = 1 if photos_only else 0
+        await self._exec(
+            "INSERT INTO autoreact_channels (guild_id, channel_id, emojis, photos_only) VALUES (?, ?, ?, ?)"
+            " ON CONFLICT(guild_id, channel_id) DO UPDATE SET emojis = excluded.emojis, photos_only = excluded.photos_only",
+            guild_id, channel_id, emojis_json, p_only
+        )
+
+    async def remove_autoreact_channel(self, guild_id: int, channel_id: int):
+        await self._exec("DELETE FROM autoreact_channels WHERE guild_id = ? AND channel_id = ?", guild_id, channel_id)
+
+    async def clear_autoreact_channels(self, guild_id: int):
+        await self._exec("DELETE FROM autoreact_channels WHERE guild_id = ?", guild_id)
 
     # ── AFK ───────────────────────────────────────────────────────────────────
 
