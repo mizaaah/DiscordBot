@@ -16,7 +16,7 @@ ALLOWED_SETTINGS = {
     "report_channel_id", "ghostping_enabled", "language",
     "welcome_image", "goodbye_image", "welcome_color", "goodbye_color",
     "log_category_id", "log_messages_id", "log_mod_id", "log_server_id", "log_voice_id",
-    "levelup_channel_id"
+    "levelup_channel_id", "tagrole_id", "tagrole_text"
 }
 
 ALLOWED_BOOST_SETTINGS = {"reward_role_id", "channel_id", "message"}
@@ -195,7 +195,9 @@ class Database:
                 log_mod_id          INTEGER,
                 log_server_id       INTEGER,
                 log_voice_id        INTEGER,
-                levelup_channel_id  INTEGER
+                levelup_channel_id  INTEGER,
+                tagrole_id          INTEGER,
+                tagrole_text        TEXT DEFAULT '17th'
             )""",
             """CREATE TABLE IF NOT EXISTS warnings (
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -546,6 +548,8 @@ class Database:
             "ALTER TABLE guild_settings ADD COLUMN welcome_title TEXT",
             "ALTER TABLE guild_settings ADD COLUMN goodbye_title TEXT",
             "ALTER TABLE guild_settings ADD COLUMN autorole_bots_id INTEGER",
+            "ALTER TABLE guild_settings ADD COLUMN tagrole_id INTEGER",
+            "ALTER TABLE guild_settings ADD COLUMN tagrole_text TEXT DEFAULT '17th'",
         ]:
             try:
                 await self.db.execute(migration)

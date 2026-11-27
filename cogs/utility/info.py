@@ -74,6 +74,7 @@ HELP_PAGES = {
             "### ⚙️ Configuration & Gestion du Serveur\n"
             "🎛️ `/config` *(ou `/setup`)* ➔ Dashboard interactif pour tout configurer\n"
             "🎭 `/autorole [cible] [role]` ➔ Auto-rôles distincts pour humains et bots\n"
+            "🏷️ `/tagrole [config/disable/scan]` ➔ Rôle automatique pour porteurs du tag 17th\n"
             "🪵 **Logs Avancés** *(via `/config`)* ➔ 4 salons dédiés *(messages, vocal, mod, serveur)*\n"
             "👋 **Accueil** *(via `/config`)* ➔ Titre, message, GIF et couleur de bienvenue\n"
             "📸 **Auto-Réactions** *(via `/config`)* ➔ Réactions automatiques sur photos et médias\n"
@@ -432,7 +433,7 @@ class Info(commands.Cog):
             "security-audit": "security", "audit": "security", "backup": "security", "ghostping": "security",
             "automod": "security", "antiraid": "security", "antinuke": "security",
             
-            "config": "config", "setup": "config", "autorole": "config", "cmdperm": "config",
+            "config": "config", "setup": "config", "autorole": "config", "tagrole": "config", "cmdperm": "config",
             "notifications": "config", "ticket": "config",
             
             "rank": "xp", "leaderboard": "xp", "setxp": "xp", "addxp": "xp", "resetxp": "xp", "xprole": "xp",

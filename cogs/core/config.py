@@ -25,6 +25,7 @@ class SetupCategorySelect(discord.ui.Select):
             discord.SelectOption(label="Logs Avancés",            value="logs",      emoji="🪵", description="4 salons dédiés (messages, voc, mod)",default=(current == "logs")),
             discord.SelectOption(label="Accueil & Bienvenue",      value="welcome",   emoji="👋", description="Message, image, titre et couleur",     default=(current == "welcome")),
             discord.SelectOption(label="Auto-Rôles (Membres/Bots)",value="autorole", emoji="🎭", description="Rôles automatiques distincts",       default=(current == "autorole")),
+            discord.SelectOption(label="Rôle Tag 17th",            value="tagrole",  emoji="🏷️", description="Rôle auto pour porteurs du tag",      default=(current == "tagrole")),
             discord.SelectOption(label="Signalements Staff",      value="report",    emoji="🚨", description="Salon de transmission des signalements",default=(current == "report")),
             discord.SelectOption(label="Système XP & Niveaux",    value="xp",        emoji="✨", description="Salon d'annonces de level up",         default=(current == "xp")),
             discord.SelectOption(label="Salons TempVoice",        value="tempvoice", emoji="🔊", description="Salons vocaux temporaires personnels",default=(current == "tempvoice")),
@@ -71,8 +72,12 @@ class SetupRoleSelect(discord.ui.RoleSelect):
             return await interaction.response.send_message(embed=error_embed(t(view.lang, "cfg.autorole_too_high")), ephemeral=True)
             
         await interaction.client.db.update_guild_setting(interaction.guild.id, self.setting_key, role.id)
-        target_name = "des bots" if self.setting_key == "autorole_bots_id" else "des membres humains"
-        await view.refresh(interaction, f"Auto-rôle {target_name} défini sur {role.mention} ! 🎭")
+        if self.setting_key == "autorole_bots_id":
+            await view.refresh(interaction, f"Auto-rôle des bots défini sur {role.mention} ! 🎭")
+        elif self.setting_key == "tagrole_id":
+            await view.refresh(interaction, f"Rôle du Tag 17th défini sur {role.mention} ! 🏷️")
+        else:
+            await view.refresh(interaction, f"Auto-rôle des membres défini sur {role.mention} ! 🎭")
 
 
 class SetupMessageModal(discord.ui.Modal):
@@ -241,6 +246,74 @@ class SetupResetTVButton(discord.ui.Button):
         await db.update_tempvoice_config(gid, "trigger_channel_id", None)
         await db.update_tempvoice_config(gid, "category_id", None)
         await view.refresh(interaction, "Le système TempVoice a bien été désactivé !")
+
+
+class SetupTagTextModal(discord.ui.Modal):
+    tag_input = discord.ui.TextInput(
+        label="Tag à détecter",
+        style=discord.TextStyle.short,
+        required=True,
+        max_length=30,
+        placeholder="ex: 17th"
+    )
+
+    def __init__(self, setup_view: "SetupView", current: str = "17th"):
+        super().__init__(title="Configuration du Tag")
+        self._setup_view = setup_view
+        if current:
+            self.tag_input.default = current
+
+    async def on_submit(self, interaction: discord.Interaction):
+        value = self.tag_input.value.strip() or "17th"
+        await interaction.client.db.update_guild_setting(interaction.guild.id, "tagrole_text", value)
+        await self._setup_view.refresh(interaction, f"Tag défini sur `{value}` ! 🏷️")
+
+
+class SetupTagTextButton(discord.ui.Button):
+    def __init__(self, current: str = "17th"):
+        super().__init__(label="Modifier le Tag", emoji="🏷️", style=discord.ButtonStyle.secondary, row=2)
+        self.current = current
+
+    async def callback(self, interaction: discord.Interaction):
+        view: SetupView = self.view
+        await interaction.response.send_modal(SetupTagTextModal(view, self.current))
+
+
+class SetupTagScanButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label="Scanner les membres", emoji="🔄", style=discord.ButtonStyle.primary, row=2)
+
+    async def callback(self, interaction: discord.Interaction):
+        view: SetupView = self.view
+        await interaction.response.defer()
+        
+        from cogs.systems.tagrole import member_has_tag
+        settings = await view.bot.db.get_guild_settings(interaction.guild.id)
+        role_id = settings.get("tagrole_id")
+        if not role_id:
+            return await view.refresh(interaction, "❌ Veuillez d'abord choisir un rôle pour le tag.")
+            
+        role = interaction.guild.get_role(role_id)
+        if not role or interaction.guild.me.top_role <= role:
+            return await view.refresh(interaction, "❌ Le rôle configuré est inaccessible ou supérieur au bot.")
+
+        tag_text = settings.get("tagrole_text") or "17th"
+        added = 0
+        removed = 0
+        for m in interaction.guild.members:
+            if not m.bot:
+                has_tag = member_has_tag(m, tag_text, interaction.guild)
+                has_r = role in m.roles
+                try:
+                    if has_tag and not has_r:
+                        await m.add_roles(role, reason=f"Tag '{tag_text}' détecté (scan)")
+                        added += 1
+                    elif not has_tag and has_r:
+                        await m.remove_roles(role, reason=f"Tag '{tag_text}' manquant (scan)")
+                        removed += 1
+                except Exception:
+                    pass
+        await view.refresh(interaction, f"Scan terminé : +{added} rôle(s) attribué(s), -{removed} retiré(s) !")
 
 
 class SetupAutoReactChannelSelect(discord.ui.ChannelSelect):
@@ -734,6 +807,7 @@ CATEGORY_THEMES = {
     "logs":      {"title": "Logs Avancés du Serveur",        "emoji": "🪵", "color": 0x57F287, "desc": "Création automatique de 4 salons dédiés (messages, vocal, modération, serveur)."},
     "welcome":   {"title": "Accueil & Bienvenue",            "emoji": "👋", "color": 0x5865F2, "desc": "Personnalisation complète du message d'accueil, du titre, de la bannière GIF et de la couleur."},
     "autorole":  {"title": "Configuration des Auto-Rôles",   "emoji": "🎭", "color": 0xEB459E, "desc": "Attribution automatique de rôles distincts pour les membres humains et les bots dès leur arrivée."},
+    "tagrole":   {"title": "Rôle Automatique Tag",          "emoji": "🏷️", "color": 0x5865F2, "desc": "Attribution et retrait automatiques d'un rôle pour les membres arborant le tag du serveur."},
     "report":    {"title": "Signalements Staff",             "emoji": "🚨", "color": 0xFEE75C, "desc": "Salon privé recevant les signalements de messages effectués par les membres de la communauté."},
     "xp":        {"title": "Système de Niveaux & XP",        "emoji": "✨", "color": 0xF1C40F, "desc": "Gestion du salon d'annonces de montée de niveau (Level Up) et de l'expérience."},
     "tempvoice": {"title": "Salons Vocaux Temporaires",      "emoji": "🔊", "color": 0x9B59B6, "desc": "Création automatique de salons vocaux privés éphémères lorsque les membres rejoignent le déclencheur."},
@@ -777,9 +851,10 @@ class SetupView(discord.ui.LayoutView):
         is_stats = bool(stats_cfg)
         is_tv = bool(tv_cfg.get("trigger_channel_id"))
         is_areact = bool(ar_channels)
+        is_tagrole = bool(settings.get("tagrole_id"))
 
-        active_count = sum([is_am, is_ar, is_an, is_logs, is_welc, is_arole, is_rep, is_xp, is_stats, is_tv, is_areact])
-        total_modules = 11
+        active_count = sum([is_am, is_ar, is_an, is_logs, is_welc, is_arole, is_tagrole, is_rep, is_xp, is_stats, is_tv, is_areact])
+        total_modules = 12
         pct = round((active_count / total_modules) * 100)
         filled = round(active_count / total_modules * 10)
         bar = "🟩" * filled + "⬛" * (10 - filled)
@@ -810,8 +885,8 @@ class SetupView(discord.ui.LayoutView):
             f"> **Configuration :** `{active_count}/{total_modules} modules actifs` — **{pct}%**\n"
             f"> `{bar}`\n"
             f"> 🛡️ **Défense :** {'🟢' if is_am else '⚪'} AutoMod · {'🟢' if is_ar else '⚪'} Anti-Raid · {'🟢' if is_an else '⚪'} Anti-Nuke\n"
-            f"> ⚙️ **Gestion :** {'🟢' if is_logs else '⚪'} Logs · {'🟢' if is_welc else '⚪'} Accueil · {'🟢' if is_arole else '⚪'} Auto-Rôle · {'🟢' if is_rep else '⚪'} Reports\n"
-            f"> 🌟 **Communauté :** {'🟢' if is_xp else '⚪'} XP · {'🟢' if is_tv else '⚪'} TempVoice · {'🟢' if is_stats else '⚪'} Stats · {'🟢' if is_areact else '⚪'} Auto-Réact"
+            f"> ⚙️ **Gestion :** {'🟢' if is_logs else '⚪'} Logs · {'🟢' if is_welc else '⚪'} Accueil · {'🟢' if is_arole else '⚪'} Auto-Rôle · {'🟢' if is_tagrole else '⚪'} Tag 17th\n"
+            f"> 🌟 **Communauté :** {'🟢' if is_xp else '⚪'} XP · {'🟢' if is_tv else '⚪'} TempVoice · {'🟢' if is_stats else '⚪'} Stats · {'🟢' if is_areact else '⚪'} Auto-Réact · {'🟢' if is_rep else '⚪'} Reports"
         )
         cont.add_item(discord.ui.TextDisplay(kpi_text))
         cont.add_item(discord.ui.Separator())
@@ -831,12 +906,17 @@ class SetupView(discord.ui.LayoutView):
         ar_human = guild.get_role(settings.get("autorole_id")) if settings.get("autorole_id") else None
         ar_bot = guild.get_role(settings.get("autorole_bots_id")) if settings.get("autorole_bots_id") else None
         ar_str = f"{ar_human.mention if ar_human else 'Non défini'} & {ar_bot.mention if ar_bot else 'Non défini'}"
+        tag_role_id = settings.get("tagrole_id")
+        tag_role_obj = guild.get_role(tag_role_id) if tag_role_id else None
+        tag_text = settings.get("tagrole_text") or "17th"
+        tag_str = f"{tag_role_obj.mention} `[{tag_text}]`" if tag_role_obj else "Non configuré"
         
         gest_text = (
             f"⚙️ **Modération & Arrivées**\n"
             f"> 🪵 **Logs Avancés** ➔ {'🟢 Configuré' if is_logs else '⚪ Inactif'}\n"
             f"> 👋 **Accueil Membres** ➔ {'🟢 ' + welc_str if is_welc else '⚪ Non configuré'}\n"
             f"> 🎭 **Auto-Rôles** ➔ {'🟢 ' + ar_str if is_arole else '⚪ Non configuré'}\n"
+            f"> 🏷️ **Rôle Tag {tag_text}** ➔ {'🟢 ' + tag_str if is_tagrole else '⚪ Non configuré'}\n"
             f"> 🚨 **Signalements Staff** ➔ {'🟢 Actif' if is_rep else '⚪ Non configuré'}"
         )
         cont.add_item(discord.ui.TextDisplay(gest_text))
@@ -964,6 +1044,41 @@ class SetupView(discord.ui.LayoutView):
                 reset_buttons.append(SetupResetSettingButton("autorole_bots_id", "Retirer rôle bots", "L'auto-rôle bots a été désactivé !", emoji="🤖", row=3))
             if reset_buttons:
                 cont.add_item(discord.ui.ActionRow(*reset_buttons))
+
+        elif category == "tagrole":
+            r_tag = role(settings.get('tagrole_id'))
+            tag_text = settings.get("tagrole_text") or "17th"
+            tag_members_count = 0
+            role_obj = interaction.guild.get_role(settings.get('tagrole_id')) if settings.get('tagrole_id') else None
+            role_members_count = len(role_obj.members) if role_obj else 0
+            
+            from cogs.systems.tagrole import member_has_tag
+            for m in interaction.guild.members:
+                if not m.bot and member_has_tag(m, tag_text, interaction.guild):
+                    tag_members_count += 1
+
+            cont.add_item(discord.ui.TextDisplay(
+                f"### 🏷️ Rôle Automatique Lié au Tag\n"
+                f"> 🎭 **Rôle attribué :** {r_tag}\n"
+                f"> 🏷️ **Tag recherché :** `{tag_text}`\n"
+                f"> 👥 **Porteurs du tag détectés :** `{tag_members_count}` membre(s)\n"
+                f"> 🛡️ **Membres ayant le rôle :** `{role_members_count}` membre(s)\n\n"
+                f"**Détections automatiques prises en compte :**\n"
+                f"> 🏷️ Badge Serveur Discord *(Tag Clan / Primary Guild)*\n"
+                f"> 💬 Pseudo et surnom du membre sur le serveur\n"
+                f"> 💭 Statut personnalisé Discord\n\n"
+                f"> *Le rôle est automatiquement attribué dès que le membre ajoute le tag, et retiré dès qu'il l'enlève.*"
+            ))
+            cont.add_item(discord.ui.TextDisplay("**🎭 Définir le rôle pour les porteurs du tag :**"))
+            cont.add_item(discord.ui.ActionRow(SetupRoleSelect(lang, "tagrole_id", "Sélectionner le rôle à attribuer pour le tag...", row=1)))
+
+            action_row = [
+                SetupTagTextButton(tag_text),
+                SetupTagScanButton()
+            ]
+            if settings.get("tagrole_id"):
+                action_row.append(SetupResetSettingButton("tagrole_id", "Désactiver", "Le rôle tag a été désactivé !", emoji="🗑️", row=2))
+            cont.add_item(discord.ui.ActionRow(*action_row))
             
         elif category == "report":
             curr_rep = ch(settings.get('report_channel_id'))
@@ -1007,9 +1122,9 @@ class SetupView(discord.ui.LayoutView):
                     f"### 📋 Salons de Statistiques en Direct\n"
                     f"> **État actuel :** {'🟢 Salons créés et actifs' if stats_channels else '⚪ Désactivé'}\n"
                     f"> Génère automatiquement des salons vocaux verrouillés affichant :\n"
-                    f"> • 👥 Membres totaux\n"
-                    f"> • 🟢 Membres connectés\n"
-                    f"> • 🤖 Bots\n"
+                    f"> 👥 Membres totaux\n"
+                    f"> 🟢 Membres connectés\n"
+                    f"> 🤖 Bots\n"
                     f"> *Mis à jour automatiquement toutes les 10 minutes.*"
                 ),
                 accessory=btn
