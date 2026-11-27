@@ -15,87 +15,71 @@ HELP_PAGES = {
     "home": {
         "title": "Accueil & Aperçu",
         "emoji": "🏠",
-        "desc": "Sommaire et guide d'utilisation du bot",
+        "desc": "Sommaire et guide des commandes",
         "content": (
-            "### 🧭 Bienvenue sur le Centre d'Aide !\n"
-            "Explorez toutes les commandes du bot regroupées par domaine d'expertise :\n\n"
-            "> 🛡️ **Modération :** Sanctions, avertissements et nettoyage avancé (`/clear`, `/ban`, `/mute`...)\n"
-            "> 🚨 **Sécurité :** Audit de failles, Anti-Nuke, Anti-Raid et sauvegardes (`/security-audit`, `/backup`...)\n"
-            "> ⚙️ **Configuration :** Dashboard complet et personnalisation (`/config`, `/autorole`, `/cmdperm`...)\n"
-            "> ✨ **Niveaux XP :** Rangs, cartes d'expérience et récompenses de paliers (`/rank`, `/leaderboard`...)\n"
-            "> 🎭 **Communauté :** Salons vocaux temporaires, Reaction Roles, Giveaways (`/tempvoice`, `/rr`...)\n"
-            "> ℹ️ **Utilitaires :** Profils membres, infos serveur, créateur d'embeds (`/userinfo`, `/serverinfo`...)\n"
-            "> 👑 **Administration :** Whitelist/Blacklist et maintenance bot (`/wl`, `/bl`...)\n\n"
-            "💡 **Astuce :** Sélectionnez une catégorie dans le menu déroulant ci-dessous ou cliquez directement sur un bouton rapide."
+            "### 🌟 Bienvenue sur le Centre d'Aide 17th !\n"
+            "Choisis une catégorie dans le menu déroulant ci-dessous pour découvrir toutes les fonctionnalités.\n\n"
+            "🛡️ **Modération** ➔ Nettoyage du chat, sanctions & expulsions\n"
+            "🚨 **Sécurité** ➔ Audit de failles, Anti-Nuke, Anti-Raid & Backups\n"
+            "⚙️ **Configuration** ➔ Dashboard `/config`, auto-rôles & logs\n"
+            "✨ **Niveaux XP** ➔ Rangs, leaderboard & rôles récompenses\n"
+            "🎭 **Communauté** ➔ Vocaux temporaires, Reaction Roles & Giveaways\n"
+            "ℹ️ **Utilitaires** ➔ Profils membres, infos serveur & embeds\n"
+            "👑 **Administration** ➔ Gestion propriétaire & whitelist\n\n"
+            "👇 *Utilise le menu déroulant ci-dessous pour explorer chaque section.*"
         )
     },
     "moderation": {
         "title": "Modération & Sanctions",
         "emoji": "🛡️",
-        "desc": "Outils avancés pour modérer et nettoyer le serveur",
+        "desc": "Nettoyage, expulsions, mutes et bans",
         "content": (
-            "### 🛡️ Commandes de Modération & Nettoyage\n"
-            "• `/clear [nombre] [options...]` : Efface les messages avec filtres combinables :\n"
-            "> - `membre` : supprime uniquement les messages d'un utilisateur spécifique\n"
-            "> - `bots:Vrai` : supprime uniquement les messages envoyés par des bots/webhooks\n"
-            "> - `liens:Vrai` : supprime uniquement les messages contenant des URLs ou invitations\n"
-            "> - `images:Vrai` : supprime uniquement les messages avec images ou pièces jointes\n"
-            "> - `contient` : supprime uniquement les messages contenant un mot spécifique\n"
-            "> *(Sécurité native : les messages épinglés ne sont jamais supprimés)*\n\n"
-            "• `/kick [membre] [raison]` : Expulse un membre du serveur\n"
-            "• `/ban [membre] [delete_days] [raison]` : Bannit un membre définitivement\n"
-            "• `/unban [user_id] [raison]` : Révoque le bannissement d'un utilisateur\n"
-            "• `/mute [membre] [duree] [raison]` : Exclut temporairement un membre (ex: `10m`, `2h`, `1d`)\n"
-            "• `/unmute [membre] [raison]` : Retire l'exclusion temporaire\n"
-            "• `/warn [membre] [raison]` : Attribue un avertissement formel\n"
-            "• `/warnings [membre]` : Historique des avertissements d'un membre\n"
-            "• `/clearwarnings [membre]` : Réinitialise les avertissements d'un membre\n"
-            "• `/autosanction add/remove/list` : Sanctions automatiques configurées par palier de warns\n"
-            "• `/slowmode [secondes]` : Définit le ralentissement du salon textuel\n"
-            "• `/lock` & `/unlock` : Verrouille ou rouvre le salon textuel\n"
-            "• `/snipe` & `/editsnipe` : Récupère le dernier message supprimé ou modifié"
+            "### 🛡️ Commandes de Modération\n"
+            "🧹 `/clear [nombre]` ➔ Suppression filtrée *(membres, bots, liens, images, texte)*\n"
+            "🔨 `/ban [membre]` ➔ Bannir un membre du serveur\n"
+            "🔓 `/unban [id]` ➔ Révoquer un bannissement\n"
+            "👢 `/kick [membre]` ➔ Expulser un membre du serveur\n"
+            "🔇 `/mute [membre] [durée]` ➔ Exclusion temporaire *(ex: 10m, 2h, 1d)*\n"
+            "🔊 `/unmute [membre]` ➔ Retirer la sourdine d'un membre\n"
+            "⚠️ `/warn [membre]` ➔ Attribuer un avertissement formel\n"
+            "📋 `/warnings [membre]` ➔ Consulter l'historique des avertissements\n"
+            "🗑️ `/clearwarnings [membre]` ➔ Réinitialiser les avertissements\n"
+            "⚡ `/autosanction` ➔ Sanctions automatiques configurées par palier\n"
+            "⏳ `/slowmode [secondes]` ➔ Définir le mode lent d'un salon\n"
+            "🔒 `/lock` ➔ Verrouiller l'accès en écriture au salon\n"
+            "🔓 `/unlock` ➔ Déverrouiller le salon\n"
+            "👁️ `/snipe` ➔ Voir le dernier message supprimé\n"
+            "✏️ `/editsnipe` ➔ Voir la dernière modification de message"
         )
     },
     "security": {
         "title": "Sécurité, Défense & Audit",
         "emoji": "🚨",
-        "desc": "Audit de sécurité, Anti-Nuke, Anti-Raid et AutoMod",
+        "desc": "Audit sécurité, Anti-Nuke, Anti-Raid et AutoMod",
         "content": (
-            "### 🚨 Sécurité, Défense & Audit du Serveur\n"
-            "• `/security-audit` *(ou `/audit`)* : **Audit de sécurité complet du serveur** :\n"
-            "> - Analyse instantanée des permissions critiques du rôle `@everyone`\n"
-            "> - Décompte des modérateurs et bots disposant des permissions Administrateur\n"
-            "> - Évaluation des réglages Discord (2FA modération, filtre média, niveau vérif)\n"
-            "> - Score sur 100 avec note (A+, A, B, C, D, F) et bouton `🔄 Réanalyser` en direct\n\n"
-            "• `Anti-Nuke` *(via `/config`)* : Protège contre la destruction du serveur par un compte staff compromis :\n"
-            "> - Bloque les suppressions massives de salons, rôles, expulsions et bannissements\n"
-            "> - Sanctions immédiates : Quarantaine (retrait de tous les rôles), Ban ou Kick\n\n"
-            "• `Anti-Raid` *(via `/config`)* : Détecte et bloque les vagues de comptes d'attaque :\n"
-            "> - Ratio de joins par seconde configurable avec sanction automatique\n"
-            "> - Âge minimum de compte Discord requis pour rejoindre le serveur\n\n"
-            "• `AutoMod` *(via `/config`)* : Surveillance 24/7 en temps réel du chat :\n"
-            "> - Modules : Anti-Spam, Anti-Liens, Anti-Invites, Anti-Majuscules, Anti-Mentions, Anti-Flood\n\n"
-            "• `/ghostping` : Détecte et affiche les messages qui mentionnent des membres avant d'être effacés\n"
-            "• `/backup create/load/list/delete` : Système de sauvegarde et restauration complète du serveur"
+            "### 🚨 Sécurité, Défense & Audit\n"
+            "🔍 `/security-audit` *(ou `/audit`)* ➔ Scan complet du serveur, score /100 et détection des failles\n"
+            "☢️ **Anti-Nuke** *(via `/config`)* ➔ Bloque les destructions massives de salons, rôles et bans\n"
+            "⚔️ **Anti-Raid** *(via `/config`)* ➔ Bloque les vagues de joins et filtre l'âge des comptes\n"
+            "🤖 **AutoMod** *(via `/config`)* ➔ Anti-spam, liens, invites, majuscules, mentions, flood\n"
+            "👻 `/ghostping` ➔ Détecte et affiche les pings fantômes supprimés\n"
+            "💾 `/backup` ➔ Sauvegarde et restauration complète du serveur"
         )
     },
     "config": {
         "title": "Configuration & Gestion",
         "emoji": "⚙️",
-        "desc": "Dashboard /config, auto-rôles, logs et personnalisation",
+        "desc": "Dashboard /config, auto-rôles, logs et réglages",
         "content": (
             "### ⚙️ Configuration & Gestion du Serveur\n"
-            "• `/config` *(ou `/setup`)* : **Dashboard complet interactif (Components v2)**\n"
-            "> - Gestion de l'ensemble des modules en une interface unifiée\n"
-            "> - Indicateur de progression en direct et statuts des systèmes\n\n"
-            "• `/autorole [cible:Humains/Bots] [role]` : Rôles automatiques distincts à l'arrivée\n"
-            "• `Logs Avancés` *(via `/config`)* : Génère automatiquement 4 salons de logs sécurisés :\n"
-            "> - `logs-messages`, `logs-vocaux`, `logs-modération`, `logs-serveur`\n\n"
-            "• `Message d'Accueil` *(via `/config`)* : Personnalisation du titre, message, bannière GIF et couleur\n"
-            "• `Auto-Réactions Photos` *(via `/config`)* : Réactions automatiques ciblées sur photos et médias\n"
-            "• `/cmdperm` : Restreint ou autorise l'accès à certaines commandes slash selon les rôles\n"
-            "• `/notifications` : Dashboard d'alertes de lives Twitch et vidéos TikTok automatiques\n"
-            "• `/ticket setup` : Crée un panel de tickets de support avec salons privés dédiés"
+            "🎛️ `/config` *(ou `/setup`)* ➔ Dashboard interactif pour tout configurer\n"
+            "🎭 `/autorole [cible] [role]` ➔ Auto-rôles distincts pour humains et bots\n"
+            "🪵 **Logs Avancés** *(via `/config`)* ➔ 4 salons dédiés *(messages, vocal, mod, serveur)*\n"
+            "👋 **Accueil** *(via `/config`)* ➔ Titre, message, GIF et couleur de bienvenue\n"
+            "📸 **Auto-Réactions** *(via `/config`)* ➔ Réactions automatiques sur photos et médias\n"
+            "🔐 `/cmdperm` ➔ Verrouiller l'accès des commandes à certains rôles\n"
+            "🔔 `/notifications` ➔ Alertes automatiques Twitch et TikTok\n"
+            "🎟️ `/ticket setup` ➔ Panneau de support et tickets privés"
         )
     },
     "xp": {
@@ -103,16 +87,16 @@ HELP_PAGES = {
         "emoji": "✨",
         "desc": "Cartes de rang, classements et rôles par niveau",
         "content": (
-            "### ✨ Système de Niveaux & Expérience (XP)\n"
-            "• `/rank [membre]` : Affiche la carte de profil, niveau actuel et progression d'expérience\n"
-            "• `/leaderboard` : Affiche le classement top 10 des membres les plus actifs du serveur\n"
-            "• `/xprole add [niveau] [role]` : Associe un rôle de récompense débloqué à un niveau précis\n"
-            "• `/xprole remove [niveau]` : Supprime une récompense de niveau\n"
-            "• `/xprole list` : Affiche toutes les récompenses de rôles configurées\n"
-            "• `/setxp [membre] [montant]` : Définit manuellement l'XP d'un utilisateur *(Admin)*\n"
-            "• `/addxp [membre] [montant]` : Ajoute de l'XP à un utilisateur *(Admin)*\n"
-            "• `/resetxp [membre/all]` : Réinitialise l'XP d'un membre ou de tout le serveur *(Admin)*\n"
-            "• `Salon Level Up` *(via `/config`)* : Définit le salon recevant les annonces de niveau"
+            "### ✨ Niveaux & Récompenses XP\n"
+            "🏆 `/rank [membre]` ➔ Carte de profil, rang et progression XP\n"
+            "👑 `/leaderboard` ➔ Classement des membres les plus actifs\n"
+            "🎁 `/xprole add [niveau] [role]` ➔ Débloquer un rôle à un palier précis\n"
+            "❌ `/xprole remove [niveau]` ➔ Supprimer un rôle de palier\n"
+            "📜 `/xprole list` ➔ Afficher toutes les récompenses de rôles\n"
+            "💎 `/addxp [membre] [xp]` ➔ Ajouter de l'XP à un membre\n"
+            "⚙️ `/setxp [membre] [xp]` ➔ Modifier directement le niveau/XP\n"
+            "🔄 `/resetxp [membre/all]` ➔ Remettre à zéro l'expérience\n"
+            "📢 **Level Up** *(via `/config`)* ➔ Salon d'annonces de montée de niveau"
         )
     },
     "community": {
@@ -121,32 +105,32 @@ HELP_PAGES = {
         "desc": "TempVoice, Reaction Roles, Giveaways et Starboard",
         "content": (
             "### 🎭 Communauté, Vocaux & Animation\n"
-            "• `/tempvoice` : Déploie le système de salons vocaux temporaires automatiques :\n"
-            "> - Les membres rejoignent le salon déclencheur pour créer leur salon privé éphémère\n"
-            "> - Contrôle autonome : limite de membres, verrouillage et gestion\n\n"
-            "• `/rr setup` / `/rr add` / `/rr remove` : Reaction Roles avec boutons interactifs élégants\n"
-            "• `/giveaway start [duree] [gagnants] [prix]` : Lance un tirage au sort interactif\n"
-            "• `/giveaway reroll [message_id]` : Tire un nouveau gagnant pour un concours clos\n"
-            "• `/giveaway end [message_id]` : Termine un giveaway prématurément\n"
-            "• `/giveaway list` : Liste tous les concours actuellement actifs\n"
-            "• `/starboard` : Configure le salon vitrine qui met en avant les messages étoilés ⭐\n"
-            "• `/afk set [raison]` : Déclare votre statut d'absence et prévient automatiquement les mentions"
+            "🔊 `/tempvoice` ➔ Salons vocaux temporaires automatiques personnalisables\n"
+            "🔘 `/rr setup` ➔ Créer un panneau de reaction roles avec boutons\n"
+            "➕ `/rr add` ➔ Ajouter un rôle à un bouton existant\n"
+            "➖ `/rr remove` ➔ Retirer un bouton de rôle\n"
+            "🎉 `/giveaway start` ➔ Lancer un concours avec compte à rebours\n"
+            "🎲 `/giveaway reroll` ➔ Tirer un nouveau gagnant au sort\n"
+            "⏹️ `/giveaway end` ➔ Terminer immédiatement un giveaway\n"
+            "📜 `/giveaway list` ➔ Liste des concours actuellement actifs\n"
+            "⭐ `/starboard` ➔ Salon vitrine des messages les plus étoilés\n"
+            "💤 `/afk set [raison]` ➔ Prévenir les membres que tu es absent"
         )
     },
     "utility": {
         "title": "Utilitaires & Informations",
         "emoji": "ℹ️",
-        "desc": "Userinfo, serverinfo, avatar, botinfo et créateur d'embeds",
+        "desc": "Userinfo, serverinfo, avatar, botinfo et embeds",
         "content": (
-            "### ℹ️ Utilitaires & Fiches d'Information\n"
-            "• `/userinfo [membre]` : Fiche complète d'un membre (date de création, arrivée, rôles, badges...)\n"
-            "• `/serverinfo` : Statistiques détaillées du serveur (création, salons, rôles, boosts...)\n"
-            "• `/botinfo` : Informations système, latence Gateway, version Discord.py et statut\n"
-            "• `/avatar [membre]` : Affiche l'avatar en grand et fournit les liens de téléchargement HD\n"
-            "• `/roleinfo [role]` : Analyse complète d'un rôle (permissions, couleur, membres...)\n"
-            "• `/embed create` : Interface visuelle pour concevoir des embeds personnalisés\n"
-            "• `/embed edit [message_id]` : Modifie un embed existant posté par le bot\n"
-            "• `/embed button [message_id]` : Ajoute des boutons de redirection URL sous un message"
+            "### ℹ️ Utilitaires & Informations\n"
+            "👤 `/userinfo [membre]` ➔ Fiche complète, badges, création et rôles\n"
+            "🏰 `/serverinfo` ➔ Statistiques détaillées, membres, boosts et salons\n"
+            "🤖 `/botinfo` ➔ Version, latence en direct, mémoire et statut\n"
+            "🖼️ `/avatar [membre]` ➔ Télécharger l'avatar en haute qualité\n"
+            "🎭 `/roleinfo [role]` ➔ Analyse, permissions et membres d'un rôle\n"
+            "🎨 `/embed create` ➔ Créateur visuel d'embeds personnalisés\n"
+            "✏️ `/embed edit` ➔ Modifier un embed existant posté par le bot\n"
+            "🔗 `/embed button` ➔ Ajouter des boutons liens URL sous un embed"
         )
     },
     "admin": {
@@ -155,14 +139,14 @@ HELP_PAGES = {
         "desc": "Commandes propriétaires, whitelist et blacklist",
         "content": (
             "### 👑 Administration du Bot\n"
-            "• `/wl add [membre]` : Ajoute un membre à la liste blanche (whitelist)\n"
-            "• `/wl remove [membre]` : Retire un membre de la whitelist\n"
-            "• `/wl list` : Liste l'ensemble des membres whitelistés\n"
-            "• `/bl add [membre] [raison]` : Ajoute un utilisateur à la blacklist du bot\n"
-            "• `/bl remove [membre]` : Retire un utilisateur de la blacklist\n"
-            "• `/bl list` : Liste l'ensemble des utilisateurs blacklistés\n"
-            "• `/reload [module]` : Recharge un module à chaud sans interrompre le bot\n"
-            "• `/shutdown` : Arrête le bot en toute sécurité"
+            "🛡️ `/wl add [membre]` ➔ Ajouter un membre à la whitelist\n"
+            "❌ `/wl remove [membre]` ➔ Retirer de la whitelist\n"
+            "📜 `/wl list` ➔ Voir la liste des membres whitelistés\n"
+            "🚫 `/bl add [membre]` ➔ Bloquer un utilisateur (blacklist)\n"
+            "✅ `/bl remove [membre]` ➔ Débloquer un utilisateur\n"
+            "📋 `/bl list` ➔ Voir la liste des blacklistés\n"
+            "⚡ `/reload [module]` ➔ Recharger un module à chaud\n"
+            "🔌 `/shutdown` ➔ Éteindre le bot proprement"
         )
     }
 }
@@ -178,7 +162,7 @@ class HelpCategorySelect(discord.ui.Select):
                 default=(key == current_page)
             ) for key, data in HELP_PAGES.items()
         ]
-        super().__init__(placeholder="📖 Sélectionnez une catégorie à explorer...", options=options, row=0)
+        super().__init__(placeholder="📖 Choisir une catégorie...", options=options, row=0)
 
     async def callback(self, interaction: discord.Interaction):
         await self.view.show_page(interaction, self.values[0])
@@ -210,8 +194,8 @@ class HelpViewV2(discord.ui.LayoutView):
         bot_user = self.bot.user
         avatar_url = bot_user.display_avatar.url if bot_user else None
         header_text = (
-            f"# 📚 Centre d'Aide • {bot_user.name if bot_user else 'Bot'}\n"
-            f"> Documentation interactive de l'ensemble des commandes et fonctionnalités.\n"
+            f"# 📚 Centre d'Aide ✦ {bot_user.name if bot_user else '17th'}\n"
+            f"> Documentation interactive de l'ensemble des commandes.\n"
         )
         if avatar_url:
             cont.add_item(discord.ui.Section(discord.ui.TextDisplay(header_text), accessory=discord.ui.Thumbnail(avatar_url)))
@@ -228,20 +212,6 @@ class HelpViewV2(discord.ui.LayoutView):
         cont.add_item(discord.ui.Separator())
 
         cont.add_item(discord.ui.ActionRow(HelpCategorySelect(page_key)))
-
-        def make_quick_btn(target: str, label: str, emoji: str):
-            btn = discord.ui.Button(label=label, emoji=emoji, style=discord.ButtonStyle.primary if page_key == target else discord.ButtonStyle.secondary)
-            async def btn_cb(inter: discord.Interaction):
-                await self.show_page(inter, target)
-            btn.callback = btn_cb
-            return btn
-
-        btn_home = make_quick_btn("home", "Accueil", "🏠")
-        btn_mod = make_quick_btn("moderation", "Modération", "🛡️")
-        btn_sec = make_quick_btn("security", "Sécurité", "🚨")
-        btn_cfg = make_quick_btn("config", "Config", "⚙️")
-        btn_xp = make_quick_btn("xp", "XP", "✨")
-        cont.add_item(discord.ui.ActionRow(btn_home, btn_mod, btn_sec, btn_cfg, btn_xp))
 
         self.add_item(cont)
 
