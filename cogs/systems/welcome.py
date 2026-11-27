@@ -83,13 +83,14 @@ class Welcome(commands.Cog):
         settings = await self.bot.db.get_guild_settings(member.guild.id)
         lang     = settings.get("language") or "fr"
 
-        # ── Auto-rôle ────────────────────────────────────────────────────
-        autorole_id = settings.get("autorole_id")
-        if autorole_id:
-            role = member.guild.get_role(autorole_id)
+        # ── Auto-rôle (Humains vs Bots) ──────────────────────────────────
+        target_role_id = settings.get("autorole_bots_id") if member.bot else settings.get("autorole_id")
+        if target_role_id:
+            role = member.guild.get_role(target_role_id)
             if role and member.guild.me.guild_permissions.manage_roles and role < member.guild.me.top_role:
                 try:
-                    await member.add_roles(role, reason="Rôle automatique à l'arrivée")
+                    reason = "Auto-rôle bot à l'arrivée" if member.bot else "Auto-rôle membre à l'arrivée"
+                    await member.add_roles(role, reason=reason)
                 except discord.Forbidden:
                     pass
 

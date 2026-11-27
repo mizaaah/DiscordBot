@@ -414,7 +414,8 @@ class Moderation(commands.Cog):
     @app_commands.describe(
         nombre="Nombre de messages à supprimer (1–100)",
         membre="Seulement les messages de ce membre",
-        bots="Seulement les messages de bots",
+        bots="Seulement les messages envoyés par des bots",
+        liens="Seulement les messages contenant des liens",
         images="Seulement les messages avec images/fichiers",
         contient="Seulement les messages contenant ce texte"
     )
@@ -425,27 +426,50 @@ class Moderation(commands.Cog):
         nombre: app_commands.Range[int, 1, 100],
         membre: discord.Member = None,
         bots: bool = False,
+        liens: bool = False,
         images: bool = False,
         contient: str = None
     ):
         lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         await interaction.response.defer(ephemeral=True)
-        has_filter = membre or bots or images or contient
+        has_filter = membre or bots or liens or images or contient
 
         def check(msg: discord.Message) -> bool:
-            if membre  and msg.author != membre:                                           return False
-            if bots    and not msg.author.bot:                                             return False
-            if images  and not msg.attachments and not any(e.image for e in msg.embeds):  return False
-            if contient and contient.lower() not in msg.content.lower():                   return False
+            if msg.pinned:
+                return False
+            if membre and msg.author.id != membre.id:
+                return False
+            if bots and not msg.author.bot:
+                return False
+            if liens and not re.search(r"https?://|discord\.gg/", msg.content, re.IGNORECASE):
+                return False
+            if images and not msg.attachments and not any(e.image or e.thumbnail for e in msg.embeds):
+                return False
+            if contient and contient.lower() not in msg.content.lower():
+                return False
             return True
 
-        limit   = min(nombre * 5, 500) if has_filter else nombre
-        deleted = await interaction.channel.purge(limit=limit, check=check,
-                                                   before=interaction.created_at)
+        limit = min(nombre * 10, 1000) if has_filter else nombre
+        deleted = await interaction.channel.purge(
+            limit=limit,
+            check=check,
+            before=interaction.created_at
+        )
         if len(deleted) > nombre:
             deleted = deleted[:nombre]
 
-        await interaction.followup.send(embed=success_embed(t(lang, "mod.clear_success", count=len(deleted))), ephemeral=True)
+        applied_filters = []
+        if membre: applied_filters.append(f"Auteur : {membre.mention}")
+        if bots: applied_filters.append("Bots uniquement")
+        if liens: applied_filters.append("Liens uniquement")
+        if images: applied_filters.append("Images/Fichiers")
+        if contient: applied_filters.append(f"Contient : `{contient}`")
+
+        msg_text = t(lang, "mod.clear_success", count=len(deleted))
+        if applied_filters:
+            msg_text += f"\n-# **Filtres :** {', '.join(applied_filters)}"
+
+        await interaction.followup.send(embed=success_embed(msg_text), ephemeral=True)
 
         if logs := get_logs(self.bot):
             await logs.log_clear(interaction.guild, interaction.channel, interaction.user, len(deleted))

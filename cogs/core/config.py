@@ -50,8 +50,10 @@ class SetupChannelSelect(discord.ui.ChannelSelect):
 
 
 class SetupRoleSelect(discord.ui.RoleSelect):
-    def __init__(self, lang: str):
-        super().__init__(placeholder=t(lang, "setup.autorole_placeholder"), row=1)
+    def __init__(self, lang: str, setting_key: str = "autorole_id", placeholder: str = None, row: int = 1):
+        ph = placeholder or t(lang, "setup.autorole_placeholder")
+        super().__init__(placeholder=ph, row=row)
+        self.setting_key = setting_key
 
     async def callback(self, interaction: discord.Interaction):
         view: SetupView = self.view
@@ -62,8 +64,9 @@ class SetupRoleSelect(discord.ui.RoleSelect):
         if me and me.top_role and role >= me.top_role:
             return await interaction.response.send_message(embed=error_embed(t(view.lang, "cfg.autorole_too_high")), ephemeral=True)
             
-        await interaction.client.db.update_guild_setting(interaction.guild.id, "autorole_id", role.id)
-        await view.refresh(interaction, t(view.lang, "setup.saved_role", role=role.mention))
+        await interaction.client.db.update_guild_setting(interaction.guild.id, self.setting_key, role.id)
+        target_name = "des bots" if self.setting_key == "autorole_bots_id" else "des membres humains"
+        await view.refresh(interaction, f"Auto-rôle {target_name} défini sur {role.mention} ! 🎭")
 
 
 class SetupMessageModal(discord.ui.Modal):
@@ -792,10 +795,15 @@ class SetupView(discord.ui.LayoutView):
         cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"👋 **Accueil**\n> **Salon actuel :** {ch(settings.get('welcome_channel_id'))}\n> Accueillez les nouveaux membres avec style."), accessory=btn_welc))
 
         # Auto-Rôle
-        ar_status = bool(settings.get("autorole_id"))
+        ar_human = settings.get("autorole_id")
+        ar_bot = settings.get("autorole_bots_id")
+        ar_status = bool(ar_human or ar_bot)
         btn_auto = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.success if ar_status else discord.ButtonStyle.secondary)
         btn_auto.callback = make_nav("autorole")
-        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🎭 **Auto-Rôle**\n> **Rôle actuel :** {role(settings.get('autorole_id'))}\n> Rôle attribué automatiquement aux nouveaux membres."), accessory=btn_auto))
+        cont.add_item(discord.ui.Section(
+            discord.ui.TextDisplay(f"🎭 **Auto-Rôle**\n> **Humains :** {role(ar_human)} | **Bots :** {role(ar_bot)}\n> Attribution automatique des rôles à l'arrivée."),
+            accessory=btn_auto
+        ))
 
         # Signalement
         rep_status = bool(settings.get("report_channel_id"))
@@ -903,13 +911,26 @@ class SetupView(discord.ui.LayoutView):
                 cont.add_item(discord.ui.ActionRow(*reset_buttons))
 
         elif category == "autorole":
-            curr_role = role(settings.get('autorole_id'))
-            cont.add_item(discord.ui.TextDisplay(f"🎭 **Auto-Rôle**\n> **Rôle actuel :** {curr_role}\n> Rôle donné automatiquement aux nouveaux membres."))
-            cont.add_item(discord.ui.ActionRow(SetupRoleSelect(lang)))
+            r_human = role(settings.get('autorole_id'))
+            r_bot = role(settings.get('autorole_bots_id'))
+            cont.add_item(discord.ui.TextDisplay(
+                f"🎭 **Configuration de l'Auto-Rôle**\n"
+                f"> **Membres Humains :** {r_human}\n"
+                f"> **Bots :** {r_bot}\n\n"
+                f"Sélectionnez les rôles attribués automatiquement dès qu'un membre ou un bot rejoint le serveur."
+            ))
+            cont.add_item(discord.ui.TextDisplay("👤 **Rôle pour les Humains :**"))
+            cont.add_item(discord.ui.ActionRow(SetupRoleSelect(lang, "autorole_id", "Choisir le rôle pour les humains...", row=1)))
+            cont.add_item(discord.ui.TextDisplay("🤖 **Rôle pour les Bots :**"))
+            cont.add_item(discord.ui.ActionRow(SetupRoleSelect(lang, "autorole_bots_id", "Choisir le rôle pour les bots...", row=2)))
+
+            reset_buttons = []
             if settings.get("autorole_id"):
-                cont.add_item(discord.ui.ActionRow(
-                    SetupResetSettingButton("autorole_id", "Désactiver l'auto-rôle", "L'auto-rôle a bien été désactivé !")
-                ))
+                reset_buttons.append(SetupResetSettingButton("autorole_id", "Retirer rôle humains", "L'auto-rôle humains a été désactivé !", emoji="👤", row=3))
+            if settings.get("autorole_bots_id"):
+                reset_buttons.append(SetupResetSettingButton("autorole_bots_id", "Retirer rôle bots", "L'auto-rôle bots a été désactivé !", emoji="🤖", row=3))
+            if reset_buttons:
+                cont.add_item(discord.ui.ActionRow(*reset_buttons))
             
         elif category == "report":
             curr_rep = ch(settings.get('report_channel_id'))
@@ -1072,19 +1093,29 @@ class Config(commands.Cog):
         await self.config(interaction)
 
     @app_commands.command(name="autorole", description="Configure ou désactive le rôle automatique à l'arrivée")
-    @app_commands.describe(role="Le rôle à attribuer (laissez vide pour désactiver l'auto-rôle)")
+    @app_commands.describe(
+        role="Le rôle à attribuer (laissez vide pour désactiver)",
+        cible="Attribuer ce rôle aux membres humains ou aux bots"
+    )
+    @app_commands.choices(cible=[
+        app_commands.Choice(name="👤 Humains (Membres)", value="humans"),
+        app_commands.Choice(name="🤖 Bots", value="bots"),
+    ])
     @app_commands.default_permissions(manage_guild=True)
-    async def autorole(self, interaction: discord.Interaction, role: discord.Role = None):
+    async def autorole(self, interaction: discord.Interaction, role: discord.Role = None, cible: str = "humans"):
+        setting_key = "autorole_bots_id" if cible == "bots" else "autorole_id"
+        cible_name = "des bots" if cible == "bots" else "des membres humains"
+
         if role is None:
-            await self.bot.db.update_guild_setting(interaction.guild.id, "autorole_id", None)
-            return await interaction.response.send_message("✅ L'auto-rôle a été **désactivé** avec succès. 🎭", ephemeral=True)
+            await self.bot.db.update_guild_setting(interaction.guild.id, setting_key, None)
+            return await interaction.response.send_message(f"✅ L'auto-rôle {cible_name} a été **désactivé** avec succès. 🎭", ephemeral=True)
 
         me = interaction.guild.me
         if me and me.top_role and role >= me.top_role:
             return await interaction.response.send_message(embed=error_embed("❌ Ce rôle est supérieur ou égal au rôle du bot."), ephemeral=True)
 
-        await self.bot.db.update_guild_setting(interaction.guild.id, "autorole_id", role.id)
-        await interaction.response.send_message(embed=success_embed(f"✅ L'auto-rôle a été défini sur {role.mention}."), ephemeral=True)
+        await self.bot.db.update_guild_setting(interaction.guild.id, setting_key, role.id)
+        await interaction.response.send_message(embed=success_embed(f"✅ L'auto-rôle {cible_name} a été défini sur {role.mention}."), ephemeral=True)
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(Config(bot))
