@@ -43,7 +43,7 @@ class Admin(commands.Cog):
         if not users:
             return await interaction.response.send_message("La Whitelist est vide.", ephemeral=True)
         
-        desc = "\\n".join([f"- <@{u['user_id']}>" for u in users])
+        desc = "\n".join([f"• <@{u['user_id']}>" for u in users])
         embed = discord.Embed(title="🛡️ Whitelist", description=desc, color=Colors.INFO.value)
         await interaction.response.send_message(embed=embed)
 
@@ -87,7 +87,7 @@ class Admin(commands.Cog):
         if not users:
             return await interaction.response.send_message("La Blacklist est vide.", ephemeral=True)
         
-        desc = "\\n".join([f"- <@{u['user_id']}>" for u in users])
+        desc = "\n".join([f"• <@{u['user_id']}>" for u in users])
         embed = discord.Embed(title="☠️ Blacklist", description=desc, color=Colors.ERROR.value)
         await interaction.response.send_message(embed=embed)
 
