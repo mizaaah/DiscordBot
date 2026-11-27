@@ -74,31 +74,13 @@ class Bot(commands.Bot):
         await self.tree.sync()
         logging.info("✅ Slash commands synchronisées.")
 
-        self.rotate_presence.start()
-
     async def on_ready(self):
         logging.info(f"🤖 Bot connecté : {self.user} (ID: {self.user.id})")
         logging.info(f"📡 Sur {len(self.guilds)} serveur(s)")
-
-    @tasks.loop(seconds=20)
-    async def rotate_presence(self):
-        member_count = sum(g.member_count or 0 for g in self.guilds)
-        presences = [
-            (discord.ActivityType.playing, f"✨ Avec {member_count} membres"),
-            (discord.ActivityType.watching, f"🌍 {len(self.guilds)} serveurs | /help"),
-            (discord.ActivityType.listening, "🎵 Vos requêtes | /help"),
-            (discord.ActivityType.competing, "🏆 Pour être le meilleur bot !"),
-        ]
-        activity_type, name = presences[self._presence_index % len(presences)]
-        self._presence_index += 1
         await self.change_presence(
             status=discord.Status.dnd,
-            activity=discord.Activity(type=activity_type, name=name)
+            activity=discord.CustomActivity(name="17th")
         )
-
-    @rotate_presence.before_loop
-    async def before_rotate_presence(self):
-        await self.wait_until_ready()
 
     async def on_command_error(self, ctx: commands.Context, error: commands.CommandError):
         # Prefix commands (+...) are owner-only utilities. Stay silent for anyone
