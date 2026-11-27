@@ -16,25 +16,31 @@ def get_logs(bot: commands.Bot):
 # ══════════════════════════════════════════════════════════════════════════════
 
 class SetupCategorySelect(discord.ui.Select):
-    def __init__(self, lang: str):
+    def __init__(self, lang: str, current: str = None):
         options = [
-            discord.SelectOption(label=t(lang, "setup.opt_logs"),     value="logs",     emoji="🪵"),
-            discord.SelectOption(label=t(lang, "setup.opt_welcome"),  value="welcome",  emoji="👋"),
-            discord.SelectOption(label=t(lang, "setup.opt_autorole"), value="autorole", emoji="🎭"),
-            discord.SelectOption(label=t(lang, "setup.opt_report"),   value="report",   emoji="🚨"),
-            discord.SelectOption(label=t(lang, "setup.opt_language"), value="language", emoji="🌐"),
-            discord.SelectOption(label="Système XP",                  value="xp",       emoji="✨"),
-            discord.SelectOption(label="AutoMod",                     value="automod",  emoji="🛡️"),
-            discord.SelectOption(label="Anti-Raid",                   value="antiraid", emoji="⚔️"),
-            discord.SelectOption(label="Statistiques",                value="stats",    emoji="📊"),
-            discord.SelectOption(label="TempVoice",                   value="tempvoice", emoji="🔊"),
-            discord.SelectOption(label="Auto-Réaction Photos",        value="autoreact", emoji="📸"),
+            discord.SelectOption(label="Tableau de bord",         value="home",      emoji="🏠", description="Retourner à l'accueil du dashboard", default=(current == "home")),
+            discord.SelectOption(label="Protection AutoMod",     value="automod",   emoji="🛡️", description="Anti-spam, anti-liens, anti-flood",  default=(current == "automod")),
+            discord.SelectOption(label="Protection Anti-Raid",   value="antiraid",  emoji="⚔️", description="Blocage des vagues d'arrivées",       default=(current == "antiraid")),
+            discord.SelectOption(label="Protection Anti-Nuke",   value="antinuke",  emoji="☢️", description="Protection destructions massives",    default=(current == "antinuke")),
+            discord.SelectOption(label="Logs Avancés",            value="logs",      emoji="🪵", description="4 salons dédiés (messages, voc, mod)",default=(current == "logs")),
+            discord.SelectOption(label="Accueil & Bienvenue",      value="welcome",   emoji="👋", description="Message, image, titre et couleur",     default=(current == "welcome")),
+            discord.SelectOption(label="Auto-Rôles (Membres/Bots)",value="autorole", emoji="🎭", description="Rôles automatiques distincts",       default=(current == "autorole")),
+            discord.SelectOption(label="Signalements Staff",      value="report",    emoji="🚨", description="Salon de transmission des signalements",default=(current == "report")),
+            discord.SelectOption(label="Système XP & Niveaux",    value="xp",        emoji="✨", description="Salon d'annonces de level up",         default=(current == "xp")),
+            discord.SelectOption(label="Salons TempVoice",        value="tempvoice", emoji="🔊", description="Salons vocaux temporaires personnels",default=(current == "tempvoice")),
+            discord.SelectOption(label="Salons Statistiques",      value="stats",     emoji="📊", description="Compteurs vocaux en direct",          default=(current == "stats")),
+            discord.SelectOption(label="Auto-Réactions Photos",   value="autoreact", emoji="📸", description="Réactions automatiques aux photos",   default=(current == "autoreact")),
+            discord.SelectOption(label="Langue du Bot",           value="language",  emoji="🌐", description="Français ou English",                 default=(current == "language")),
         ]
-        super().__init__(placeholder=t(lang, "setup.select_placeholder"), options=options, row=0)
+        super().__init__(placeholder="⚡ Choisissez un module à configurer...", options=options, row=0)
 
     async def callback(self, interaction: discord.Interaction):
         view: SetupView = self.view
-        await view.show_category(interaction, self.values[0])
+        val = self.values[0]
+        if val == "home":
+            await view.show_home(interaction)
+        else:
+            await view.show_category(interaction, val)
 
 
 class SetupChannelSelect(discord.ui.ChannelSelect):
@@ -668,7 +674,7 @@ class AntiNukeAlertChannelSelect(discord.ui.ChannelSelect):
 
 class SetupBackButton(discord.ui.Button):
     def __init__(self, lang: str):
-        super().__init__(label=t(lang, "setup.back_btn"), style=discord.ButtonStyle.danger, row=4)
+        super().__init__(label="Tableau de bord", emoji="🏠", style=discord.ButtonStyle.secondary, row=4)
 
     async def callback(self, interaction: discord.Interaction):
         view: SetupView = self.view
@@ -721,6 +727,21 @@ class SetupLogsCategorySelect(discord.ui.ChannelSelect):
         await view._build_home(interaction.guild, "Catégorie de logs configurée et salons créés !")
         await interaction.edit_original_response(view=view, embed=None)
 
+CATEGORY_THEMES = {
+    "automod":   {"title": "Protection AutoMod",             "emoji": "🛡️", "color": 0xED4245, "desc": "Surveillance automatique du chat contre le spam, les liens frauduleux, les invitations et le flood."},
+    "antiraid":  {"title": "Protection Anti-Raid",           "emoji": "⚔️", "color": 0xFEE75C, "desc": "Détection automatique des vagues de raids et filtrage des nouveaux comptes."},
+    "antinuke":  {"title": "Protection Anti-Nuke",           "emoji": "☢️", "color": 0xED4245, "desc": "Protection d'urgence contre les destructions massives de salons, rôles et sanctions abusives."},
+    "logs":      {"title": "Logs Avancés du Serveur",        "emoji": "🪵", "color": 0x57F287, "desc": "Création automatique de 4 salons dédiés (messages, vocal, modération, serveur)."},
+    "welcome":   {"title": "Accueil & Bienvenue",            "emoji": "👋", "color": 0x5865F2, "desc": "Personnalisation complète du message d'accueil, du titre, de la bannière GIF et de la couleur."},
+    "autorole":  {"title": "Configuration des Auto-Rôles",   "emoji": "🎭", "color": 0xEB459E, "desc": "Attribution automatique de rôles distincts pour les membres humains et les bots dès leur arrivée."},
+    "report":    {"title": "Signalements Staff",             "emoji": "🚨", "color": 0xFEE75C, "desc": "Salon privé recevant les signalements de messages effectués par les membres de la communauté."},
+    "xp":        {"title": "Système de Niveaux & XP",        "emoji": "✨", "color": 0xF1C40F, "desc": "Gestion du salon d'annonces de montée de niveau (Level Up) et de l'expérience."},
+    "tempvoice": {"title": "Salons Vocaux Temporaires",      "emoji": "🔊", "color": 0x9B59B6, "desc": "Création automatique de salons vocaux privés éphémères lorsque les membres rejoignent le déclencheur."},
+    "stats":     {"title": "Salons de Statistiques en Direct","emoji": "📊", "color": 0x3498DB, "desc": "Salons vocaux verrouillés affichant en temps réel le décompte des membres, connectés et bots."},
+    "autoreact": {"title": "Auto-Réactions Photos & Médias", "emoji": "📸", "color": 0xE91E63, "desc": "Ajout automatique de réactions émojis ciblées dès qu'une photo ou un média est posté."},
+    "language":  {"title": "Langue du Serveur",              "emoji": "🌐", "color": 0x5865F2, "desc": "Langue utilisée par le bot pour l'affichage de ses messages et interactions sur ce serveur."},
+}
+
 class SetupView(discord.ui.LayoutView):
     def __init__(self, bot, lang: str, guild_id: int):
         super().__init__(timeout=300)
@@ -739,23 +760,60 @@ class SetupView(discord.ui.LayoutView):
         settings = await self.bot.db.get_guild_settings(self.guild_id)
         am_cfg = await self.bot.db.get_automod_config(self.guild_id)
         ar_cfg = await self.bot.db.get_antiraid_config(self.guild_id)
+        an_cfg = await self.bot.db.get_antinuke_config(self.guild_id)
+        tv_cfg = await self.bot.db.get_tempvoice_config(self.guild_id)
+        stats_cfg = await self.bot.db.get_stats_channels(self.guild_id)
+        ar_channels = await self.bot.db.get_autoreact_channels(self.guild_id)
 
-        def ch(cid):
-            if not cid: return "Non défini"
-            c = guild.get_channel(cid)
-            return c.mention if c else "Introuvable"
+        # Statuts individuels
+        is_am = bool(am_cfg.get("enabled"))
+        is_ar = bool(ar_cfg.get("enabled"))
+        is_an = bool(an_cfg.get("enabled"))
+        is_logs = bool(settings.get("log_category_id"))
+        is_welc = bool(settings.get("welcome_channel_id"))
+        is_arole = bool(settings.get("autorole_id") or settings.get("autorole_bots_id"))
+        is_rep = bool(settings.get("report_channel_id"))
+        is_xp = bool(settings.get("levelup_channel_id"))
+        is_stats = bool(stats_cfg)
+        is_tv = bool(tv_cfg.get("trigger_channel_id"))
+        is_areact = bool(ar_channels)
 
-        def role(rid):
-            if not rid: return "Non défini"
-            r = guild.get_role(rid)
-            return r.mention if r else "Introuvable"
+        active_count = sum([is_am, is_ar, is_an, is_logs, is_welc, is_arole, is_rep, is_xp, is_stats, is_tv, is_areact])
+        total_modules = 11
+        pct = round((active_count / total_modules) * 100)
+        filled = round(active_count / total_modules * 10)
+        bar = "🟩" * filled + "⬛" * (10 - filled)
 
-        cont = discord.ui.Container(accent_color=Colors.INFO.value)
+        accent = Colors.SUCCESS.value if active_count >= 8 else (Colors.PRIMARY.value if active_count >= 4 else Colors.GOLD.value)
+        cont = discord.ui.Container(accent_color=accent)
 
-        header = f"# ⚙️ Configuration de {guild.name}\n> Gérez les paramètres globaux de votre serveur.\n"
+        # Header avec icône du serveur
+        server_icon = guild.icon.url if guild.icon else None
+        header_text = (
+            f"# ⚙️ Tableau de Bord • {guild.name}\n"
+            f"> Centre d'administration, de sécurité et d'automatisation de votre serveur.\n"
+        )
+        if server_icon:
+            cont.add_item(discord.ui.Section(discord.ui.TextDisplay(header_text), accessory=discord.ui.Thumbnail(server_icon)))
+        else:
+            cont.add_item(discord.ui.TextDisplay(header_text))
+
         if confirm_text:
-            header = f"✅ **{confirm_text}**\n\n" + header
-        cont.add_item(discord.ui.TextDisplay(header))
+            cont.add_item(discord.ui.Separator())
+            cont.add_item(discord.ui.TextDisplay(f"> ✅ **Modification enregistrée :** {confirm_text}"))
+
+        cont.add_item(discord.ui.Separator())
+
+        # Progression globale & KPIs
+        kpi_text = (
+            f"### 📊 État Général des Systèmes\n"
+            f"> **Configuration :** `{active_count}/{total_modules} modules actifs` — **{pct}%**\n"
+            f"> `{bar}`\n"
+            f"> 🛡️ **Défense :** {'🟢' if is_am else '⚪'} AutoMod · {'🟢' if is_ar else '⚪'} Anti-Raid · {'🟢' if is_an else '⚪'} Anti-Nuke\n"
+            f"> ⚙️ **Gestion :** {'🟢' if is_logs else '⚪'} Logs · {'🟢' if is_welc else '⚪'} Accueil · {'🟢' if is_arole else '⚪'} Auto-Rôle · {'🟢' if is_rep else '⚪'} Reports\n"
+            f"> 🌟 **Communauté :** {'🟢' if is_xp else '⚪'} XP · {'🟢' if is_tv else '⚪'} TempVoice · {'🟢' if is_stats else '⚪'} Stats · {'🟢' if is_areact else '⚪'} Auto-Réact"
+        )
+        cont.add_item(discord.ui.TextDisplay(kpi_text))
         cont.add_item(discord.ui.Separator())
 
         def make_nav(cat: str):
@@ -763,95 +821,66 @@ class SetupView(discord.ui.LayoutView):
                 await self.show_category(inter, cat)
             return nav_cb
 
-        # AutoMod
-        am_status = am_cfg.get("enabled")
-        btn_am = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.success if am_status else discord.ButtonStyle.secondary)
-        btn_am.callback = make_nav("automod")
-        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🛡️ **AutoMod**\n> **État :** {'✅ Activé' if am_status else '❌ Désactivé'}\n> Protection automatique contre le spam, les liens et le flood."), accessory=btn_am))
+        # Pillier 1 : Sécurité
+        sec_text = (
+            f"### 🛡️ Sécurité & Défense\n"
+            f"> • **AutoMod :** {'🟢 Activé' if is_am else '⚪ Désactivé'} *(Anti-spam, liens, flood)*\n"
+            f"> • **Anti-Raid :** {'🟢 Activé' if is_ar else '⚪ Désactivé'} *({ar_cfg.get('join_threshold', 5)} joins/{ar_cfg.get('join_window', 10)}s)*\n"
+            f"> • **Anti-Nuke :** {'🟢 Activé' if is_an else '⚪ Désactivé'} *(Sanction: {an_cfg.get('action', 'quarantine').upper()})*"
+        )
+        btn_sec = discord.ui.Button(label="Sécurité", emoji="🛡️", style=discord.ButtonStyle.primary if (is_am or is_ar or is_an) else discord.ButtonStyle.secondary)
+        btn_sec.callback = make_nav("automod")
+        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(sec_text), accessory=btn_sec))
 
-        # Anti-Raid
-        ar_status = ar_cfg.get("enabled")
-        btn_ar = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.success if ar_status else discord.ButtonStyle.secondary)
-        btn_ar.callback = make_nav("antiraid")
-        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"⚔️ **Anti-Raid**\n> **État :** {'✅ Activé' if ar_status else '❌ Désactivé'}\n> Protection contre les attaques de bots et raids de masse."), accessory=btn_ar))
-
-        # Anti-Nuke
-        an_cfg = await self.bot.db.get_antinuke_config(self.guild_id)
-        an_status = an_cfg.get("enabled")
-        btn_an = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.success if an_status else discord.ButtonStyle.secondary)
-        btn_an.callback = make_nav("antinuke")
-        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"☢️ **Anti-Nuke**\n> **État :** {'✅ Activé' if an_status else '❌ Désactivé'}\n> Limite les actions destructrices de masse (ban, suppression de salons/rôles)."), accessory=btn_an))
-
-        # Logs
-        logs_status = bool(settings.get("log_category_id"))
-        btn_logs = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.success if logs_status else discord.ButtonStyle.secondary)
-        btn_logs.callback = make_nav("logs")
-        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🪵 **Logs**\n> **Catégorie actuelle :** {ch(settings.get('log_category_id'))}\n> Traçage complet des actions sur le serveur."), accessory=btn_logs))
-
-        # Bienvenue
-        welc_status = bool(settings.get("welcome_channel_id"))
-        btn_welc = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.success if welc_status else discord.ButtonStyle.secondary)
-        btn_welc.callback = make_nav("welcome")
-        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"👋 **Accueil**\n> **Salon actuel :** {ch(settings.get('welcome_channel_id'))}\n> Accueillez les nouveaux membres avec style."), accessory=btn_welc))
-
-        # Auto-Rôle
-        ar_human = settings.get("autorole_id")
-        ar_bot = settings.get("autorole_bots_id")
-        ar_status = bool(ar_human or ar_bot)
-        btn_auto = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.success if ar_status else discord.ButtonStyle.secondary)
-        btn_auto.callback = make_nav("autorole")
-        cont.add_item(discord.ui.Section(
-            discord.ui.TextDisplay(f"🎭 **Auto-Rôle**\n> **Humains :** {role(ar_human)} | **Bots :** {role(ar_bot)}\n> Attribution automatique des rôles à l'arrivée."),
-            accessory=btn_auto
-        ))
-
-        # Signalement
-        rep_status = bool(settings.get("report_channel_id"))
-        btn_rep = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.success if rep_status else discord.ButtonStyle.secondary)
-        btn_rep.callback = make_nav("report")
-        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🚨 **Signalement**\n> Configuration des signalements de messages au Staff."), accessory=btn_rep))
-
-        # Langue
-        btn_lang = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.secondary)
-        btn_lang.callback = make_nav("language")
-        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🌐 **Langue**\n> **Actuelle :** `{self.lang.upper()}`\n> Définissez la langue du bot pour le serveur."), accessory=btn_lang))
-
-        # XP
-        xp_status = bool(settings.get("levelup_channel_id"))
-        btn_xp = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.success if xp_status else discord.ButtonStyle.secondary)
-        btn_xp.callback = make_nav("xp")
-        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"✨ **Système XP**\n> **Salon Level Up :** {ch(settings.get('levelup_channel_id'))}\n> Gérer l'évolution des niveaux des membres."), accessory=btn_xp))
-
-        # Statistiques
-        stats_cfg = await self.bot.db.get_stats_channels(self.guild_id)
-        stats_status = bool(stats_cfg)
-        btn_stats = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.success if stats_status else discord.ButtonStyle.secondary)
-        btn_stats.callback = make_nav("stats")
-        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"📊 **Statistiques**\n> **État :** {'✅ Activé' if stats_status else '❌ Désactivé'}\n> Salons vocaux affichant les membres/bots en direct."), accessory=btn_stats))
-
-        # TempVoice
-        tv_cfg = await self.bot.db.get_tempvoice_config(self.guild_id)
-        tv_status = bool(tv_cfg.get("trigger_channel_id"))
-        btn_tv = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.success if tv_status else discord.ButtonStyle.secondary)
-        btn_tv.callback = make_nav("tempvoice")
-        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(f"🔊 **TempVoice**\n> **État :** {'✅ Configurés' if tv_status else '❌ Non configurés'}\n> Salons vocaux temporaires personnels."), accessory=btn_tv))
+        # Pillier 2 : Gestion
+        welc_ch = guild.get_channel(settings.get("welcome_channel_id")) if settings.get("welcome_channel_id") else None
+        welc_str = welc_ch.mention if welc_ch else "Non configuré"
+        ar_human = guild.get_role(settings.get("autorole_id")) if settings.get("autorole_id") else None
+        ar_bot = guild.get_role(settings.get("autorole_bots_id")) if settings.get("autorole_bots_id") else None
+        ar_str = f"{ar_human.mention if ar_human else 'Non défini'} (Membres) / {ar_bot.mention if ar_bot else 'Non défini'} (Bots)"
         
-        # Auto-Réactions Photos
-        ar_channels = await self.bot.db.get_autoreact_channels(self.guild_id)
-        ar_active = bool(ar_channels)
-        btn_ar_photos = discord.ui.Button(label="Configurer", style=discord.ButtonStyle.success if ar_active else discord.ButtonStyle.secondary)
-        btn_ar_photos.callback = make_nav("autoreact")
-        if ar_channels:
-            ch_list = ", ".join(f"<#{c['channel_id']}> ({' '.join(c.get('emojis', ['❤️']))})" for c in ar_channels[:2])
-            if len(ar_channels) > 2:
-                ch_list += f" +{len(ar_channels)-2}"
-            ar_desc = f"Salons actifs : {ch_list}"
-        else:
-            ar_desc = "Non configuré"
-        cont.add_item(discord.ui.Section(
-            discord.ui.TextDisplay(f"📸 **Auto-Réactions Photos**\n> **État :** {'✅ Activé' if ar_active else '❌ Désactivé'}\n> {ar_desc}\n> Ajoute automatiquement des réactions aux photos postées dans vos salons dédiés."),
-            accessory=btn_ar_photos
-        ))
+        gest_text = (
+            f"### ⚙️ Modération & Arrivées\n"
+            f"> • **Logs Avancés :** {'🟢 Configuré' if is_logs else '⚪ Inactif'}\n"
+            f"> • **Accueil Membres :** {'🟢 ' + welc_str if is_welc else '⚪ Non configuré'}\n"
+            f"> • **Auto-Rôles :** {'🟢 ' + ar_str if is_arole else '⚪ Non configuré'}\n"
+            f"> • **Signalements Staff :** {'🟢 Actif' if is_rep else '⚪ Non configuré'}"
+        )
+        btn_gest = discord.ui.Button(label="Arrivées", emoji="👋", style=discord.ButtonStyle.primary if (is_logs or is_welc or is_arole) else discord.ButtonStyle.secondary)
+        btn_gest.callback = make_nav("welcome")
+        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(gest_text), accessory=btn_gest))
+
+        # Pillier 3 : Communauté
+        areact_count = len(ar_channels)
+        comm_text = (
+            f"### 🌟 Communauté & Dynamisme\n"
+            f"> • **Système XP :** {'🟢 Actif' if is_xp else '⚪ Non configuré'} *(Level Up & Rôles)*\n"
+            f"> • **Salons TempVoice :** {'🟢 Actifs' if is_tv else '⚪ Non configuré'}\n"
+            f"> • **Statistiques Live :** {'🟢 Salons créés' if is_stats else '⚪ Désactivé'}\n"
+            f"> • **Auto-Réactions Photos :** {'🟢 ' + str(areact_count) + ' salon(s)' if is_areact else '⚪ Inactif'}"
+        )
+        btn_comm = discord.ui.Button(label="Communauté", emoji="✨", style=discord.ButtonStyle.primary if (is_xp or is_tv or is_stats or is_areact) else discord.ButtonStyle.secondary)
+        btn_comm.callback = make_nav("tempvoice")
+        cont.add_item(discord.ui.Section(discord.ui.TextDisplay(comm_text), accessory=btn_comm))
+
+        cont.add_item(discord.ui.Separator())
+
+        # Menu déroulant & raccourcis
+        cont.add_item(discord.ui.TextDisplay("### 🧭 Menu d'Accès aux Modules\n> Sélectionnez un module dans le menu ci-dessous ou cliquez sur un raccourci :"))
+        cont.add_item(discord.ui.ActionRow(SetupCategorySelect(self.lang, "home")))
+
+        # Row de raccourcis rapides
+        btn_q_am = discord.ui.Button(label="AutoMod", emoji="🛡️", style=discord.ButtonStyle.secondary)
+        btn_q_am.callback = make_nav("automod")
+        btn_q_arole = discord.ui.Button(label="Auto-Rôle", emoji="🎭", style=discord.ButtonStyle.secondary)
+        btn_q_arole.callback = make_nav("autorole")
+        btn_q_welc = discord.ui.Button(label="Accueil", emoji="👋", style=discord.ButtonStyle.secondary)
+        btn_q_welc.callback = make_nav("welcome")
+        btn_q_logs = discord.ui.Button(label="Logs", emoji="🪵", style=discord.ButtonStyle.secondary)
+        btn_q_logs.callback = make_nav("logs")
+        btn_q_photo = discord.ui.Button(label="Photos", emoji="📸", style=discord.ButtonStyle.secondary)
+        btn_q_photo.callback = make_nav("autoreact")
+        cont.add_item(discord.ui.ActionRow(btn_q_am, btn_q_welc, btn_q_arole, btn_q_logs, btn_q_photo))
 
         self.add_item(cont)
 
@@ -866,33 +895,62 @@ class SetupView(discord.ui.LayoutView):
         lang = self.lang
         self.clear_items()
         
-        cont = discord.ui.Container(accent_color=Colors.INFO.value)
-        if category == "autoreact":
-            title = "📸 Auto-Réactions Photos"
-            desc = "Configurez des réactions automatiques dès qu'une photo ou un média est posté dans un salon dédié."
-        elif category in ["automod", "antiraid"]:
-            title = "🛡️ Configuration AutoMod" if category == "automod" else "⚔️ Configuration Anti-Raid"
-            desc = ("Activez ou désactivez l'AutoMod global.\nChoisissez un sous-module pour affiner la configuration." if category == "automod" else "Configurez les seuils et actions du système Anti-Raid.")
-        else:
-            title = t(lang, f"setup.opt_{category}")
-            desc = t(lang, f"setup.{category}_desc")
-        
-        header_text = f"# {title}\n{desc}\n\n"
-        if confirm_text:
-            header_text = f"✅ **{confirm_text}**\n\n" + header_text
-        
+        theme = CATEGORY_THEMES.get(category, {
+            "title": category.capitalize(),
+            "emoji": "⚙️",
+            "color": Colors.INFO.value,
+            "desc": "Paramètres du module"
+        })
+
+        def ch(cid):
+            if not cid: return "Non défini"
+            c = interaction.guild.get_channel(cid)
+            return c.mention if c else "Introuvable"
+
+        def role(rid):
+            if not rid: return "Non défini"
+            r = interaction.guild.get_role(rid)
+            return r.mention if r else "Introuvable"
+
+        cont = discord.ui.Container(accent_color=theme["color"])
+        header_text = f"# ⚙️ Configuration › {theme['emoji']} {theme['title']}\n> {theme['desc']}\n"
         cont.add_item(discord.ui.TextDisplay(header_text))
+
+        if confirm_text:
+            cont.add_item(discord.ui.Separator())
+            cont.add_item(discord.ui.TextDisplay(f"> ✅ **Modification enregistrée :** {confirm_text}"))
+
+        cont.add_item(discord.ui.Separator())
 
         if category == "logs":
             curr_cat = ch(settings.get('log_category_id'))
-            cont.add_item(discord.ui.TextDisplay(f"🪵 **Catégorie des Logs**\n> **Catégorie actuelle :** {curr_cat}\n> Définit la catégorie Discord où le bot créera automatiquement les salons de logs avancés (messages, vocal, modération, serveur)."))
+            cont.add_item(discord.ui.TextDisplay(
+                f"### 📋 Catégorie des Logs Staff\n"
+                f"> **Catégorie actuelle :** {curr_cat}\n"
+                f"> Le bot créera automatiquement 4 salons restreints au staff :\n"
+                f"> • `💬 logs-messages` : suppressions et modifications de messages\n"
+                f"> • `🔊 logs-vocaux` : connexions, déconnexions et déplacements\n"
+                f"> • `🔨 logs-modération` : sanctions, kicks, bans, mutes, warns\n"
+                f"> • `⚙️ logs-serveur` : créations/suppressions de salons et rôles"
+            ))
             cont.add_item(discord.ui.ActionRow(SetupLogsCategorySelect(lang)))
             if settings.get("log_category_id"):
                 cont.add_item(discord.ui.ActionRow(SetupResetLogsButton()))
             
         elif category == "welcome":
             curr_ch = ch(settings.get('welcome_channel_id'))
-            cont.add_item(discord.ui.TextDisplay(f"👋 **Salon de Bienvenue**\n> **Salon actuel :** {curr_ch}\n> Définit le salon où envoyer les messages d'arrivée."))
+            w_title = settings.get("welcome_title") or "Non défini (par défaut: Bienvenue sur {server} !)"
+            w_msg = settings.get("welcome_message") or "Non défini (message standard avec mentions)"
+            w_img = "✅ Configuré" if settings.get("welcome_image") else "❌ Aucune image/GIF"
+            w_col = settings.get("welcome_color") or "Par défaut (#5865F2)"
+            cont.add_item(discord.ui.TextDisplay(
+                f"### 📋 Paramètres du Message d'Accueil\n"
+                f"> 📍 **Salon de bienvenue :** {curr_ch}\n"
+                f"> 🏷️ **Titre :** `{w_title}`\n"
+                f"> 💬 **Message :** {w_msg}\n"
+                f"> 🖼️ **Image / GIF :** {w_img}\n"
+                f"> 🎨 **Couleur :** `{w_col}`"
+            ))
             cont.add_item(discord.ui.ActionRow(SetupChannelSelect(lang, "welcome_channel_id", "setup.welcome_placeholder")))
             cont.add_item(discord.ui.ActionRow(
                 SetupTitleButton(lang, "welcome_title", "Titre de bienvenue", settings.get("welcome_title")),
@@ -902,11 +960,11 @@ class SetupView(discord.ui.LayoutView):
             ))
             reset_buttons = []
             if settings.get("welcome_channel_id"):
-                reset_buttons.append(SetupResetSettingButton("welcome_channel_id", "Désactiver le salon", "Le salon de bienvenue a été désactivé !"))
+                reset_buttons.append(SetupResetSettingButton("welcome_channel_id", "Désactiver salon", "Le salon de bienvenue a été désactivé !"))
             if settings.get("welcome_image"):
-                reset_buttons.append(SetupResetSettingButton("welcome_image", "Retirer l'image", "L'image de bienvenue a été retirée !", emoji="🗑️"))
+                reset_buttons.append(SetupResetSettingButton("welcome_image", "Retirer image", "L'image de bienvenue a été retirée !", emoji="🗑️"))
             if settings.get("welcome_title"):
-                reset_buttons.append(SetupResetSettingButton("welcome_title", "Reset Titre", "Le titre de bienvenue a été réinitialisé !", emoji="🔄"))
+                reset_buttons.append(SetupResetSettingButton("welcome_title", "Reset Titre", "Le titre a été réinitialisé !", emoji="🔄"))
             if reset_buttons:
                 cont.add_item(discord.ui.ActionRow(*reset_buttons))
 
@@ -914,15 +972,15 @@ class SetupView(discord.ui.LayoutView):
             r_human = role(settings.get('autorole_id'))
             r_bot = role(settings.get('autorole_bots_id'))
             cont.add_item(discord.ui.TextDisplay(
-                f"🎭 **Configuration de l'Auto-Rôle**\n"
-                f"> **Membres Humains :** {r_human}\n"
-                f"> **Bots :** {r_bot}\n\n"
-                f"Sélectionnez les rôles attribués automatiquement dès qu'un membre ou un bot rejoint le serveur."
+                f"### 📋 Rôles Automatiques à l'Arrivée\n"
+                f"> 👤 **Rôle Membres Humains :** {r_human}\n"
+                f"> 🤖 **Rôle Bots :** {r_bot}\n\n"
+                f"> *Les rôles sont automatiquement attribués dès qu'un membre ou un bot rejoint le serveur.*"
             ))
-            cont.add_item(discord.ui.TextDisplay("👤 **Rôle pour les Humains :**"))
-            cont.add_item(discord.ui.ActionRow(SetupRoleSelect(lang, "autorole_id", "Choisir le rôle pour les humains...", row=1)))
-            cont.add_item(discord.ui.TextDisplay("🤖 **Rôle pour les Bots :**"))
-            cont.add_item(discord.ui.ActionRow(SetupRoleSelect(lang, "autorole_bots_id", "Choisir le rôle pour les bots...", row=2)))
+            cont.add_item(discord.ui.TextDisplay("**👤 Définir le rôle pour les membres humains :**"))
+            cont.add_item(discord.ui.ActionRow(SetupRoleSelect(lang, "autorole_id", "Sélectionner le rôle pour les humains...", row=1)))
+            cont.add_item(discord.ui.TextDisplay("**🤖 Définir le rôle pour les bots :**"))
+            cont.add_item(discord.ui.ActionRow(SetupRoleSelect(lang, "autorole_bots_id", "Sélectionner le rôle pour les bots...", row=2)))
 
             reset_buttons = []
             if settings.get("autorole_id"):
@@ -934,7 +992,11 @@ class SetupView(discord.ui.LayoutView):
             
         elif category == "report":
             curr_rep = ch(settings.get('report_channel_id'))
-            cont.add_item(discord.ui.TextDisplay(f"🚨 **Salon des Signalements**\n> **Salon actuel :** {curr_rep}\n> Reçoit les signalements effectués par les membres."))
+            cont.add_item(discord.ui.TextDisplay(
+                f"### 📋 Salon des Signalements Staff\n"
+                f"> **Salon actuel :** {curr_rep}\n"
+                f"> Reçoit les alertes de messages signalés par la communauté pour vérification modérateur."
+            ))
             cont.add_item(discord.ui.ActionRow(SetupChannelSelect(lang, "report_channel_id", "setup.report_placeholder")))
             if settings.get("report_channel_id"):
                 cont.add_item(discord.ui.ActionRow(
@@ -942,29 +1004,53 @@ class SetupView(discord.ui.LayoutView):
                 ))
             
         elif category == "language":
-            cont.add_item(discord.ui.TextDisplay("🌐 **Langue du bot**\n> Définit la langue utilisée par le bot sur ce serveur."))
+            cont.add_item(discord.ui.TextDisplay(
+                f"### 📋 Langue du Bot\n"
+                f"> **Langue actuelle :** `{self.lang.upper()}`\n"
+                f"> Modifie la langue utilisée par le bot pour l'ensemble des interactions."
+            ))
             cont.add_item(discord.ui.ActionRow(SetupLanguageSelect(lang)))
             
         elif category == "xp":
             curr_xp = ch(settings.get('levelup_channel_id'))
-            cont.add_item(discord.ui.TextDisplay(f"✨ **Système XP & Rank**\n> **Salon Level Up actuel :** {curr_xp}\n> Définit le salon où envoyer les annonces de Level Up."))
+            cont.add_item(discord.ui.TextDisplay(
+                f"### 📋 Salon d'Annonces de Niveau (Level Up)\n"
+                f"> **Salon actuel :** {curr_xp}\n"
+                f"> Salon où le bot annoncera publiquement les montées de rang et nouveaux rôles débloqués."
+            ))
             cont.add_item(discord.ui.ActionRow(SetupChannelSelect(lang, "levelup_channel_id", "Sélectionner un salon pour le Level Up")))
             if settings.get("levelup_channel_id"):
                 cont.add_item(discord.ui.ActionRow(
-                    SetupResetSettingButton("levelup_channel_id", "Désactiver Level Up", "Les annonces de Level Up ont été désactivées !")
+                    SetupResetSettingButton("levelup_channel_id", "Désactiver annonces XP", "Les annonces de Level Up ont été désactivées !")
                 ))
 
         elif category == "stats":
             stats_channels = await self.bot.db.get_stats_channels(self.guild_id)
             btn = StatsToggleButton(bool(stats_channels))
-            cont.add_item(discord.ui.Section(discord.ui.TextDisplay("📊 **Salons de Statistiques**\n> Crée automatiquement des salons vocaux verrouillés affichant le nombre de membres, de connectés et de bots.\n> Les salons sont mis à jour toutes les 10 minutes."), accessory=btn))
-            
+            cont.add_item(discord.ui.Section(
+                discord.ui.TextDisplay(
+                    f"### 📋 Salons de Statistiques en Direct\n"
+                    f"> **État actuel :** {'🟢 Salons créés et actifs' if stats_channels else '⚪ Désactivé'}\n"
+                    f"> Génère automatiquement des salons vocaux verrouillés affichant :\n"
+                    f"> • 👥 Membres totaux\n"
+                    f"> • 🟢 Membres connectés\n"
+                    f"> • 🤖 Bots\n"
+                    f"> *Mis à jour automatiquement toutes les 10 minutes.*"
+                ),
+                accessory=btn
+            ))
 
         elif category == "tempvoice":
             tv_config = await self.bot.db.get_tempvoice_config(self.guild_id)
             trig_ch = ch(tv_config.get("trigger_channel_id"))
             cat_ch = ch(tv_config.get("category_id"))
-            cont.add_item(discord.ui.TextDisplay(f"🔊 **Salons Vocaux Temporaires**\n> **Salon déclencheur :** {trig_ch}\n> **Catégorie :** {cat_ch}\n> Permet aux membres de créer leurs propres salons vocaux en rejoignant un salon défini."))
+            cont.add_item(discord.ui.TextDisplay(
+                f"### 📋 Paramètres Salons Vocaux Temporaires\n"
+                f"> 🎙️ **Salon déclencheur :** {trig_ch}\n"
+                f"> 📁 **Catégorie d'accueil :** {cat_ch}\n"
+                f"> 🏷️ **Format du nom :** `{tv_config.get('name_format', '✨ | Salon de {user}')}`\n"
+                f"> 👥 **Limite par défaut :** `{tv_config.get('default_limit', 0) or 'Illimitée'}`"
+            ))
             cont.add_item(discord.ui.ActionRow(SetupTVChannelSelect("Sélectionner le salon déclencheur (Vocal)", is_category=False)))
             cont.add_item(discord.ui.ActionRow(SetupTVChannelSelect("Sélectionner la catégorie d'accueil", is_category=True)))
             action_items = [SetupTVButton(tv_config)]
@@ -974,7 +1060,7 @@ class SetupView(discord.ui.LayoutView):
 
         elif category == "autoreact":
             ar_channels = await self.bot.db.get_autoreact_channels(self.guild_id)
-            desc_lines = ["📸 **Salons d'auto-réaction configurés :**"]
+            desc_lines = ["### 📋 Salons d'Auto-Réaction Actifs"]
             if ar_channels:
                 for c in ar_channels:
                     ch_obj = interaction.guild.get_channel(c["channel_id"])
@@ -985,7 +1071,7 @@ class SetupView(discord.ui.LayoutView):
             else:
                 desc_lines.append("> *Aucun salon configuré pour le moment.*")
 
-            desc_lines.append("\n> Sélectionnez un salon ci-dessous pour l'ajouter ou modifier sa configuration.")
+            desc_lines.append("\n> Sélectionnez un salon ci-dessous pour l'ajouter ou modifier ses réactions.")
             cont.add_item(discord.ui.TextDisplay("\n".join(desc_lines)))
             cont.add_item(discord.ui.ActionRow(SetupAutoReactChannelSelect()))
 
@@ -1000,7 +1086,7 @@ class SetupView(discord.ui.LayoutView):
                 t_chid = active_target["channel_id"]
                 t_emojis = " ".join(active_target.get("emojis", ["❤️"]))
                 t_p_only = bool(active_target.get("photos_only", 1))
-                cont.add_item(discord.ui.TextDisplay(f"⚙️ **Configuration pour <#{t_chid}> :**"))
+                cont.add_item(discord.ui.TextDisplay(f"⚙️ **Actions pour <#{t_chid}> :**"))
                 cont.add_item(discord.ui.ActionRow(
                     SetupAutoReactEmojisButton(t_chid, t_emojis),
                     SetupAutoReactToggleModeButton(t_chid, t_p_only),
@@ -1010,7 +1096,30 @@ class SetupView(discord.ui.LayoutView):
         elif category == "automod":
             am_cfg = await self.bot.db.get_automod_config(self.guild_id)
             btn_am = AutomodToggleButton(bool(am_cfg["enabled"]))
-            cont.add_item(discord.ui.Section(discord.ui.TextDisplay("🛡️ **Système Global AutoMod**\n> Activez ou désactivez l'AutoMod sur tout le serveur."), accessory=btn_am))
+            cont.add_item(discord.ui.Section(
+                discord.ui.TextDisplay(
+                    f"### 🛡️ État Global AutoMod\n"
+                    f"> **Statut :** {'🟢 Système actif sur tout le serveur' if am_cfg['enabled'] else '⚪ Système désactivé'}"
+                ),
+                accessory=btn_am
+            ))
+
+            # Table récapitulative des sous-modules
+            def m_status(mod_key):
+                en = bool(am_cfg.get(f"{mod_key}_enabled", 0))
+                act = am_cfg.get(f"{mod_key}_action", "warn").upper()
+                return f"{'🟢' if en else '⚪'} `{act}`"
+
+            overview_mods = (
+                f"### 📋 Sous-Modules AutoMod\n"
+                f"> 🔁 **Anti-Spam :** {m_status('spam')} ({am_cfg.get('spam_threshold', 5)} msg/5s)\n"
+                f"> 🔗 **Anti-Liens :** {m_status('link')}\n"
+                f"> 📨 **Anti-Invites :** {m_status('invite')}\n"
+                f"> 🔠 **Anti-Majuscules :** {m_status('caps')} ({am_cfg.get('caps_threshold', 70)}%)\n"
+                f"> 📢 **Anti-Mentions :** {m_status('mention')} ({am_cfg.get('mention_threshold', 4)} pings)\n"
+                f"> 🌊 **Anti-Flood :** {m_status('flood')} ({am_cfg.get('flood_threshold', 6)} lignes)"
+            )
+            cont.add_item(discord.ui.TextDisplay(overview_mods))
             
             if self.automod_module:
                 mod = self.automod_module
@@ -1018,12 +1127,12 @@ class SetupView(discord.ui.LayoutView):
                 action = am_cfg[f"{mod}_action"]
                 threshold = am_cfg.get(f"{mod}_threshold", 0)
                 
-                cont.add_item(discord.ui.TextDisplay(f"\n\n### ⚙️ Module : {mod.capitalize()}\n> Configuration spécifique de ce sous-module."))
-                sec_tog = discord.ui.Section(discord.ui.TextDisplay(f"**État du module {mod}**"), accessory=AutomodModuleToggleButton(mod, is_enabled))
+                cont.add_item(discord.ui.TextDisplay(f"### ⚙️ Configuration du module : `{mod.upper()}`"))
+                sec_tog = discord.ui.Section(discord.ui.TextDisplay(f"**État :** {'🟢 Activé' if is_enabled else '⚪ Désactivé'}"), accessory=AutomodModuleToggleButton(mod, is_enabled))
                 cont.add_item(sec_tog)
                 
                 if mod not in ["link", "invite"]:
-                    sec_thresh = discord.ui.Section(discord.ui.TextDisplay("**Seuil de tolérance**"), accessory=AutomodThresholdButton(mod, threshold))
+                    sec_thresh = discord.ui.Section(discord.ui.TextDisplay(f"**Seuil de détection :** `{threshold}`"), accessory=AutomodThresholdButton(mod, threshold))
                     cont.add_item(sec_thresh)
             
             cont.add_item(discord.ui.ActionRow(AutomodModuleSelect(self.automod_module)))
@@ -1032,25 +1141,49 @@ class SetupView(discord.ui.LayoutView):
                 
         elif category == "antiraid":
             ar_cfg = await self.bot.db.get_antiraid_config(self.guild_id)
-            cont.add_item(discord.ui.Section(discord.ui.TextDisplay("**État du système Anti-Raid**"), accessory=AntiraidToggleButton(bool(ar_cfg["enabled"]))))
-            cont.add_item(discord.ui.Section(discord.ui.TextDisplay("**Seuil de détection**\n> Ratio : Joins / Secondes"), accessory=AntiraidThresholdButton(ar_cfg["join_threshold"], ar_cfg["join_window"])))
-            cont.add_item(discord.ui.Section(discord.ui.TextDisplay("**Âge minimum du compte**\n> En jours."), accessory=AntiraidAgeButton(ar_cfg["min_account_age"])))
+            cont.add_item(discord.ui.Section(
+                discord.ui.TextDisplay(
+                    f"### ⚔️ Système Anti-Raid\n"
+                    f"> **Statut :** {'🟢 Protection active' if ar_cfg['enabled'] else '⚪ Désactivé'}\n"
+                    f"> **Déclenchement :** `{ar_cfg['join_threshold']}` arrivées en moins de `{ar_cfg['join_window']}` secondes\n"
+                    f"> **Âge minimum :** `{ar_cfg['min_account_age']} jours` ({'Inactif' if ar_cfg['min_account_age'] == 0 else 'Actif'})\n"
+                    f"> **Sanction :** `{ar_cfg['action'].upper()}`"
+                ),
+                accessory=AntiraidToggleButton(bool(ar_cfg["enabled"]))
+            ))
+            cont.add_item(discord.ui.Section(discord.ui.TextDisplay("**Seuil de détection rapide :**"), accessory=AntiraidThresholdButton(ar_cfg["join_threshold"], ar_cfg["join_window"])))
+            cont.add_item(discord.ui.Section(discord.ui.TextDisplay("**Filtre par âge de compte Discord :**"), accessory=AntiraidAgeButton(ar_cfg["min_account_age"])))
             cont.add_item(discord.ui.ActionRow(AntiraidActionSelect(ar_cfg["action"])))
 
         elif category == "antinuke":
             an_cfg = await self.bot.db.get_antinuke_config(self.guild_id)
-            cont.add_item(discord.ui.Section(discord.ui.TextDisplay("**État du système Anti-Nuke**"), accessory=AntiNukeToggleButton(bool(an_cfg["enabled"]))))
+            al_ch = ch(an_cfg.get("alert_channel_id"))
+            cont.add_item(discord.ui.Section(
+                discord.ui.TextDisplay(
+                    f"### ☢️ Système Anti-Nuke (Destruction de Masse)\n"
+                    f"> **Statut :** {'🟢 Protection active' if an_cfg['enabled'] else '⚪ Désactivé'}\n"
+                    f"> **Sanction d'urgence :** `{an_cfg['action'].upper()}` (Quarantaine / Ban / Kick)\n"
+                    f"> **Salon d'alerte :** {al_ch}\n\n"
+                    f"> **Seuils tolérés par minute :**\n"
+                    f"> • Bannissements : `{an_cfg.get('ban_threshold', 3)}/min`\n"
+                    f"> • Expulsions : `{an_cfg.get('kick_threshold', 3)}/min`\n"
+                    f"> • Suppressions salons : `{an_cfg.get('channel_delete_threshold', 2)}/min`\n"
+                    f"> • Suppressions rôles : `{an_cfg.get('role_delete_threshold', 2)}/min`"
+                ),
+                accessory=AntiNukeToggleButton(bool(an_cfg["enabled"]))
+            ))
             
-            btn_thresh = discord.ui.Button(label="Configurer les seuils", style=discord.ButtonStyle.secondary, emoji="⚙️")
+            btn_thresh = discord.ui.Button(label="Modifier les seuils", style=discord.ButtonStyle.secondary, emoji="⚙️")
             async def open_thresh_modal(inter: discord.Interaction):
                 await inter.response.send_modal(AntiNukeThresholdsModal(self, an_cfg))
             btn_thresh.callback = open_thresh_modal
-            cont.add_item(discord.ui.Section(discord.ui.TextDisplay("**Seuils de tolérance**\n> Nombre maximum d'actions par minute."), accessory=btn_thresh))
+            cont.add_item(discord.ui.Section(discord.ui.TextDisplay("**Ajuster les seuils de tolérance par minute :**"), accessory=btn_thresh))
             
             cont.add_item(discord.ui.ActionRow(AntiNukeActionSelect(an_cfg["action"])))
             cont.add_item(discord.ui.ActionRow(AntiNukeAlertChannelSelect()))
 
-        cont.add_item(discord.ui.ActionRow(SetupCategorySelect(lang)))
+        cont.add_item(discord.ui.Separator())
+        cont.add_item(discord.ui.ActionRow(SetupCategorySelect(lang, category)))
         cont.add_item(discord.ui.ActionRow(SetupBackButton(lang)))
         self.add_item(cont)
         

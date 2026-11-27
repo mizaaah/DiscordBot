@@ -11,95 +11,159 @@ from utils.i18n import t
 #  Help UI (V2)
 # ══════════════════════════════════════════════════════════════════════════════
 
-HELP_CATEGORIES = {
+HELP_PAGES = {
     "home": {
-        "title": "📚 Centre d'Aide",
-        "desc": "Sélectionnez une catégorie ci-dessous pour voir les commandes associées.",
-        "emoji": "🏠"
+        "title": "Accueil & Aperçu",
+        "emoji": "🏠",
+        "desc": "Sommaire et guide d'utilisation du bot",
+        "content": (
+            "### 🧭 Bienvenue sur le Centre d'Aide !\n"
+            "Explorez toutes les commandes du bot regroupées par domaine d'expertise :\n\n"
+            "> 🛡️ **Modération :** Sanctions, avertissements et nettoyage avancé (`/clear`, `/ban`, `/mute`...)\n"
+            "> 🚨 **Sécurité :** Audit de failles, Anti-Nuke, Anti-Raid et sauvegardes (`/security-audit`, `/backup`...)\n"
+            "> ⚙️ **Configuration :** Dashboard complet et personnalisation (`/config`, `/autorole`, `/cmdperm`...)\n"
+            "> ✨ **Niveaux XP :** Rangs, cartes d'expérience et récompenses de paliers (`/rank`, `/leaderboard`...)\n"
+            "> 🎭 **Communauté :** Salons vocaux temporaires, Reaction Roles, Giveaways (`/tempvoice`, `/rr`...)\n"
+            "> ℹ️ **Utilitaires :** Profils membres, infos serveur, créateur d'embeds (`/userinfo`, `/serverinfo`...)\n"
+            "> 👑 **Administration :** Whitelist/Blacklist et maintenance bot (`/wl`, `/bl`...)\n\n"
+            "💡 **Astuce :** Sélectionnez une catégorie dans le menu déroulant ci-dessous ou cliquez directement sur un bouton rapide."
+        )
     },
     "moderation": {
-        "title": "🛡️ Modération & Sécurité",
-        "desc": "Commandes pour gérer les membres, les salons et la sécurité avancée.\n\n"
-                "**Modération de Base**\n"
-                "🔹 `/kick` : Expulser un membre\n"
-                "🔹 `/ban` / `/unban` : Bannir ou débannir un membre\n"
-                "🔹 `/mute` / `/unmute` : Rendre muet un membre\n"
-                "🔹 `/warn` / `/warnings` / `/clearwarnings` : Gérer les avertissements\n"
-                "🔹 `/clear` : Effacer des messages\n"
-                "🔹 `/slowmode` : Activer le mode lent\n"
-                "🔹 `/lock` / `/unlock` : Verrouiller un salon\n"
-                "🔹 `/snipe` / `/editsnipe` : Voir les messages supprimés/modifiés\n\n"
-                "**Sécurité Avancée**\n"
-                "☢️ **Anti-Nuke** (Via `/config`) : Limite les destructions de masse.\n"
-                "💾 `/backup` : Créer et restaurer des sauvegardes du serveur.",
-        "emoji": "🛡️"
+        "title": "Modération & Sanctions",
+        "emoji": "🛡️",
+        "desc": "Outils avancés pour modérer et nettoyer le serveur",
+        "content": (
+            "### 🛡️ Commandes de Modération & Nettoyage\n"
+            "• `/clear [nombre] [options...]` : Efface les messages avec filtres combinables :\n"
+            "> - `membre` : supprime uniquement les messages d'un utilisateur spécifique\n"
+            "> - `bots:Vrai` : supprime uniquement les messages envoyés par des bots/webhooks\n"
+            "> - `liens:Vrai` : supprime uniquement les messages contenant des URLs ou invitations\n"
+            "> - `images:Vrai` : supprime uniquement les messages avec images ou pièces jointes\n"
+            "> - `contient` : supprime uniquement les messages contenant un mot spécifique\n"
+            "> *(Sécurité native : les messages épinglés ne sont jamais supprimés)*\n\n"
+            "• `/kick [membre] [raison]` : Expulse un membre du serveur\n"
+            "• `/ban [membre] [delete_days] [raison]` : Bannit un membre définitivement\n"
+            "• `/unban [user_id] [raison]` : Révoque le bannissement d'un utilisateur\n"
+            "• `/mute [membre] [duree] [raison]` : Exclut temporairement un membre (ex: `10m`, `2h`, `1d`)\n"
+            "• `/unmute [membre] [raison]` : Retire l'exclusion temporaire\n"
+            "• `/warn [membre] [raison]` : Attribue un avertissement formel\n"
+            "• `/warnings [membre]` : Historique des avertissements d'un membre\n"
+            "• `/clearwarnings [membre]` : Réinitialise les avertissements d'un membre\n"
+            "• `/autosanction add/remove/list` : Sanctions automatiques configurées par palier de warns\n"
+            "• `/slowmode [secondes]` : Définit le ralentissement du salon textuel\n"
+            "• `/lock` & `/unlock` : Verrouille ou rouvre le salon textuel\n"
+            "• `/snipe` & `/editsnipe` : Récupère le dernier message supprimé ou modifié"
+        )
     },
-    "automod": {
-        "title": "🤖 AutoMod & Anti-Raid",
-        "desc": "Systèmes de protection automatiques du serveur.\n\n"
-                "**Configuration**\n"
-                "🔹 `/config` (Puis AutoMod / AntiRaid) : Configurer les systèmes\n"
-                "🔹 `/ghostping` : Activer/Désactiver la détection de ghost pings",
-        "emoji": "🤖"
-    },
-    "xp": {
-        "title": "📈 Système de Niveaux",
-        "desc": "Commandes liées à l'expérience et aux niveaux.\n\n"
-                "**Classements**\n"
-                "🔹 `/rank` : Voir son niveau ou celui d'un membre\n"
-                "🔹 `/leaderboard` : Afficher le classement du serveur\n\n"
-                "**Administration**\n"
-                "🔹 `/setxp` / `/addxp` / `/resetxp` : Gérer l'XP des membres\n"
-                "🔹 `/xprole add` / `remove` / `list` : Récompenses de rôles par niveau",
-        "emoji": "📈"
-    },
-    "tickets": {
-        "title": "🎟️ Système de Tickets",
-        "desc": "Commandes pour le support et les tickets.\n\n"
-                "**Configuration**\n"
-                "🔹 `/ticket setup` : Créer un panel de tickets (Entièrement personnalisable)",
-        "emoji": "🎟️"
-    },
-    "roles": {
-        "title": "🎭 Rôles & Sanctions",
-        "desc": "Gestion avancée des rôles et sanctions automatiques.\n\n"
-                "**Interactivité**\n"
-                "🔹 `/rr setup` / `/rr add` / `/rr remove` : Reaction Roles (Boutons interactifs)\n\n"
-                "**Automatisation**\n"
-                "🔹 `/autosanction add` / `remove` / `list` : Sanctions automatiques selon les warns",
-        "emoji": "🎭"
-    },
-    "community": {
-        "title": "🎁 Communauté & Vocaux",
-        "desc": "Outils d'interaction pour animer la communauté.\n\n"
-                "**Fonctionnalités**\n"
-                "🔹 `/tempvoice` : Créer un panel de vocaux temporaires automatiques\n"
-                "🔹 `/giveaway start` / `reroll` / `end` / `list` : Gérer les cadeaux et concours\n"
-                "🔹 `/starboard` : Mettre en avant les meilleurs messages\n"
-                "🔹 `/afk set` : Se mettre en mode AFK pour prévenir les autres",
-        "emoji": "🎁"
-    },
-    "notifications": {
-        "title": "🔔 Notifications Sociales",
-        "desc": "Recevez des alertes quand vos créateurs préférés sont actifs !\n\n"
-                "**Panel de Gestion**\n"
-                "🔹 `/notifications` : Ouvrir le dashboard interactif pour :\n"
-                "  - Configurer le salon des alertes\n"
-                "  - Ajouter ou supprimer des suivis (Twitch / TikTok)\n"
-                "  - Personnaliser les messages et les couleurs\n"
-                "  - Activer un ping de rôle spécifique",
-        "emoji": "🔔"
+    "security": {
+        "title": "Sécurité, Défense & Audit",
+        "emoji": "🚨",
+        "desc": "Audit de sécurité, Anti-Nuke, Anti-Raid et AutoMod",
+        "content": (
+            "### 🚨 Sécurité, Défense & Audit du Serveur\n"
+            "• `/security-audit` *(ou `/audit`)* : **Audit de sécurité complet du serveur** :\n"
+            "> - Analyse instantanée des permissions critiques du rôle `@everyone`\n"
+            "> - Décompte des modérateurs et bots disposant des permissions Administrateur\n"
+            "> - Évaluation des réglages Discord (2FA modération, filtre média, niveau vérif)\n"
+            "> - Score sur 100 avec note (A+, A, B, C, D, F) et bouton `🔄 Réanalyser` en direct\n\n"
+            "• `Anti-Nuke` *(via `/config`)* : Protège contre la destruction du serveur par un compte staff compromis :\n"
+            "> - Bloque les suppressions massives de salons, rôles, expulsions et bannissements\n"
+            "> - Sanctions immédiates : Quarantaine (retrait de tous les rôles), Ban ou Kick\n\n"
+            "• `Anti-Raid` *(via `/config`)* : Détecte et bloque les vagues de comptes d'attaque :\n"
+            "> - Ratio de joins par seconde configurable avec sanction automatique\n"
+            "> - Âge minimum de compte Discord requis pour rejoindre le serveur\n\n"
+            "• `AutoMod` *(via `/config`)* : Surveillance 24/7 en temps réel du chat :\n"
+            "> - Modules : Anti-Spam, Anti-Liens, Anti-Invites, Anti-Majuscules, Anti-Mentions, Anti-Flood\n\n"
+            "• `/ghostping` : Détecte et affiche les messages qui mentionnent des membres avant d'être effacés\n"
+            "• `/backup create/load/list/delete` : Système de sauvegarde et restauration complète du serveur"
+        )
     },
     "config": {
-        "title": "⚙️ Configuration Globale",
-        "desc": "Paramétrage global et commandes d'informations utiles.\n\n"
-                "**Dashboard Central**\n"
-                "🔹 `/config` : Ouvrir le panel complet (Logs, Bienvenue, Anti-Nuke, Auto-Rôle, etc.)\n\n"
-                "**Outils Utiles**\n"
-                "🔹 `/embed create` / `edit` / `button` : Créateur d'embeds interactifs sur mesure\n"
-                "🔹 `/cmdperm` : Restreindre certaines commandes à des rôles\n"
-                "🔹 `/userinfo` / `/serverinfo` / `/botinfo` / `/avatar` / `/roleinfo` : Informations diverses",
-        "emoji": "⚙️"
+        "title": "Configuration & Gestion",
+        "emoji": "⚙️",
+        "desc": "Dashboard /config, auto-rôles, logs et personnalisation",
+        "content": (
+            "### ⚙️ Configuration & Gestion du Serveur\n"
+            "• `/config` *(ou `/setup`)* : **Dashboard complet interactif (Components v2)**\n"
+            "> - Gestion de l'ensemble des modules en une interface unifiée\n"
+            "> - Indicateur de progression en direct et statuts des systèmes\n\n"
+            "• `/autorole [cible:Humains/Bots] [role]` : Rôles automatiques distincts à l'arrivée\n"
+            "• `Logs Avancés` *(via `/config`)* : Génère automatiquement 4 salons de logs sécurisés :\n"
+            "> - `logs-messages`, `logs-vocaux`, `logs-modération`, `logs-serveur`\n\n"
+            "• `Message d'Accueil` *(via `/config`)* : Personnalisation du titre, message, bannière GIF et couleur\n"
+            "• `Auto-Réactions Photos` *(via `/config`)* : Réactions automatiques ciblées sur photos et médias\n"
+            "• `/cmdperm` : Restreint ou autorise l'accès à certaines commandes slash selon les rôles\n"
+            "• `/notifications` : Dashboard d'alertes de lives Twitch et vidéos TikTok automatiques\n"
+            "• `/ticket setup` : Crée un panel de tickets de support avec salons privés dédiés"
+        )
+    },
+    "xp": {
+        "title": "Niveaux & Récompenses (XP)",
+        "emoji": "✨",
+        "desc": "Cartes de rang, classements et rôles par niveau",
+        "content": (
+            "### ✨ Système de Niveaux & Expérience (XP)\n"
+            "• `/rank [membre]` : Affiche la carte de profil, niveau actuel et progression d'expérience\n"
+            "• `/leaderboard` : Affiche le classement top 10 des membres les plus actifs du serveur\n"
+            "• `/xprole add [niveau] [role]` : Associe un rôle de récompense débloqué à un niveau précis\n"
+            "• `/xprole remove [niveau]` : Supprime une récompense de niveau\n"
+            "• `/xprole list` : Affiche toutes les récompenses de rôles configurées\n"
+            "• `/setxp [membre] [montant]` : Définit manuellement l'XP d'un utilisateur *(Admin)*\n"
+            "• `/addxp [membre] [montant]` : Ajoute de l'XP à un utilisateur *(Admin)*\n"
+            "• `/resetxp [membre/all]` : Réinitialise l'XP d'un membre ou de tout le serveur *(Admin)*\n"
+            "• `Salon Level Up` *(via `/config`)* : Définit le salon recevant les annonces de niveau"
+        )
+    },
+    "community": {
+        "title": "Communauté & Salons Vocaux",
+        "emoji": "🎭",
+        "desc": "TempVoice, Reaction Roles, Giveaways et Starboard",
+        "content": (
+            "### 🎭 Communauté, Vocaux & Animation\n"
+            "• `/tempvoice` : Déploie le système de salons vocaux temporaires automatiques :\n"
+            "> - Les membres rejoignent le salon déclencheur pour créer leur salon privé éphémère\n"
+            "> - Contrôle autonome : limite de membres, verrouillage et gestion\n\n"
+            "• `/rr setup` / `/rr add` / `/rr remove` : Reaction Roles avec boutons interactifs élégants\n"
+            "• `/giveaway start [duree] [gagnants] [prix]` : Lance un tirage au sort interactif\n"
+            "• `/giveaway reroll [message_id]` : Tire un nouveau gagnant pour un concours clos\n"
+            "• `/giveaway end [message_id]` : Termine un giveaway prématurément\n"
+            "• `/giveaway list` : Liste tous les concours actuellement actifs\n"
+            "• `/starboard` : Configure le salon vitrine qui met en avant les messages étoilés ⭐\n"
+            "• `/afk set [raison]` : Déclare votre statut d'absence et prévient automatiquement les mentions"
+        )
+    },
+    "utility": {
+        "title": "Utilitaires & Informations",
+        "emoji": "ℹ️",
+        "desc": "Userinfo, serverinfo, avatar, botinfo et créateur d'embeds",
+        "content": (
+            "### ℹ️ Utilitaires & Fiches d'Information\n"
+            "• `/userinfo [membre]` : Fiche complète d'un membre (date de création, arrivée, rôles, badges...)\n"
+            "• `/serverinfo` : Statistiques détaillées du serveur (création, salons, rôles, boosts...)\n"
+            "• `/botinfo` : Informations système, latence Gateway, version Discord.py et statut\n"
+            "• `/avatar [membre]` : Affiche l'avatar en grand et fournit les liens de téléchargement HD\n"
+            "• `/roleinfo [role]` : Analyse complète d'un rôle (permissions, couleur, membres...)\n"
+            "• `/embed create` : Interface visuelle pour concevoir des embeds personnalisés\n"
+            "• `/embed edit [message_id]` : Modifie un embed existant posté par le bot\n"
+            "• `/embed button [message_id]` : Ajoute des boutons de redirection URL sous un message"
+        )
+    },
+    "admin": {
+        "title": "Administration Bot (Propriétaire)",
+        "emoji": "👑",
+        "desc": "Commandes propriétaires, whitelist et blacklist",
+        "content": (
+            "### 👑 Administration du Bot\n"
+            "• `/wl add [membre]` : Ajoute un membre à la liste blanche (whitelist)\n"
+            "• `/wl remove [membre]` : Retire un membre de la whitelist\n"
+            "• `/wl list` : Liste l'ensemble des membres whitelistés\n"
+            "• `/bl add [membre] [raison]` : Ajoute un utilisateur à la blacklist du bot\n"
+            "• `/bl remove [membre]` : Retire un utilisateur de la blacklist\n"
+            "• `/bl list` : Liste l'ensemble des utilisateurs blacklistés\n"
+            "• `/reload [module]` : Recharge un module à chaud sans interrompre le bot\n"
+            "• `/shutdown` : Arrête le bot en toute sécurité"
+        )
     }
 }
 
@@ -107,65 +171,88 @@ class HelpCategorySelect(discord.ui.Select):
     def __init__(self, current_page: str):
         options = [
             discord.SelectOption(
-                label=data["title"].split(" ", 1)[1] if " " in data["title"] else data["title"],
+                label=data["title"],
                 value=key,
                 emoji=data["emoji"],
+                description=data["desc"][:50],
                 default=(key == current_page)
-            ) for key, data in HELP_CATEGORIES.items()
+            ) for key, data in HELP_PAGES.items()
         ]
-        super().__init__(placeholder="Sélectionnez une catégorie...", options=options)
+        super().__init__(placeholder="📖 Sélectionnez une catégorie à explorer...", options=options, row=0)
 
     async def callback(self, interaction: discord.Interaction):
         await self.view.show_page(interaction, self.values[0])
 
-class HelpViewV2(discord.ui.View):
-    def __init__(self, default_page="home"):
+class HelpViewV2(discord.ui.LayoutView):
+    def __init__(self, bot: commands.Bot, default_page="home"):
         super().__init__(timeout=300)
+        self.bot = bot
         self.current_page = default_page
-        self.add_item(HelpCategorySelect(default_page))
+        self._build_page(default_page)
 
-    def _generate_embed(self, page_key: str, bot: discord.Client) -> discord.Embed:
-        data = HELP_CATEGORIES.get(page_key, HELP_CATEGORIES["home"])
-        embed = discord.Embed(
-            title=data['title'],
-            description=data['desc'],
-            color=Colors.INFO.value
+    def _build_page(self, page_key: str):
+        self.clear_items()
+        data = HELP_PAGES.get(page_key, HELP_PAGES["home"])
+
+        page_colors = {
+            "home": 0x5865F2,
+            "moderation": 0xED4245,
+            "security": 0xED4245,
+            "config": 0x5865F2,
+            "xp": 0xF1C40F,
+            "community": 0xEB459E,
+            "utility": 0x3498DB,
+            "admin": 0x9B59B6,
+        }
+        accent = page_colors.get(page_key, 0x5865F2)
+        cont = discord.ui.Container(accent_color=accent)
+
+        bot_user = self.bot.user
+        avatar_url = bot_user.display_avatar.url if bot_user else None
+        header_text = (
+            f"# 📚 Centre d'Aide • {bot_user.name if bot_user else 'Bot'}\n"
+            f"> Documentation interactive de l'ensemble des commandes et fonctionnalités.\n"
         )
-        embed.set_thumbnail(url=bot.user.display_avatar.url if bot.user else None)
-        embed.set_footer(text=f"Aide interactive • {bot.user.name if bot.user else 'Bot'}", icon_url=bot.user.display_avatar.url if bot.user else None)
-        
-        if page_key == "home":
-            embed.description = "Bienvenue dans le centre d'aide interactif du bot !\nSélectionnez une catégorie ci-dessous pour découvrir toutes les fonctionnalités."
-            embed.add_field(
-                name="🧭 Comment naviguer ?", 
-                value="Utilisez le **menu déroulant** ci-dessous pour explorer les différentes catégories. Chaque catégorie regroupe les commandes par thème pour vous aider à mieux configurer et gérer le serveur.",
-                inline=False
-            )
-            # Ajout d'une bannière un peu plus élégante (un dégradé ou une image propre)
-            embed.set_image(url="https://media.discordapp.net/attachments/1110000000000000000/1110000000000000000/banner_help.gif") # Un placeholder visuel pour une bannière esthétique si l'utilisateur en met une
-            
-        return embed
+        if avatar_url:
+            cont.add_item(discord.ui.Section(discord.ui.TextDisplay(header_text), accessory=discord.ui.Thumbnail(avatar_url)))
+        else:
+            cont.add_item(discord.ui.TextDisplay(header_text))
+
+        cont.add_item(discord.ui.Separator())
+
+        if page_key != "home":
+            cont.add_item(discord.ui.TextDisplay(f"## {data['emoji']} Section : {data['title']}\n> {data['desc']}"))
+            cont.add_item(discord.ui.Separator())
+
+        cont.add_item(discord.ui.TextDisplay(data["content"]))
+        cont.add_item(discord.ui.Separator())
+
+        cont.add_item(discord.ui.ActionRow(HelpCategorySelect(page_key)))
+
+        def make_quick_btn(target: str, label: str, emoji: str):
+            btn = discord.ui.Button(label=label, emoji=emoji, style=discord.ButtonStyle.primary if page_key == target else discord.ButtonStyle.secondary)
+            async def btn_cb(inter: discord.Interaction):
+                await self.show_page(inter, target)
+            btn.callback = btn_cb
+            return btn
+
+        btn_home = make_quick_btn("home", "Accueil", "🏠")
+        btn_mod = make_quick_btn("moderation", "Modération", "🛡️")
+        btn_sec = make_quick_btn("security", "Sécurité", "🚨")
+        btn_cfg = make_quick_btn("config", "Config", "⚙️")
+        btn_xp = make_quick_btn("xp", "XP", "✨")
+        cont.add_item(discord.ui.ActionRow(btn_home, btn_mod, btn_sec, btn_cfg, btn_xp))
+
+        self.add_item(cont)
 
     async def show_page(self, interaction: discord.Interaction, page_key: str):
         self.current_page = page_key
-        
-        # Mettre à jour le select
-        self.clear_items()
-        self.add_item(HelpCategorySelect(page_key))
-        
-        embed = self._generate_embed(page_key, interaction.client)
-        
-        if interaction.response.is_done():
-            await interaction.edit_original_response(embed=embed, view=self)
-        else:
-            await interaction.response.edit_message(embed=embed, view=self)
+        self._build_page(page_key)
+        await interaction.response.edit_message(view=self, embed=None)
 
     async def send_initial(self, interaction: discord.Interaction):
-        self.clear_items()
-        self.add_item(HelpCategorySelect(self.current_page))
-
-        embed = self._generate_embed(self.current_page, interaction.client)
-        await interaction.response.send_message(embed=embed, view=self, ephemeral=True)
+        self._build_page(self.current_page)
+        await interaction.response.send_message(view=self, ephemeral=True)
 
     async def on_timeout(self):
         for item in self.children:
@@ -366,17 +453,26 @@ class Info(commands.Cog):
     @app_commands.describe(commande="Aller directement à la section d'une commande précise (optionnel)")
     @app_commands.autocomplete(commande=_cmd_autocomplete)
     async def help(self, interaction: discord.Interaction, commande: str = None):
-        # Pour faire correspondre la commande à une page, on garde un petit mapping simple
         cmd_map = {
-            "kick": "moderation", "ban": "moderation", "warn": "moderation", "mute": "moderation", "clear": "moderation", "slowmode": "moderation", "lock": "moderation",
-            "snipe": "moderation", "editsnipe": "moderation",
-            "automod": "automod", "antiraid": "automod", "ghostping": "automod",
-            "rank": "xp", "leaderboard": "xp", "setxp": "xp", "xprole": "xp",
-            "ticket": "tickets",
-            "rr": "roles", "autosanction": "roles",
-            "tempvoice": "community", "giveaway": "community", "starboard": "community", "afk": "community",
-            "notifications": "notifications",
-            "config": "config", "embed": "config", "cmdperm": "config", "userinfo": "config", "serverinfo": "config"
+            "kick": "moderation", "ban": "moderation", "unban": "moderation", "mute": "moderation",
+            "unmute": "moderation", "warn": "moderation", "warnings": "moderation", "clearwarnings": "moderation",
+            "clear": "moderation", "slowmode": "moderation", "lock": "moderation", "unlock": "moderation",
+            "snipe": "moderation", "editsnipe": "moderation", "autosanction": "moderation",
+            
+            "security-audit": "security", "audit": "security", "backup": "security", "ghostping": "security",
+            "automod": "security", "antiraid": "security", "antinuke": "security",
+            
+            "config": "config", "setup": "config", "autorole": "config", "cmdperm": "config",
+            "notifications": "config", "ticket": "config",
+            
+            "rank": "xp", "leaderboard": "xp", "setxp": "xp", "addxp": "xp", "resetxp": "xp", "xprole": "xp",
+            
+            "tempvoice": "community", "rr": "community", "giveaway": "community", "starboard": "community", "afk": "community",
+            
+            "userinfo": "utility", "serverinfo": "utility", "botinfo": "utility", "avatar": "utility",
+            "roleinfo": "utility", "embed": "utility",
+            
+            "wl": "admin", "bl": "admin", "reload": "admin", "shutdown": "admin"
         }
         
         page = "home"
@@ -384,7 +480,7 @@ class Info(commands.Cog):
             base_cmd = commande.split()[0].lower()
             page = cmd_map.get(base_cmd, "home")
             
-        view = HelpViewV2(default_page=page)
+        view = HelpViewV2(self.bot, default_page=page)
         await view.send_initial(interaction)
 
 
