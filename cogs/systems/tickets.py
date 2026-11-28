@@ -1475,54 +1475,82 @@ class TicketSetupDashboardView(discord.ui.View):
         elif guild.icon:
             embed.set_thumbnail(url=guild.icon.url)
 
-        embed.set_footer(text="Cliquez sur un bouton ci-dessous pour ouvrir un menu de configuration")
+        embed.set_footer(text="Sélectionnez une option dans le menu déroulant ci-dessous")
 
-        # Row 0: Primary Action Buttons
-        btn_cats = discord.ui.Button(label="Gérer les Catégories", emoji="📁", style=discord.ButtonStyle.primary, row=0)
-        async def on_cats(i: discord.Interaction):
-            view = TicketCategoryManagerView(self.bot, self.guild_id, self)
-            await view.render(i)
-        btn_cats.callback = on_cats
-        self.add_item(btn_cats)
+        # Sleek Single Navigation Select Menu (replaces clutter of buttons)
+        nav_menu = discord.ui.Select(
+            placeholder="⚡ Choisir une option de configuration...",
+            min_values=1,
+            max_values=1,
+            options=[
+                discord.SelectOption(
+                    label="Gérer les Catégories",
+                    value="categories",
+                    emoji="📁",
+                    description="Ajouter, modifier, salons Discord, staff & textes dédiés"
+                ),
+                discord.SelectOption(
+                    label="Paramètres Généraux",
+                    value="settings",
+                    emoji="⚙️",
+                    description="Rôle staff support, dossier principal et salon des logs"
+                ),
+                discord.SelectOption(
+                    label="Déployer le Panel",
+                    value="deploy",
+                    emoji="🚀",
+                    description="Publier le panneau d'ouverture de tickets dans un salon"
+                ),
+                discord.SelectOption(
+                    label="Bannières Image/GIF",
+                    value="banners",
+                    emoji="🖼️",
+                    description="Configurer les images et gifs du panel et des tickets"
+                ),
+                discord.SelectOption(
+                    label="Textes du Panel",
+                    value="panel_texts",
+                    emoji="💬",
+                    description="Titre, description et texte du bouton du panel public"
+                ),
+                discord.SelectOption(
+                    label="Consignes & Accueil",
+                    value="inside_texts",
+                    emoji="🎟️",
+                    description="Message d'accueil et consignes de démarche par défaut"
+                ),
+                discord.SelectOption(
+                    label="Actualiser l'affichage",
+                    value="refresh",
+                    emoji="🔄",
+                    description="Recharger les données et rafraîchir l'interface"
+                ),
+            ],
+            row=0
+        )
 
-        btn_settings = discord.ui.Button(label="Paramètres Généraux", emoji="⚙️", style=discord.ButtonStyle.secondary, row=0)
-        async def on_settings(i: discord.Interaction):
-            view = TicketGeneralSettingsView(self.bot, self.guild_id, self)
-            await view.render(i)
-        btn_settings.callback = on_settings
-        self.add_item(btn_settings)
+        async def on_nav_select(i: discord.Interaction):
+            val = nav_menu.values[0]
+            if val == "categories":
+                view = TicketCategoryManagerView(self.bot, self.guild_id, self)
+                await view.render(i)
+            elif val == "settings":
+                view = TicketGeneralSettingsView(self.bot, self.guild_id, self)
+                await view.render(i)
+            elif val == "deploy":
+                view = TicketDeployView(self.bot, self.guild_id, self)
+                await view.render(i)
+            elif val == "banners":
+                await i.response.send_modal(TicketBannerModal(self, cfg.get("panel_banner"), cfg.get("welcome_banner")))
+            elif val == "panel_texts":
+                await i.response.send_modal(TicketPanelTextModal(self, cfg.get("panel_title"), cfg.get("panel_desc"), cfg.get("open_button_label")))
+            elif val == "inside_texts":
+                await i.response.send_modal(TicketInsideTextModal(self.render, cfg.get("welcome_message"), cfg.get("ticket_guide")))
+            elif val == "refresh":
+                await self.render(i)
 
-        btn_deploy = discord.ui.Button(label="Déployer le Panel", emoji="🚀", style=discord.ButtonStyle.success, row=0)
-        async def on_deploy(i: discord.Interaction):
-            view = TicketDeployView(self.bot, self.guild_id, self)
-            await view.render(i)
-        btn_deploy.callback = on_deploy
-        self.add_item(btn_deploy)
-
-        # Row 1: Visuals & Texts
-        btn_banners = discord.ui.Button(label="Bannières Image/GIF", emoji="🖼️", style=discord.ButtonStyle.secondary, row=1)
-        async def on_banners(i: discord.Interaction):
-            await i.response.send_modal(TicketBannerModal(self, cfg.get("panel_banner"), cfg.get("welcome_banner")))
-        btn_banners.callback = on_banners
-        self.add_item(btn_banners)
-
-        btn_panel_texts = discord.ui.Button(label="Textes du Panel", emoji="💬", style=discord.ButtonStyle.secondary, row=1)
-        async def on_panel_texts(i: discord.Interaction):
-            await i.response.send_modal(TicketPanelTextModal(self, cfg.get("panel_title"), cfg.get("panel_desc"), cfg.get("open_button_label")))
-        btn_panel_texts.callback = on_panel_texts
-        self.add_item(btn_panel_texts)
-
-        btn_inside_texts = discord.ui.Button(label="Consignes & Accueil", emoji="🎟️", style=discord.ButtonStyle.secondary, row=1)
-        async def on_inside_texts(i: discord.Interaction):
-            await i.response.send_modal(TicketInsideTextModal(self.render, cfg.get("welcome_message"), cfg.get("ticket_guide")))
-        btn_inside_texts.callback = on_inside_texts
-        self.add_item(btn_inside_texts)
-
-        btn_refresh = discord.ui.Button(label="Actualiser", emoji="🔄", style=discord.ButtonStyle.secondary, row=1)
-        async def on_refresh(i: discord.Interaction):
-            await self.render(i)
-        btn_refresh.callback = on_refresh
-        self.add_item(btn_refresh)
+        nav_menu.callback = on_nav_select
+        self.add_item(nav_menu)
 
         if interaction.response.is_done():
             await interaction.edit_original_response(embed=embed, view=self)
