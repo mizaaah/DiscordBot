@@ -33,10 +33,26 @@ async def build_ticket_embed(bot: commands.Bot, guild: discord.Guild, channel_id
 
     color = discord.Color(config.get("embed_color") or Colors.INFO.value)
 
-    # Welcome message template (fully customizable by the user)
-    template = config.get("welcome_message")
+    # ── Per-category overrides (welcome_message, ticket_guide, welcome_banner) ──
+    cat_welcome = None
+    cat_guide = None
+    cat_banner = None
+    cats = config.get("categories") or []
+    for c in cats:
+        if isinstance(c, dict) and c.get("name", "").lower() == category.lower():
+            cat_welcome = c.get("welcome_message")
+            cat_guide = c.get("ticket_guide")
+            cat_banner = c.get("welcome_banner")
+            break
+
+    # Welcome message: category-specific > global > default
+    template = cat_welcome or config.get("welcome_message")
     if not template:
-        welcome = f"Bonjour {user_mention} !\nMerci d'avoir ouvert ce ticket auprès du support de **{guild.name}**.\nUn membre de notre équipe va prendre en charge ta demande très rapidement."
+        welcome = (
+            f"Bonjour {user_mention} !\n"
+            f"Merci d'avoir ouvert ce ticket auprès du support de **{guild.name}**.\n"
+            f"Un membre de notre équipe va prendre en charge ta demande très rapidement."
+        )
     else:
         user_name = user.display_name if user else "Membre"
         welcome = (
@@ -59,20 +75,20 @@ async def build_ticket_embed(bot: commands.Bot, guild: discord.Guild, channel_id
     if user_avatar:
         embed.set_thumbnail(url=user_avatar)
 
-    # Banner inside the ticket if configured
-    welcome_banner = config.get("welcome_banner")
+    # Banner: category-specific > global
+    welcome_banner = cat_banner or config.get("welcome_banner")
     if welcome_banner:
         embed.set_image(url=welcome_banner)
 
-    # Instructions / guide inside the ticket (customizable)
-    guide = config.get("ticket_guide")
+    # Guide: category-specific > global > default
+    guide = cat_guide or config.get("ticket_guide")
     if not guide:
         guide = (
-            "1. Expliquez clairement et en détail la raison de votre demande.\n"
-            "2. Joignez des captures d'écran ou des preuves si nécessaire.\n"
-            "3. Veuillez patienter sans mentionner inutilement le staff."
+            "> **1.** Expliquez clairement et en détail la raison de votre demande.\n"
+            "> **2.** Joignez des captures d'écran ou des preuves si nécessaire.\n"
+            "> **3.** Veuillez patienter sans mentionner inutilement le staff."
         )
-    embed.add_field(name="📋 Consignes & Démarche", value=f"```{guide}```", inline=False)
+    embed.add_field(name="📋 Consignes & Démarche", value=guide, inline=False)
 
     staff_id = config.get("staff_role_id")
     staff_role = guild.get_role(staff_id) if staff_id else None
@@ -864,6 +880,50 @@ class TicketAddCategoryModal(discord.ui.Modal):
 #  Sub-View: Category Discord Folder & Staff Mapping
 # ══════════════════════════════════════════════════════════════════════════════
 
+class TicketCategoryTextsModal(discord.ui.Modal):
+    def __init__(self, parent_view: "TicketCategoryConfigureView"):
+        cat_name = parent_view.cat_data.get("name", "Catégorie")
+        super().__init__(title=f"Textes — {cat_name[:30]}")
+        self.parent_view = parent_view
+
+        current_welcome = parent_view.cat_data.get("welcome_message") or ""
+        current_guide = parent_view.cat_data.get("ticket_guide") or ""
+        current_banner = parent_view.cat_data.get("welcome_banner") or ""
+
+        self.welcome_input = discord.ui.TextInput(
+            label="Message d'accueil dans le ticket",
+            style=discord.TextStyle.long,
+            placeholder="Variables: {mention}, {name}, {server}, {category}, {ticket_number}",
+            default=current_welcome,
+            required=False,
+            max_length=1000
+        )
+        self.guide_input = discord.ui.TextInput(
+            label="Consignes / Démarche spécifiques",
+            style=discord.TextStyle.long,
+            placeholder="Ex: Merci de renseigner votre lien de serveur ou candidature...",
+            default=current_guide,
+            required=False,
+            max_length=1000
+        )
+        self.banner_input = discord.ui.TextInput(
+            label="Bannière du Ticket (Image ou GIF URL)",
+            placeholder="https://example.com/banniere-staff.gif",
+            default=current_banner,
+            required=False,
+            max_length=500
+        )
+        self.add_item(self.welcome_input)
+        self.add_item(self.guide_input)
+        self.add_item(self.banner_input)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        self.parent_view.cat_data["welcome_message"] = self.welcome_input.value.strip() or None
+        self.parent_view.cat_data["ticket_guide"] = self.guide_input.value.strip() or None
+        self.parent_view.cat_data["welcome_banner"] = self.banner_input.value.strip() or None
+        await self.parent_view._update_msg(interaction)
+
+
 class TicketCategoryConfigureView(discord.ui.View):
     def __init__(self, bot: commands.Bot, guild_id: int, cat_data: dict, parent_view: "TicketCategoryManagerView"):
         super().__init__(timeout=300)
@@ -918,11 +978,15 @@ class TicketCategoryConfigureView(discord.ui.View):
             for idx, c in enumerate(cats):
                 if isinstance(c, dict) and c.get("name", "").lower() == self.cat_data["name"].lower():
                     cats[idx] = {
+                        **c,
                         "name": self.cat_data["name"],
                         "emoji": self.cat_data.get("emoji", "🎫"),
                         "description": self.cat_data.get("description", ""),
                         "category_id": self.selected_cat_id,
-                        "staff_role_id": self.selected_role_id
+                        "staff_role_id": self.selected_role_id,
+                        "welcome_message": self.cat_data.get("welcome_message"),
+                        "ticket_guide": self.cat_data.get("ticket_guide"),
+                        "welcome_banner": self.cat_data.get("welcome_banner"),
                     }
                     updated = True
                     break
@@ -933,7 +997,10 @@ class TicketCategoryConfigureView(discord.ui.View):
                     "emoji": self.cat_data.get("emoji", "🎫"),
                     "description": self.cat_data.get("description", ""),
                     "category_id": self.selected_cat_id,
-                    "staff_role_id": self.selected_role_id
+                    "staff_role_id": self.selected_role_id,
+                    "welcome_message": self.cat_data.get("welcome_message"),
+                    "ticket_guide": self.cat_data.get("ticket_guide"),
+                    "welcome_banner": self.cat_data.get("welcome_banner"),
                 })
 
             await self.bot.db.update_ticket_config(self.guild_id, "categories", cats)
@@ -941,7 +1008,14 @@ class TicketCategoryConfigureView(discord.ui.View):
         btn_save.callback = on_save
         self.add_item(btn_save)
 
-        # 4. Cancel button
+        # 4. Customize inside-ticket texts for this category
+        btn_texts = discord.ui.Button(label="Textes du Ticket", emoji="✏️", style=discord.ButtonStyle.primary, row=2)
+        async def on_texts(i: discord.Interaction):
+            await i.response.send_modal(TicketCategoryTextsModal(self))
+        btn_texts.callback = on_texts
+        self.add_item(btn_texts)
+
+        # 5. Cancel button
         btn_cancel = discord.ui.Button(label="Annuler", emoji="🔙", style=discord.ButtonStyle.secondary, row=2)
         async def on_cancel(i: discord.Interaction):
             await self.parent_view.render(i)
@@ -955,18 +1029,31 @@ class TicketCategoryConfigureView(discord.ui.View):
         cat_str = cat_ch.mention if cat_ch else "*Dossier par défaut du serveur*"
         role_str = role_obj.mention if role_obj else "*Staff Support par défaut*"
 
+        welc_status = "✅ Personnalisé" if self.cat_data.get("welcome_message") else "*Par défaut (global)*"
+        guide_status = "✅ Personnalisées" if self.cat_data.get("ticket_guide") else "*Par défaut (global)*"
+        banner_status = "✅ Définie (Image/GIF)" if self.cat_data.get("welcome_banner") else "*Par défaut (globale)*"
+
         embed = discord.Embed(
-            title=f"📁 Configuration de « {self.cat_data.get('emoji', '🎫')} {self.cat_data['name']} »",
+            title=f"📁 Configuration ➔ {self.cat_data.get('emoji', '🎫')} {self.cat_data['name']}",
             description=(
-                f"Définissez dans quel dossier Discord les tickets de cette catégorie seront créés "
-                f"et quelle équipe aura les permissions nécessaires.\n\n"
-                f"📝 **Description :** *{self.cat_data.get('description', 'Aucune')}*\n"
-                f"📁 **Dossier Discord cible :** {cat_str}\n"
-                f"👮 **Rôle Staff assigné :** {role_str}\n\n"
-                f"💡 *Utilisez les menus ci-dessous puis cliquez sur **Enregistrer**.*"
+                f"Personnalisez les paramètres, le salon Discord d'accueil, le rôle support "
+                f"ainsi que les messages et bannières propres à cette catégorie.\n\n"
+                f"### ⚙️ Routage & Permissions\n"
+                f"> 📁 **Dossier Discord :** {cat_str}\n"
+                f"> 👮 **Rôle Staff assigné :** {role_str}\n"
+                f"> 📝 **Description :** *{self.cat_data.get('description', 'Aucune')}*\n\n"
+                f"### 🎟️ Textes & Visuels Dédiés (dans le ticket)\n"
+                f"> 💬 **Message d'accueil :** {welc_status}\n"
+                f"> 📋 **Consignes & Règles :** {guide_status}\n"
+                f"> 🖼️ **Bannière du Ticket :** {banner_status}\n\n"
+                f"💡 *Cliquez sur **✏️ Textes du Ticket** pour modifier l'accueil, les consignes et la bannière de cette catégorie, puis sur **💾 Enregistrer**.*"
             ),
             color=Colors.PRIMARY.value
         )
+        if self.cat_data.get("welcome_banner"):
+            embed.set_image(url=self.cat_data["welcome_banner"])
+        elif guild.icon:
+            embed.set_thumbnail(url=guild.icon.url)
         return embed
 
     async def render(self, interaction: discord.Interaction):
@@ -1076,8 +1163,11 @@ class TicketCategoryManagerView(discord.ui.View):
                 cat_str = cat_ch.mention if cat_ch else "`Dossier par défaut`"
                 role_str = role_obj.mention if role_obj else "`Staff par défaut`"
 
+                has_custom = bool(isinstance(c, dict) and (c.get("welcome_message") or c.get("ticket_guide") or c.get("welcome_banner")))
+                text_tag = "✅ Textes dédiés" if has_custom else "*Par défaut*"
+
                 prefix = "┌" if idx == 1 else ("└" if idx == len(cats) else "├")
-                lines.append(f"{prefix} {emoji} **{name}**\n│  📁 Dossier: {cat_str} ┆ 👮 Staff: {role_str}\n│  📝 *{desc or 'Aucune description'}*")
+                lines.append(f"{prefix} {emoji} **{name}**\n│  📁 Dossier: {cat_str} ┆ 👮 Staff: {role_str}\n│  🎟️ Textes & Visuels: {text_tag}\n│  📝 *{desc or 'Aucune description'}*")
         else:
             lines.append("*Aucune catégorie personnalisée configurée. Les catégories par défaut sont utilisées.*")
 
@@ -1353,7 +1443,9 @@ class TicketSetupDashboardView(discord.ui.View):
                 target_r = guild.get_role(role_id).mention if (role_id and guild.get_role(role_id)) else "*Staff par défaut*"
 
                 prefix = "┌" if idx == 1 else ("└" if idx == min(len(cats), 6) else "├")
-                cat_summary_lines.append(f"{prefix} {emoji} **{name}** ➔ 📁 {target_f} ┆ 👮 {target_r}")
+                has_custom = bool(isinstance(c, dict) and (c.get("welcome_message") or c.get("ticket_guide") or c.get("welcome_banner")))
+                custom_tag = " ┆ 🎨 Dédié" if has_custom else ""
+                cat_summary_lines.append(f"{prefix} {emoji} **{name}** ➔ 📁 {target_f} ┆ 👮 {target_r}{custom_tag}")
             if len(cats) > 6:
                 cat_summary_lines.append(f"*(+{len(cats) - 6} autre(s) catégorie(s)...)*")
         else:
