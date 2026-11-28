@@ -971,8 +971,10 @@ class TicketCategoryConfigureView(discord.ui.View):
         embed = self._get_embed(interaction.guild)
         if interaction.response.is_done():
             await interaction.edit_original_response(embed=embed, view=self)
-        else:
+        elif interaction.type == discord.InteractionType.component:
             await interaction.response.edit_message(embed=embed, view=self)
+        else:
+            await interaction.response.send_message(embed=embed, view=self, ephemeral=True)
 
     async def _update_msg(self, interaction: discord.Interaction):
         embed = self._get_embed(interaction.guild)
@@ -1092,8 +1094,10 @@ class TicketCategoryManagerView(discord.ui.View):
 
         if interaction.response.is_done():
             await interaction.edit_original_response(embed=embed, view=self)
-        else:
+        elif interaction.type == discord.InteractionType.component:
             await interaction.response.edit_message(embed=embed, view=self)
+        else:
+            await interaction.response.send_message(embed=embed, view=self, ephemeral=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1175,8 +1179,10 @@ class TicketGeneralSettingsView(discord.ui.View):
 
         if interaction.response.is_done():
             await interaction.edit_original_response(embed=embed, view=self)
-        else:
+        elif interaction.type == discord.InteractionType.component:
             await interaction.response.edit_message(embed=embed, view=self)
+        else:
+            await interaction.response.send_message(embed=embed, view=self, ephemeral=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1268,8 +1274,10 @@ class TicketDeployView(discord.ui.View):
 
         if interaction.response.is_done():
             await interaction.edit_original_response(embed=embed, view=self)
-        else:
+        elif interaction.type == discord.InteractionType.component:
             await interaction.response.edit_message(embed=embed, view=self)
+        else:
+            await interaction.response.send_message(embed=embed, view=self, ephemeral=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1404,8 +1412,10 @@ class TicketSetupDashboardView(discord.ui.View):
 
         if interaction.response.is_done():
             await interaction.edit_original_response(embed=embed, view=self)
-        else:
+        elif interaction.type == discord.InteractionType.component:
             await interaction.response.edit_message(embed=embed, view=self)
+        else:
+            await interaction.response.send_message(embed=embed, view=self, ephemeral=True)
 
     async def refresh(self, interaction: discord.Interaction):
         await self.render(interaction)
@@ -1498,6 +1508,7 @@ class Tickets(commands.Cog):
     @ticket_group.command(name="setup", description="Ouvre le Dashboard complet de configuration des tickets")
     @app_commands.default_permissions(manage_guild=True)
     async def ticket_setup(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
         lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         view = TicketSetupDashboardView(self.bot, lang, interaction.guild.id)
         await view.render(interaction)
