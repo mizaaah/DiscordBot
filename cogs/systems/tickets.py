@@ -124,25 +124,33 @@ async def _open_ticket(bot: commands.Bot, interaction: discord.Interaction, cate
             )
 
     config = await bot.db.get_ticket_config(guild.id)
-    if not config.get("staff_role_id"):
-        return await interaction.followup.send(
-            embed=error_embed("❌ Le système de tickets n'est pas encore configuré (rôle staff support manquant)."),
-            ephemeral=True
-        )
+    global_staff_role_id = config.get("staff_role_id")
+    global_category_id = config.get("category_id")
 
-    # Determine category channel
+    # Determine category channel and specific staff role
     ticket_cat = None
+    category_staff_role = None
     if category:
         cats = config.get("categories") or []
         for c in cats:
-            if isinstance(c, dict) and c.get("name") == category and c.get("category_id"):
-                ticket_cat = guild.get_channel(c["category_id"])
+            if isinstance(c, dict) and c.get("name", "").lower() == category.lower():
+                if c.get("category_id"):
+                    ticket_cat = guild.get_channel(c["category_id"])
+                if c.get("staff_role_id"):
+                    category_staff_role = guild.get_role(c["staff_role_id"])
                 break
 
-    if not ticket_cat and config.get("category_id"):
-        ticket_cat = guild.get_channel(config["category_id"])
+    if not ticket_cat and global_category_id:
+        ticket_cat = guild.get_channel(global_category_id)
 
-    staff_role = guild.get_role(config["staff_role_id"]) if config.get("staff_role_id") else None
+    global_staff_role = guild.get_role(global_staff_role_id) if global_staff_role_id else None
+
+    if not global_staff_role and not category_staff_role:
+        return await interaction.followup.send(
+            embed=error_embed("❌ Le système de tickets n'a aucun rôle Staff configuré. Veuillez exécuter `/ticket setup`."),
+            ephemeral=True
+        )
+
     ticket_num = await bot.db.increment_ticket_counter(guild.id)
 
     # Channel naming
@@ -168,18 +176,28 @@ async def _open_ticket(bot: commands.Bot, interaction: discord.Interaction, cate
             attach_files=True
         ),
     }
-    if staff_role:
-        overwrites[staff_role] = discord.PermissionOverwrite(
+
+    staff_mentions = []
+    if global_staff_role:
+        overwrites[global_staff_role] = discord.PermissionOverwrite(
             view_channel=True, send_messages=True, read_message_history=True,
             manage_messages=True, attach_files=True, embed_links=True
         )
+        staff_mentions.append(global_staff_role.mention)
+
+    if category_staff_role and category_staff_role != global_staff_role:
+        overwrites[category_staff_role] = discord.PermissionOverwrite(
+            view_channel=True, send_messages=True, read_message_history=True,
+            manage_messages=True, attach_files=True, embed_links=True
+        )
+        staff_mentions.append(category_staff_role.mention)
 
     try:
         channel = await guild.create_text_channel(
             name=channel_name,
             category=ticket_cat,
             overwrites=overwrites,
-            reason=f"Ticket #{ticket_num:04d} ouvert par {user}"
+            reason=f"Ticket #{ticket_num:04d} ({category or 'Général'}) ouvert par {user}"
         )
     except discord.Forbidden:
         return await interaction.followup.send(
@@ -193,11 +211,12 @@ async def _open_ticket(bot: commands.Bot, interaction: discord.Interaction, cate
     # Build and send control view inside the ticket
     embed, is_claimed = await build_ticket_embed(bot, guild, channel.id, lang)
     view = TicketControlView(bot, is_claimed=is_claimed)
-    await channel.send(content=f"{user.mention} {staff_role.mention if staff_role else ''}", embed=embed, view=view)
+    pings = f"{user.mention} {' '.join(staff_mentions)}"
+    await channel.send(content=pings, embed=embed, view=view)
 
     # Inform the user with direct link
     await interaction.followup.send(
-        embed=success_embed(f"✅ Ton ticket a été créé avec succès dans {channel.mention} !"),
+        embed=success_embed(f"✅ Ton ticket **{category or 'Général'}** a été créé avec succès dans {channel.mention} !"),
         ephemeral=True
     )
 
@@ -254,24 +273,25 @@ class TicketCategorySelect(discord.ui.Select):
         options = []
         for c in categories[:25]:
             name = c["name"] if isinstance(c, dict) else str(c)
-            emoji = "🎫"
-            desc = "Ouvrir une demande dans cette section"
+            emoji = c.get("emoji") if (isinstance(c, dict) and c.get("emoji")) else "🎫"
+            desc = c.get("description") if (isinstance(c, dict) and c.get("description")) else "Ouvrir une demande dans cette section"
             nl = name.lower()
-            if "aide" in nl or "support" in nl:
-                emoji = "❓"
-                desc = "Assistance générale, questions & aide"
-            elif "plainte" in nl or "signal" in nl or "report" in nl:
-                emoji = "🛡️"
-                desc = "Signaler un abus ou comportement suspect"
-            elif "partenariat" in nl:
-                emoji = "🤝"
-                desc = "Propositions de partenariats & alliances"
-            elif "recrutement" in nl or "staff" in nl:
-                emoji = "💼"
-                desc = "Candidatures & rejoindre l'équipe"
-            elif "vip" in nl or "boost" in nl or "grade" in nl:
-                emoji = "💎"
-                desc = "Questions sur les rôles VIP & avantages"
+            if emoji == "🎫":
+                if "aide" in nl or "support" in nl:
+                    emoji = "❓"
+                    desc = "Assistance générale, questions & aide"
+                elif "plainte" in nl or "signal" in nl or "report" in nl:
+                    emoji = "🛡️"
+                    desc = "Signaler un abus ou comportement suspect"
+                elif "partenariat" in nl:
+                    emoji = "🤝"
+                    desc = "Propositions de partenariats & alliances"
+                elif "recrutement" in nl or "staff" in nl:
+                    emoji = "💼"
+                    desc = "Candidatures & rejoindre l'équipe"
+                elif "vip" in nl or "boost" in nl or "grade" in nl or "boutique" in nl:
+                    emoji = "💎"
+                    desc = "Questions sur les rôles VIP & avantages"
 
             options.append(discord.SelectOption(label=name[:100], value=name[:100], emoji=emoji, description=desc[:100]))
 
@@ -764,9 +784,9 @@ class TicketPanelTextModal(discord.ui.Modal):
 
 
 class TicketInsideTextModal(discord.ui.Modal):
-    def __init__(self, dashboard: "TicketSetupDashboardView", current_welcome: str, current_guide: str):
+    def __init__(self, refresh_cb, current_welcome: str, current_guide: str):
         super().__init__(title="🎟️ Textes à l'Intérieur du Ticket")
-        self.dashboard = dashboard
+        self.refresh_cb = refresh_cb
 
         self.welcome_input = discord.ui.TextInput(
             label="Message d'accueil dans le ticket",
@@ -792,153 +812,483 @@ class TicketInsideTextModal(discord.ui.Modal):
         gid = interaction.guild.id
         await db.update_ticket_config(gid, "welcome_message", self.welcome_input.value.strip() or None)
         await db.update_ticket_config(gid, "ticket_guide", self.guide_input.value.strip() or None)
-        await self.dashboard.refresh(interaction)
+        await self.refresh_cb(interaction)
 
 
-class TicketCategoriesModal(discord.ui.Modal):
-    def __init__(self, dashboard: "TicketSetupDashboardView", current_cats: str):
-        super().__init__(title="🏷️ Catégories de Tickets")
-        self.dashboard = dashboard
+class TicketAddCategoryModal(discord.ui.Modal):
+    def __init__(self, bot: commands.Bot, parent_view: "TicketCategoryManagerView"):
+        super().__init__(title="➕ Nouvelle Catégorie de Ticket")
+        self.bot = bot
+        self.parent_view = parent_view
 
-        self.cats_input = discord.ui.TextInput(
-            label="Catégories (séparées par une virgule)",
-            style=discord.TextStyle.long,
-            placeholder="Ex: Support Général, Plainte, Partenariats, Recrutement Staff",
-            default=current_cats or "Support Général, Plainte, Partenariats",
-            required=False,
-            max_length=500
+        self.name_input = discord.ui.TextInput(
+            label="Nom de la catégorie",
+            placeholder="Ex: Recrutement, Support Technique, Plaintes, Partenariats",
+            required=True,
+            max_length=40
         )
-        self.add_item(self.cats_input)
+        self.emoji_input = discord.ui.TextInput(
+            label="Emoji représentatif",
+            placeholder="Ex: 📋, 🛠️, ⚖️, 🤝, 💎",
+            default="🎫",
+            required=False,
+            max_length=10
+        )
+        self.desc_input = discord.ui.TextInput(
+            label="Description courte (affichée dans le menu)",
+            style=discord.TextStyle.short,
+            placeholder="Ex: Postuler pour rejoindre l'équipe du serveur",
+            required=False,
+            max_length=100
+        )
+        self.add_item(self.name_input)
+        self.add_item(self.emoji_input)
+        self.add_item(self.desc_input)
 
     async def on_submit(self, interaction: discord.Interaction):
-        db = interaction.client.db
-        gid = interaction.guild.id
-        raw = self.cats_input.value.strip()
-        names = [n.strip() for n in raw.split(",") if n.strip()][:15]
-
-        old_config = await db.get_ticket_config(gid)
-        old_cats = old_config.get("categories") or []
-
-        new_cats = []
-        for name in names:
-            cat_id = None
-            for old in old_cats:
-                if isinstance(old, dict) and old.get("name") == name:
-                    cat_id = old.get("category_id")
-            new_cats.append({"name": name, "category_id": cat_id})
-
-        await db.update_ticket_config(gid, "categories", new_cats)
-        await self.dashboard.refresh(interaction)
+        cat_data = {
+            "name": self.name_input.value.strip(),
+            "emoji": self.emoji_input.value.strip() or "🎫",
+            "description": self.desc_input.value.strip() or "Ouvrir une demande dans cette section",
+            "category_id": None,
+            "staff_role_id": None
+        }
+        # Proceed to step 2: choose discord category and staff role
+        view = TicketCategoryConfigureView(self.bot, interaction.guild.id, cat_data, self.parent_view)
+        await view.render(interaction)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  Setup Dashboard (Components V2 LayoutView)
+#  Sub-View: Category Discord Folder & Staff Mapping
 # ══════════════════════════════════════════════════════════════════════════════
 
-class TicketSetupRoleSelect(discord.ui.RoleSelect):
-    def __init__(self):
-        super().__init__(placeholder="👮 Sélectionner le rôle Staff Support...", min_values=1, max_values=1)
+class TicketCategoryConfigureView(discord.ui.View):
+    def __init__(self, bot: commands.Bot, guild_id: int, cat_data: dict, parent_view: "TicketCategoryManagerView"):
+        super().__init__(timeout=300)
+        self.bot = bot
+        self.guild_id = guild_id
+        self.cat_data = cat_data
+        self.parent_view = parent_view
 
-    async def callback(self, interaction: discord.Interaction):
-        role = self.values[0]
-        await interaction.client.db.update_ticket_config(interaction.guild.id, "staff_role_id", role.id)
-        view: "TicketSetupDashboardView" = self.view
-        await view.refresh(interaction)
+        self.selected_cat_id = cat_data.get("category_id")
+        self.selected_role_id = cat_data.get("staff_role_id")
+
+        self._build_components()
+
+    def _build_components(self):
+        self.clear_items()
+
+        # 1. Channel select for Discord Category
+        cat_select = discord.ui.ChannelSelect(
+            placeholder="📁 Choisir la Catégorie Discord (dossier d'accueil)...",
+            channel_types=[discord.ChannelType.category],
+            min_values=1,
+            max_values=1,
+            row=0
+        )
+        async def on_cat_change(i: discord.Interaction):
+            self.selected_cat_id = cat_select.values[0].id
+            await self._update_msg(i)
+        cat_select.callback = on_cat_change
+        self.add_item(cat_select)
+
+        # 2. Role select for Staff
+        role_select = discord.ui.RoleSelect(
+            placeholder="👮 Choisir le Rôle Staff dédié (optionnel)...",
+            min_values=1,
+            max_values=1,
+            row=1
+        )
+        async def on_role_change(i: discord.Interaction):
+            self.selected_role_id = role_select.values[0].id
+            await self._update_msg(i)
+        role_select.callback = on_role_change
+        self.add_item(role_select)
+
+        # 3. Save button
+        btn_save = discord.ui.Button(label="Enregistrer la Catégorie", emoji="💾", style=discord.ButtonStyle.success, row=2)
+        async def on_save(i: discord.Interaction):
+            cfg = await self.bot.db.get_ticket_config(self.guild_id)
+            cats = [c for c in (cfg.get("categories") or []) if c]
+
+            # Update if already exists, else append
+            updated = False
+            for idx, c in enumerate(cats):
+                if isinstance(c, dict) and c.get("name", "").lower() == self.cat_data["name"].lower():
+                    cats[idx] = {
+                        "name": self.cat_data["name"],
+                        "emoji": self.cat_data.get("emoji", "🎫"),
+                        "description": self.cat_data.get("description", ""),
+                        "category_id": self.selected_cat_id,
+                        "staff_role_id": self.selected_role_id
+                    }
+                    updated = True
+                    break
+
+            if not updated:
+                cats.append({
+                    "name": self.cat_data["name"],
+                    "emoji": self.cat_data.get("emoji", "🎫"),
+                    "description": self.cat_data.get("description", ""),
+                    "category_id": self.selected_cat_id,
+                    "staff_role_id": self.selected_role_id
+                })
+
+            await self.bot.db.update_ticket_config(self.guild_id, "categories", cats)
+            await self.parent_view.render(i)
+        btn_save.callback = on_save
+        self.add_item(btn_save)
+
+        # 4. Cancel button
+        btn_cancel = discord.ui.Button(label="Annuler", emoji="🔙", style=discord.ButtonStyle.secondary, row=2)
+        async def on_cancel(i: discord.Interaction):
+            await self.parent_view.render(i)
+        btn_cancel.callback = on_cancel
+        self.add_item(btn_cancel)
+
+    def _get_embed(self, guild: discord.Guild) -> discord.Embed:
+        cat_ch = guild.get_channel(self.selected_cat_id) if self.selected_cat_id else None
+        role_obj = guild.get_role(self.selected_role_id) if self.selected_role_id else None
+
+        cat_str = cat_ch.mention if cat_ch else "*Dossier par défaut du serveur*"
+        role_str = role_obj.mention if role_obj else "*Staff Support par défaut*"
+
+        embed = discord.Embed(
+            title=f"📁 Configuration de « {self.cat_data.get('emoji', '🎫')} {self.cat_data['name']} »",
+            description=(
+                f"Définissez dans quel dossier Discord les tickets de cette catégorie seront créés "
+                f"et quelle équipe aura les permissions nécessaires.\n\n"
+                f"📝 **Description :** *{self.cat_data.get('description', 'Aucune')}*\n"
+                f"📁 **Dossier Discord cible :** {cat_str}\n"
+                f"👮 **Rôle Staff assigné :** {role_str}\n\n"
+                f"💡 *Utilisez les menus ci-dessous puis cliquez sur **Enregistrer**.*"
+            ),
+            color=Colors.PRIMARY.value
+        )
+        return embed
+
+    async def render(self, interaction: discord.Interaction):
+        embed = self._get_embed(interaction.guild)
+        if interaction.response.is_done():
+            await interaction.edit_original_response(embed=embed, view=self)
+        else:
+            await interaction.response.edit_message(embed=embed, view=self)
+
+    async def _update_msg(self, interaction: discord.Interaction):
+        embed = self._get_embed(interaction.guild)
+        await interaction.response.edit_message(embed=embed, view=self)
 
 
-class TicketSetupCategorySelect(discord.ui.ChannelSelect):
-    def __init__(self):
-        super().__init__(placeholder="📁 Sélectionner la catégorie Discord d'accueil...", channel_types=[discord.ChannelType.category])
+# ══════════════════════════════════════════════════════════════════════════════
+#  Sub-View: Category Management
+# ══════════════════════════════════════════════════════════════════════════════
 
-    async def callback(self, interaction: discord.Interaction):
-        cat = self.values[0]
-        await interaction.client.db.update_ticket_config(interaction.guild.id, "category_id", cat.id)
-        view: "TicketSetupDashboardView" = self.view
-        await view.refresh(interaction)
-
-
-class TicketSetupLogSelect(discord.ui.ChannelSelect):
-    def __init__(self):
-        super().__init__(placeholder="🪵 Sélectionner le salon des transcriptions (logs)...", channel_types=[discord.ChannelType.text])
-
-    async def callback(self, interaction: discord.Interaction):
-        ch = self.values[0]
-        await interaction.client.db.update_ticket_config(interaction.guild.id, "log_channel_id", ch.id)
-        view: "TicketSetupDashboardView" = self.view
-        await view.refresh(interaction)
-
-
-class TicketDeploySelect(discord.ui.ChannelSelect):
-    def __init__(self, dashboard: "TicketSetupDashboardView"):
-        super().__init__(placeholder="🚀 Sélectionner le salon où poster le Panel...", channel_types=[discord.ChannelType.text])
+class TicketCategoryManagerView(discord.ui.View):
+    def __init__(self, bot: commands.Bot, guild_id: int, dashboard: "TicketSetupDashboardView"):
+        super().__init__(timeout=300)
+        self.bot = bot
+        self.guild_id = guild_id
         self.dashboard = dashboard
 
-    async def callback(self, interaction: discord.Interaction):
-        channel = interaction.guild.get_channel(self.values[0].id)
-        if not channel:
-            return await interaction.response.send_message("❌ Salon introuvable.", ephemeral=True)
+    async def render(self, interaction: discord.Interaction):
+        guild = interaction.guild
+        cfg = await self.bot.db.get_ticket_config(self.guild_id)
+        cats = [c for c in (cfg.get("categories") or []) if c]
 
-        await interaction.response.defer(ephemeral=True)
-        db = interaction.client.db
-        config = await db.get_ticket_config(interaction.guild.id)
+        self.clear_items()
 
-        title = config.get("panel_title") or f"Centre de Support • {interaction.guild.name}"
-        desc = config.get("panel_desc") or "Besoin d'aide ? Choisis une catégorie dans le menu déroulant ci-dessous pour ouvrir un ticket privé avec notre équipe."
-        color = discord.Color(config.get("embed_color") or Colors.INFO.value)
+        # Add Category Button
+        btn_add = discord.ui.Button(label="Ajouter une Catégorie", emoji="➕", style=discord.ButtonStyle.success, row=0)
+        async def on_add(i: discord.Interaction):
+            await i.response.send_modal(TicketAddCategoryModal(self.bot, self))
+        btn_add.callback = on_add
+        self.add_item(btn_add)
 
-        cats = [c for c in (config.get("categories") or []) if c]
-        if not cats:
-            # Default rich categories if none set
-            cats = [
-                {"name": "Support Général"},
-                {"name": "Plainte & Signalement"},
-                {"name": "Partenariats"}
+        # Edit Category Select Menu
+        if cats:
+            edit_options = []
+            for c in cats[:25]:
+                name = c["name"] if isinstance(c, dict) else str(c)
+                emoji = c.get("emoji", "🎫") if isinstance(c, dict) else "🎫"
+                edit_options.append(discord.SelectOption(label=name[:100], value=name[:100], emoji=emoji, description="Modifier le dossier Discord ou le rôle staff"))
+
+            edit_select = discord.ui.Select(
+                placeholder="✏️ Modifier une catégorie existante...",
+                options=edit_options,
+                row=1
+            )
+            async def on_edit(i: discord.Interaction):
+                chosen_name = edit_select.values[0]
+                target_c = None
+                for c in cats:
+                    if isinstance(c, dict) and c.get("name") == chosen_name:
+                        target_c = c
+                        break
+                if not target_c:
+                    target_c = {"name": chosen_name, "emoji": "🎫", "description": "", "category_id": None, "staff_role_id": None}
+                view = TicketCategoryConfigureView(self.bot, self.guild_id, target_c, self)
+                await view.render(i)
+            edit_select.callback = on_edit
+            self.add_item(edit_select)
+
+            # Delete Select Menu
+            del_options = [
+                discord.SelectOption(label=f"Supprimer {c['name'] if isinstance(c, dict) else c}"[:100], value=c["name"] if isinstance(c, dict) else str(c), emoji="🗑️")
+                for c in cats[:25]
             ]
+            del_select = discord.ui.Select(
+                placeholder="🗑️ Supprimer une catégorie...",
+                options=del_options,
+                row=2
+            )
+            async def on_delete(i: discord.Interaction):
+                chosen = del_select.values[0]
+                new_cats = [c for c in cats if (c["name"] if isinstance(c, dict) else str(c)) != chosen]
+                await self.bot.db.update_ticket_config(self.guild_id, "categories", new_cats)
+                await self.render(i)
+            del_select.callback = on_delete
+            self.add_item(del_select)
 
-        # Build clean panel embed
+        # Back to Dashboard Button
+        btn_back = discord.ui.Button(label="Retour au Dashboard", emoji="🔙", style=discord.ButtonStyle.secondary, row=3)
+        async def on_back(i: discord.Interaction):
+            await self.dashboard.render(i)
+        btn_back.callback = on_back
+        self.add_item(btn_back)
+
+        # Build clean embed
+        lines = []
+        if cats:
+            for idx, c in enumerate(cats, start=1):
+                name = c["name"] if isinstance(c, dict) else str(c)
+                emoji = c.get("emoji", "🎫") if isinstance(c, dict) else "🎫"
+                desc = c.get("description", "") if isinstance(c, dict) else ""
+                cat_id = c.get("category_id") if isinstance(c, dict) else None
+                role_id = c.get("staff_role_id") if isinstance(c, dict) else None
+
+                cat_ch = guild.get_channel(cat_id) if cat_id else None
+                role_obj = guild.get_role(role_id) if role_id else None
+
+                cat_str = cat_ch.mention if cat_ch else "`Dossier par défaut`"
+                role_str = role_obj.mention if role_obj else "`Staff par défaut`"
+
+                prefix = "┌" if idx == 1 else ("└" if idx == len(cats) else "├")
+                lines.append(f"{prefix} {emoji} **{name}**\n│  📁 Dossier: {cat_str} ┆ 👮 Staff: {role_str}\n│  📝 *{desc or 'Aucune description'}*")
+        else:
+            lines.append("*Aucune catégorie personnalisée configurée. Les catégories par défaut sont utilisées.*")
+
         embed = discord.Embed(
-            title=f"🎫 {title}",
-            description=f"{desc}\n",
-            color=color
+            title=f"📁 Gestionnaire des Catégories de Tickets • {guild.name}",
+            description=(
+                f"Chaque catégorie de ticket peut être envoyée dans **son propre dossier Discord** "
+                f"et être gérée par **une équipe Staff dédiée** (ex: Recruteurs, Modérateurs, Support).\n\n"
+                + "\n│\n".join(lines) + "\n\n"
+                f"➕ **Ajouter :** Cliquez sur le bouton vert ci-dessous.\n"
+                f"✏️ **Associer un dossier Discord :** Utilisez le menu déroulant bleu ci-dessous."
+            ),
+            color=Colors.PRIMARY.value
         )
-        if interaction.guild.icon:
-            embed.set_thumbnail(url=interaction.guild.icon.url)
+        embed.set_footer(text="Système de Tickets Avancé • Antigravity")
 
-        panel_banner = config.get("panel_banner")
-        if panel_banner:
-            embed.set_image(url=panel_banner)
+        if interaction.response.is_done():
+            await interaction.edit_original_response(embed=embed, view=self)
+        else:
+            await interaction.response.edit_message(embed=embed, view=self)
 
-        cats_list = []
-        for c in cats[:10]:
-            name = c["name"] if isinstance(c, dict) else str(c)
-            cats_list.append(f"➔ `{name}`")
-        embed.add_field(name="📂 Types de Demandes Prises en Charge", value="\n".join(cats_list), inline=False)
 
-        embed.set_footer(text=f"Support • {interaction.guild.name}")
+# ══════════════════════════════════════════════════════════════════════════════
+#  Sub-View: General Settings (Default Staff, Category, Logs)
+# ══════════════════════════════════════════════════════════════════════════════
 
-        panel_view = TicketOpenView(self.dashboard.bot, cats)
-        msg = await channel.send(embed=embed, view=panel_view)
+class TicketGeneralSettingsView(discord.ui.View):
+    def __init__(self, bot: commands.Bot, guild_id: int, dashboard: "TicketSetupDashboardView"):
+        super().__init__(timeout=300)
+        self.bot = bot
+        self.guild_id = guild_id
+        self.dashboard = dashboard
 
-        await db.update_ticket_config(interaction.guild.id, "panel_message_id", msg.id)
-        await db.update_ticket_config(interaction.guild.id, "panel_channel_id", channel.id)
+    async def render(self, interaction: discord.Interaction):
+        self.clear_items()
+        guild = interaction.guild
+        cfg = await self.bot.db.get_ticket_config(self.guild_id)
 
-        await interaction.followup.send(
-            embed=success_embed(f"🎉 Le panneau de tickets a été déployé avec succès dans {channel.mention} !"),
-            ephemeral=True
+        # 1. Staff Support Role
+        role_select = discord.ui.RoleSelect(
+            placeholder="👮 Définir le Rôle Staff Support par défaut...",
+            min_values=1, max_values=1, row=0
         )
+        async def on_role(i: discord.Interaction):
+            await self.bot.db.update_ticket_config(self.guild_id, "staff_role_id", role_select.values[0].id)
+            await self.render(i)
+        role_select.callback = on_role
+        self.add_item(role_select)
+
+        # 2. Default Discord Category
+        cat_select = discord.ui.ChannelSelect(
+            placeholder="📁 Définir le Dossier Discord (catégorie) par défaut...",
+            channel_types=[discord.ChannelType.category],
+            min_values=1, max_values=1, row=1
+        )
+        async def on_cat(i: discord.Interaction):
+            await self.bot.db.update_ticket_config(self.guild_id, "category_id", cat_select.values[0].id)
+            await self.render(i)
+        cat_select.callback = on_cat
+        self.add_item(cat_select)
+
+        # 3. Log channel
+        log_select = discord.ui.ChannelSelect(
+            placeholder="🪵 Définir le Salon des Transcriptions (Logs)...",
+            channel_types=[discord.ChannelType.text],
+            min_values=1, max_values=1, row=2
+        )
+        async def on_log(i: discord.Interaction):
+            await self.bot.db.update_ticket_config(self.guild_id, "log_channel_id", log_select.values[0].id)
+            await self.render(i)
+        log_select.callback = on_log
+        self.add_item(log_select)
+
+        # 4. Back button
+        btn_back = discord.ui.Button(label="Retour au Dashboard", emoji="🔙", style=discord.ButtonStyle.secondary, row=3)
+        async def on_back(i: discord.Interaction):
+            await self.dashboard.render(i)
+        btn_back.callback = on_back
+        self.add_item(btn_back)
+
+        staff_role = guild.get_role(cfg.get("staff_role_id")) if cfg.get("staff_role_id") else None
+        cat_ch = guild.get_channel(cfg.get("category_id")) if cfg.get("category_id") else None
+        log_ch = guild.get_channel(cfg.get("log_channel_id")) if cfg.get("log_channel_id") else None
+
+        embed = discord.Embed(
+            title=f"⚙️ Paramètres Généraux des Tickets • {guild.name}",
+            description=(
+                f"Ces réglages constituent les **valeurs par défaut** du système.\n\n"
+                f"👮 **Rôle Staff par défaut :** {staff_role.mention if staff_role else '*Non configuré*'}\n"
+                f"> *Reçoit l'accès aux tickets qui n'ont pas de rôle spécifique.*\n\n"
+                f"📁 **Dossier Discord d'accueil par défaut :** {cat_ch.mention if cat_ch else '*Non configuré*'}\n"
+                f"> *Salon catégorie où sont placés les tickets sans dossier spécifique.*\n\n"
+                f"🪵 **Salon des Transcriptions & Logs :** {log_ch.mention if log_ch else '*Non configuré*'}\n"
+                f"> *Reçoit les récapitulatifs complets et fichiers .txt lors de la fermeture.*"
+            ),
+            color=Colors.PRIMARY.value
+        )
+        embed.set_footer(text="Sélectionnez une option dans les menus ci-dessous pour modifier")
+
+        if interaction.response.is_done():
+            await interaction.edit_original_response(embed=embed, view=self)
+        else:
+            await interaction.response.edit_message(embed=embed, view=self)
 
 
-class TicketSetupDashboardView(discord.ui.LayoutView):
+# ══════════════════════════════════════════════════════════════════════════════
+#  Sub-View: Deploy Panel to a Channel
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TicketDeployView(discord.ui.View):
+    def __init__(self, bot: commands.Bot, guild_id: int, dashboard: "TicketSetupDashboardView"):
+        super().__init__(timeout=300)
+        self.bot = bot
+        self.guild_id = guild_id
+        self.dashboard = dashboard
+
+    async def render(self, interaction: discord.Interaction):
+        self.clear_items()
+        guild = interaction.guild
+        cfg = await self.bot.db.get_ticket_config(self.guild_id)
+
+        chan_select = discord.ui.ChannelSelect(
+            placeholder="🚀 Sélectionner le salon où poster le Panel...",
+            channel_types=[discord.ChannelType.text],
+            min_values=1, max_values=1, row=0
+        )
+        async def on_deploy(i: discord.Interaction):
+            ch = guild.get_channel(chan_select.values[0].id)
+            if not ch:
+                return await i.response.send_message("❌ Salon introuvable.", ephemeral=True)
+
+            await i.response.defer(ephemeral=True)
+            title = cfg.get("panel_title") or f"Centre d'Assistance • {guild.name}"
+            desc = cfg.get("panel_desc") or "Besoin d'aide ? Choisissez la catégorie appropriée dans le menu déroulant ci-dessous pour ouvrir un ticket privé avec notre équipe."
+            color = discord.Color(cfg.get("embed_color") or Colors.PRIMARY.value)
+
+            cats = [c for c in (cfg.get("categories") or []) if c]
+            if not cats:
+                cats = [
+                    {"name": "Support Général", "emoji": "🛠️", "description": "Besoin d'aide ou d'une information"},
+                    {"name": "Recrutement Staff", "emoji": "📋", "description": "Candidater pour rejoindre l'équipe"},
+                    {"name": "Plaintes & Abus", "emoji": "⚠️", "description": "Signaler un problème ou un comportement"}
+                ]
+
+            embed = discord.Embed(title=f"🎫 {title}", description=f"{desc}\n", color=color)
+            if guild.icon:
+                embed.set_thumbnail(url=guild.icon.url)
+            if cfg.get("panel_banner"):
+                embed.set_image(url=cfg["panel_banner"])
+
+            cat_lines = []
+            for c in cats[:12]:
+                name = c["name"] if isinstance(c, dict) else str(c)
+                emoji = c.get("emoji", "🎫") if isinstance(c, dict) else "🎫"
+                desc_c = c.get("description", "") if isinstance(c, dict) else ""
+                cat_lines.append(f"{emoji} **{name}** — *{desc_c or 'Assistance'}*")
+
+            embed.add_field(name="📂 Catégories Prises en Charge", value="\n".join(cat_lines) if cat_lines else "*Support Général*", inline=False)
+            embed.set_footer(text=f"Support • {guild.name}")
+
+            panel_view = TicketOpenView(self.bot, cats)
+            msg = await ch.send(embed=embed, view=panel_view)
+
+            await self.bot.db.update_ticket_config(self.guild_id, "panel_message_id", msg.id)
+            await self.bot.db.update_ticket_config(self.guild_id, "panel_channel_id", ch.id)
+
+            await i.followup.send(f"🎉 **Panneau de tickets déployé avec succès dans {ch.mention} !**", ephemeral=True)
+            await self.dashboard.render(i)
+
+        chan_select.callback = on_deploy
+        self.add_item(chan_select)
+
+        # Back button
+        btn_back = discord.ui.Button(label="Retour au Dashboard", emoji="🔙", style=discord.ButtonStyle.secondary, row=1)
+        async def on_back(i: discord.Interaction):
+            await self.dashboard.render(i)
+        btn_back.callback = on_back
+        self.add_item(btn_back)
+
+        cur_panel_ch = f"<#{cfg.get('panel_channel_id')}>" if cfg.get("panel_channel_id") else "*Aucun*"
+        embed = discord.Embed(
+            title=f"🚀 Déploiement du Panneau Public • {guild.name}",
+            description=(
+                f"Sélectionnez le salon textuel dans lequel vous souhaitez afficher le message de support public.\n\n"
+                f"Les membres pourront y voir vos différentes catégories avec leurs emojis et ouvrir un ticket en un clic !\n\n"
+                f"📍 *Salon actuellement configuré :* {cur_panel_ch}"
+            ),
+            color=Colors.SUCCESS.value
+        )
+        if cfg.get("panel_banner"):
+            embed.set_thumbnail(url=cfg["panel_banner"])
+
+        if interaction.response.is_done():
+            await interaction.edit_original_response(embed=embed, view=self)
+        else:
+            await interaction.response.edit_message(embed=embed, view=self)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  Main Setup Dashboard (Ultra Clean, Modern Tabbed View)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TicketSetupDashboardView(discord.ui.View):
     def __init__(self, bot: commands.Bot, lang: str, guild_id: int):
         super().__init__(timeout=300)
         self.bot = bot
         self.lang = lang
         self.guild_id = guild_id
 
-    async def build(self, guild: discord.Guild):
+    async def render(self, interaction: discord.Interaction):
         self.clear_items()
-        config = await self.bot.db.get_ticket_config(self.guild_id)
+        guild = interaction.guild
+        cfg = await self.bot.db.get_ticket_config(self.guild_id)
 
+        # Helpers
         def ch(cid):
             if not cid: return "*Non configuré*"
             c = guild.get_channel(cid)
@@ -949,94 +1299,116 @@ class TicketSetupDashboardView(discord.ui.LayoutView):
             r = guild.get_role(rid)
             return r.mention if r else "*Introuvable*"
 
-        staff_str = role(config.get("staff_role_id"))
-        cat_str = ch(config.get("category_id"))
-        log_str = ch(config.get("log_channel_id"))
+        cats = [c for c in (cfg.get("categories") or []) if c]
+        staff_str = role(cfg.get("staff_role_id"))
+        cat_str = ch(cfg.get("category_id"))
+        log_str = ch(cfg.get("log_channel_id"))
+        panel_ch = ch(cfg.get("panel_channel_id"))
 
-        panel_b = "✅ Définie" if config.get("panel_banner") else "❌ Aucune (par défaut)"
-        welcome_b = "✅ Définie" if config.get("welcome_banner") else "❌ Aucune (par défaut)"
-        welc_msg_stat = "✅ Personnalisé" if config.get("welcome_message") else "Par défaut"
-        guide_stat = "✅ Personnalisées" if config.get("ticket_guide") else "Par défaut"
+        panel_b = "✅ Image/GIF active" if cfg.get("panel_banner") else "❌ Aucune (par défaut)"
+        welcome_b = "✅ Image/GIF active" if cfg.get("welcome_banner") else "❌ Aucune (par défaut)"
+        guide_stat = "✅ Personnalisées" if cfg.get("ticket_guide") else "Par défaut"
+        welc_stat = "✅ Personnalisé" if cfg.get("welcome_message") else "Par défaut"
 
-        cats = [c for c in (config.get("categories") or []) if c]
+        # Build Clean Tree of Categories
+        cat_summary_lines = []
         if cats:
-            cats_str = ", ".join(f"`{c['name'] if isinstance(c, dict) else c}`" for c in cats)
+            for idx, c in enumerate(cats[:6], start=1):
+                name = c["name"] if isinstance(c, dict) else str(c)
+                emoji = c.get("emoji", "🎫") if isinstance(c, dict) else "🎫"
+                cat_id = c.get("category_id") if isinstance(c, dict) else None
+                role_id = c.get("staff_role_id") if isinstance(c, dict) else None
+
+                target_f = guild.get_channel(cat_id).mention if (cat_id and guild.get_channel(cat_id)) else "*Dossier par défaut*"
+                target_r = guild.get_role(role_id).mention if (role_id and guild.get_role(role_id)) else "*Staff par défaut*"
+
+                prefix = "┌" if idx == 1 else ("└" if idx == min(len(cats), 6) else "├")
+                cat_summary_lines.append(f"{prefix} {emoji} **{name}** ➔ 📁 {target_f} ┆ 👮 {target_r}")
+            if len(cats) > 6:
+                cat_summary_lines.append(f"*(+{len(cats) - 6} autre(s) catégorie(s)...)*")
         else:
-            cats_str = "*Par défaut (Support, Plainte, Partenariat)*"
+            cat_summary_lines.append("*Aucune catégorie personnalisée (Support, Recrutement, Plainte par défaut)*")
 
-        cont = discord.ui.Container(accent_color=Colors.PRIMARY.value)
-        cont.add_item(discord.ui.TextDisplay(
-            f"# 🎫 Configuration Avancée des Tickets • {guild.name}\n"
-            f"> Personnalisez l'intégralité des bannières, des textes et du fonctionnement de vos tickets.\n"
-        ))
-        cont.add_item(discord.ui.Separator())
-
-        overview_text = (
-            f"### 📊 État Global de la Configuration\n"
-            f"> 👮 **Rôle Support Staff :** {staff_str}\n"
-            f"> 📁 **Dossier Discord :** {cat_str}\n"
-            f"> 🪵 **Salon Transcriptions :** {log_str}\n"
-            f"> 🖼️ **Bannière Panel :** `{panel_b}`\n"
-            f"> 🖼️ **Bannière dans le Ticket :** `{welcome_b}`\n"
-            f"> 💬 **Message de bienvenue :** `{welc_msg_stat}`\n"
-            f"> 📋 **Consignes dans le ticket :** `{guide_stat}`\n"
-            f"> 🏷️ **Catégories actives :** {cats_str}\n"
+        embed = discord.Embed(
+            title=f"⚙️ Panneau de Contrôle • Système de Tickets",
+            description=(
+                f"Bienvenue dans l'interface de gestion avancée des tickets de **{guild.name}**.\n"
+                f"Gérez vos catégories indépendantes, vos dossiers Discord d'accueil, vos équipes et vos bannières.\n\n"
+                f"### 📂 Catégories de Tickets Définies ({len(cats)})\n"
+                + "\n".join(cat_summary_lines) + "\n\n"
+                f"### ⚙️ Paramètres par Défaut\n"
+                f"• 👮 **Staff Support :** {staff_str}\n"
+                f"• 📁 **Dossier d'accueil :** {cat_str}\n"
+                f"• 🪵 **Salon des Logs :** {log_str}\n"
+                f"• 📍 **Panel Public :** {panel_ch}\n\n"
+                f"### 🎨 Visuels & Textes\n"
+                f"• 🖼️ **Bannière Panel :** `{panel_b}`\n"
+                f"• 🖼️ **Bannière dans le Ticket :** `{welcome_b}`\n"
+                f"• 📋 **Consignes :** `{guide_stat}` ┆ 💬 **Message Accueil :** `{welc_stat}`"
+            ),
+            color=Colors.PRIMARY.value
         )
-        cont.add_item(discord.ui.TextDisplay(overview_text))
-        cont.add_item(discord.ui.Separator())
+        if cfg.get("panel_banner"):
+            embed.set_image(url=cfg["panel_banner"])
+        elif guild.icon:
+            embed.set_thumbnail(url=guild.icon.url)
 
-        # Buttons for quick config
-        btn_banners = discord.ui.Button(label="Bannières Image/GIF", emoji="🖼️", style=discord.ButtonStyle.secondary)
+        embed.set_footer(text="Cliquez sur un bouton ci-dessous pour ouvrir un menu de configuration")
+
+        # Row 0: Primary Action Buttons
+        btn_cats = discord.ui.Button(label="Gérer les Catégories", emoji="📁", style=discord.ButtonStyle.primary, row=0)
+        async def on_cats(i: discord.Interaction):
+            view = TicketCategoryManagerView(self.bot, self.guild_id, self)
+            await view.render(i)
+        btn_cats.callback = on_cats
+        self.add_item(btn_cats)
+
+        btn_settings = discord.ui.Button(label="Paramètres Généraux", emoji="⚙️", style=discord.ButtonStyle.secondary, row=0)
+        async def on_settings(i: discord.Interaction):
+            view = TicketGeneralSettingsView(self.bot, self.guild_id, self)
+            await view.render(i)
+        btn_settings.callback = on_settings
+        self.add_item(btn_settings)
+
+        btn_deploy = discord.ui.Button(label="Déployer le Panel", emoji="🚀", style=discord.ButtonStyle.success, row=0)
+        async def on_deploy(i: discord.Interaction):
+            view = TicketDeployView(self.bot, self.guild_id, self)
+            await view.render(i)
+        btn_deploy.callback = on_deploy
+        self.add_item(btn_deploy)
+
+        # Row 1: Visuals & Texts
+        btn_banners = discord.ui.Button(label="Bannières Image/GIF", emoji="🖼️", style=discord.ButtonStyle.secondary, row=1)
         async def on_banners(i: discord.Interaction):
-            cfg = await self.bot.db.get_ticket_config(self.guild_id)
             await i.response.send_modal(TicketBannerModal(self, cfg.get("panel_banner"), cfg.get("welcome_banner")))
         btn_banners.callback = on_banners
+        self.add_item(btn_banners)
 
-        btn_panel_texts = discord.ui.Button(label="Textes du Panel", emoji="💬", style=discord.ButtonStyle.secondary)
+        btn_panel_texts = discord.ui.Button(label="Textes du Panel", emoji="💬", style=discord.ButtonStyle.secondary, row=1)
         async def on_panel_texts(i: discord.Interaction):
-            cfg = await self.bot.db.get_ticket_config(self.guild_id)
             await i.response.send_modal(TicketPanelTextModal(self, cfg.get("panel_title"), cfg.get("panel_desc"), cfg.get("open_button_label")))
         btn_panel_texts.callback = on_panel_texts
+        self.add_item(btn_panel_texts)
 
-        btn_inside_texts = discord.ui.Button(label="Textes dans le Ticket", emoji="🎟️", style=discord.ButtonStyle.secondary)
+        btn_inside_texts = discord.ui.Button(label="Consignes & Accueil", emoji="🎟️", style=discord.ButtonStyle.secondary, row=1)
         async def on_inside_texts(i: discord.Interaction):
-            cfg = await self.bot.db.get_ticket_config(self.guild_id)
-            await i.response.send_modal(TicketInsideTextModal(self, cfg.get("welcome_message"), cfg.get("ticket_guide")))
+            await i.response.send_modal(TicketInsideTextModal(self.render, cfg.get("welcome_message"), cfg.get("ticket_guide")))
         btn_inside_texts.callback = on_inside_texts
+        self.add_item(btn_inside_texts)
 
-        btn_cats = discord.ui.Button(label="Catégories", emoji="🏷️", style=discord.ButtonStyle.secondary)
-        async def on_cats(i: discord.Interaction):
-            cfg = await self.bot.db.get_ticket_config(self.guild_id)
-            c_str = ", ".join(c["name"] if isinstance(c, dict) else str(c) for c in (cfg.get("categories") or []))
-            await i.response.send_modal(TicketCategoriesModal(self, c_str))
-        btn_cats.callback = on_cats
+        btn_refresh = discord.ui.Button(label="Actualiser", emoji="🔄", style=discord.ButtonStyle.secondary, row=1)
+        async def on_refresh(i: discord.Interaction):
+            await self.render(i)
+        btn_refresh.callback = on_refresh
+        self.add_item(btn_refresh)
 
-        cont.add_item(discord.ui.TextDisplay("👇 **Personnalisation des Visuels & Contenus :**"))
-        cont.add_item(discord.ui.ActionRow(btn_banners, btn_panel_texts, btn_inside_texts, btn_cats))
-        cont.add_item(discord.ui.Separator())
-
-        # Select menus for channels/roles
-        cont.add_item(discord.ui.TextDisplay("**👮 Rôle Staff Support (accès aux tickets) :**"))
-        cont.add_item(discord.ui.ActionRow(TicketSetupRoleSelect()))
-
-        cont.add_item(discord.ui.TextDisplay("**📁 Dossier Discord (Catégorie d'accueil) :**"))
-        cont.add_item(discord.ui.ActionRow(TicketSetupCategorySelect()))
-
-        cont.add_item(discord.ui.TextDisplay("**🪵 Salon des Transcriptions (Logs) :**"))
-        cont.add_item(discord.ui.ActionRow(TicketSetupLogSelect()))
-
-        cont.add_item(discord.ui.Separator())
-        cont.add_item(discord.ui.TextDisplay("🚀 **Déployer le Panel dans un salon :**"))
-        cont.add_item(discord.ui.ActionRow(TicketDeploySelect(self)))
-
-        self.add_item(cont)
+        if interaction.response.is_done():
+            await interaction.edit_original_response(embed=embed, view=self)
+        else:
+            await interaction.response.edit_message(embed=embed, view=self)
 
     async def refresh(self, interaction: discord.Interaction):
-        await self.build(interaction.guild)
-        if interaction.response.is_done():
-            await interaction.edit_original_response(view=self)
-        else:
-            await interaction.response.edit_message(view=self)
+        await self.render(interaction)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1128,8 +1500,7 @@ class Tickets(commands.Cog):
     async def ticket_setup(self, interaction: discord.Interaction):
         lang = await self.bot.db.get_guild_lang(interaction.guild_id)
         view = TicketSetupDashboardView(self.bot, lang, interaction.guild.id)
-        await view.build(interaction.guild)
-        await interaction.response.send_message(view=view, ephemeral=True)
+        await view.render(interaction)
 
     @ticket_group.command(name="close", description="Ferme et archive le ticket actuel")
     async def ticket_close(self, interaction: discord.Interaction):
