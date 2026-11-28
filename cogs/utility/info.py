@@ -80,7 +80,7 @@ HELP_PAGES = {
             "📸 **Auto-Réactions** *(via `/config`)* ➔ Réactions automatiques sur photos et médias\n"
             "🔐 `/cmdperm` ➔ Verrouiller l'accès des commandes à certains rôles\n"
             "🔔 `/notifications` ➔ Alertes automatiques Twitch et TikTok\n"
-            "🎟️ `/ticket setup` ➔ Panneau de support et tickets privés"
+            "🎟️ `/ticket [setup/close/claim/transcript]` ➔ Support, catégories, bannières & transcripts"
         )
     },
     "xp": {
