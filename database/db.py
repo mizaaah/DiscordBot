@@ -15,7 +15,7 @@ ALLOWED_SETTINGS = {
     "welcome_title", "goodbye_title",
     "report_channel_id", "ghostping_enabled", "language",
     "welcome_image", "goodbye_image", "welcome_color", "goodbye_color",
-    "log_category_id", "log_messages_id", "log_mod_id", "log_server_id", "log_voice_id",
+    "log_category_id", "log_messages_id", "log_mod_id", "log_server_id", "log_voice_id", "log_members_id",
     "levelup_channel_id", "tagrole_id", "tagrole_text"
 }
 
@@ -195,6 +195,7 @@ class Database:
                 log_mod_id          INTEGER,
                 log_server_id       INTEGER,
                 log_voice_id        INTEGER,
+                log_members_id      INTEGER,
                 levelup_channel_id  INTEGER,
                 tagrole_id          INTEGER,
                 tagrole_text        TEXT DEFAULT '17th'
@@ -550,6 +551,7 @@ class Database:
             "ALTER TABLE guild_settings ADD COLUMN autorole_bots_id INTEGER",
             "ALTER TABLE guild_settings ADD COLUMN tagrole_id INTEGER",
             "ALTER TABLE guild_settings ADD COLUMN tagrole_text TEXT DEFAULT '17th'",
+            "ALTER TABLE guild_settings ADD COLUMN log_members_id INTEGER",
         ]:
             try:
                 await self.db.execute(migration)

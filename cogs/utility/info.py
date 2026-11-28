@@ -75,7 +75,7 @@ HELP_PAGES = {
             "🎛️ `/config` *(ou `/setup`)* ➔ Dashboard interactif pour tout configurer\n"
             "🎭 `/autorole [cible] [role]` ➔ Auto-rôles distincts pour humains et bots\n"
             "🏷️ `/tagrole [config/disable/scan]` ➔ Rôle automatique pour porteurs du tag 17th\n"
-            "🪵 **Logs Avancés** *(via `/config`)* ➔ 4 salons dédiés *(messages, vocal, mod, serveur)*\n"
+            "🪵 **Logs Avancés** *(via `/config`)* ➔ 5 salons dédiés *(messages, vocal, mod, serveur, membres)*\n"
             "👋 **Accueil** *(via `/config`)* ➔ Titre, message, GIF et couleur de bienvenue\n"
             "📸 **Auto-Réactions** *(via `/config`)* ➔ Réactions automatiques sur photos et médias\n"
             "🔐 `/cmdperm` ➔ Verrouiller l'accès des commandes à certains rôles\n"

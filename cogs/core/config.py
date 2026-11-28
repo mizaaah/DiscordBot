@@ -232,6 +232,7 @@ class SetupResetLogsButton(discord.ui.Button):
         await db.update_guild_setting(gid, "log_voice_id", None)
         await db.update_guild_setting(gid, "log_mod_id", None)
         await db.update_guild_setting(gid, "log_server_id", None)
+        await db.update_guild_setting(gid, "log_members_id", None)
         await view.refresh(interaction, "Le système de logs a bien été désactivé !")
 
 
@@ -783,10 +784,11 @@ class SetupLogsCategorySelect(discord.ui.ChannelSelect):
             return await category.create_text_channel(name=name, overwrites=overwrites)
             
         try:
-            ch_msg = await get_or_create("logs-messages")
-            ch_voc = await get_or_create("logs-vocaux")
-            ch_mod = await get_or_create("logs-modération")
-            ch_srv = await get_or_create("logs-serveur")
+            ch_msg = await get_or_create("💬〢logs-messages")
+            ch_voc = await get_or_create("🔊〢logs-vocaux")
+            ch_mod = await get_or_create("🔨〢logs-modération")
+            ch_srv = await get_or_create("⚙️〢logs-serveur")
+            ch_mbr = await get_or_create("👥〢logs-membres")
         except discord.Forbidden:
             return await interaction.followup.send("❌ Je n'ai pas la permission de créer des salons dans cette catégorie.", ephemeral=True)
             
@@ -795,6 +797,89 @@ class SetupLogsCategorySelect(discord.ui.ChannelSelect):
         await db.update_guild_setting(guild_id, "log_voice_id", ch_voc.id)
         await db.update_guild_setting(guild_id, "log_mod_id", ch_mod.id)
         await db.update_guild_setting(guild_id, "log_server_id", ch_srv.id)
+        await db.update_guild_setting(guild_id, "log_members_id", ch_mbr.id)
+
+        # Send welcome embeds in each channel
+        welcome_color = 0x5865F2
+        
+        msg_embed = discord.Embed(
+            title="💬 Logs Messages",
+            description=(
+                "Ce salon enregistre en temps réel toutes les activités liées aux messages du serveur.\n\n"
+                "📝 Modifications de messages\n"
+                "🗑️ Suppressions de messages\n"
+                "🧹 Suppressions en masse *(bulk delete)*\n\n"
+                "> *Les logs s'afficheront automatiquement ci-dessous.*"
+            ),
+            color=welcome_color
+        )
+        msg_embed.set_footer(text="Système de Logs • 17th")
+        
+        voc_embed = discord.Embed(
+            title="🔊 Logs Vocaux",
+            description=(
+                "Ce salon enregistre en temps réel les mouvements dans les salons vocaux.\n\n"
+                "🟢 Connexions vocales\n"
+                "🔴 Déconnexions vocales\n"
+                "🔄 Changements de salon\n"
+                "🔇 Mute / Deafen serveur\n\n"
+                "> *Les logs s'afficheront automatiquement ci-dessous.*"
+            ),
+            color=welcome_color
+        )
+        voc_embed.set_footer(text="Système de Logs • 17th")
+        
+        mod_embed = discord.Embed(
+            title="🔨 Logs Modération",
+            description=(
+                "Ce salon enregistre en temps réel toutes les actions de modération du serveur.\n\n"
+                "⚠️ Avertissements (warns)\n"
+                "🔇 Mutes et Unmutes\n"
+                "👢 Kicks et Bans\n"
+                "🧹 Clear et Lock/Unlock\n"
+                "⚙️ Changements de configuration\n\n"
+                "> *Les logs s'afficheront automatiquement ci-dessous.*"
+            ),
+            color=welcome_color
+        )
+        mod_embed.set_footer(text="Système de Logs • 17th")
+        
+        srv_embed = discord.Embed(
+            title="⚙️ Logs Serveur",
+            description=(
+                "Ce salon enregistre en temps réel les modifications structurelles du serveur.\n\n"
+                "📁 Création et suppression de salons\n"
+                "🎭 Création et suppression de rôles\n"
+                "🔧 Modifications du serveur\n\n"
+                "> *Les logs s'afficheront automatiquement ci-dessous.*"
+            ),
+            color=welcome_color
+        )
+        srv_embed.set_footer(text="Système de Logs • 17th")
+        
+        mbr_embed = discord.Embed(
+            title="👥 Logs Membres",
+            description=(
+                "Ce salon enregistre en temps réel les mouvements et changements de profil des membres.\n\n"
+                "📥 Arrivées de nouveaux membres\n"
+                "📤 Départs de membres\n"
+                "🏷️ Changements de pseudo et surnom\n"
+                "🎭 Ajouts et retraits de rôles\n"
+                "⏱️ Mises en sourdine (timeout)\n\n"
+                "> *Les logs s'afficheront automatiquement ci-dessous.*"
+            ),
+            color=welcome_color
+        )
+        mbr_embed.set_footer(text="Système de Logs • 17th")
+
+        try:
+            await ch_msg.send(embed=msg_embed)
+            await ch_voc.send(embed=voc_embed)
+            await ch_mod.send(embed=mod_embed)
+            await ch_srv.send(embed=srv_embed)
+            await ch_mbr.send(embed=mbr_embed)
+        except discord.Forbidden:
+            pass
         
         view = self.view
         await view._build_home(interaction.guild, "Catégorie de logs configurée et salons créés !")
@@ -980,13 +1065,19 @@ class SetupView(discord.ui.LayoutView):
 
         if category == "logs":
             curr_cat = ch(settings.get('log_category_id'))
+            ch_msg = ch(settings.get('log_messages_id'))
+            ch_voc = ch(settings.get('log_voice_id'))
+            ch_mod = ch(settings.get('log_mod_id'))
+            ch_srv = ch(settings.get('log_server_id'))
+            ch_mbr = ch(settings.get('log_members_id'))
             cont.add_item(discord.ui.TextDisplay(
                 f"### 🪵 Logs Staff du Serveur\n"
                 f"> 📁 **Catégorie actuelle :** {curr_cat}\n\n"
-                f"💬 `logs-messages` ➔ suppressions et modifications de messages\n"
-                f"🔊 `logs-vocaux` ➔ connexions, déconnexions et déplacements\n"
-                f"🔨 `logs-modération` ➔ sanctions, kicks, bans, mutes, warns\n"
-                f"⚙️ `logs-serveur` ➔ créations et suppressions de salons/rôles"
+                f"💬 `logs-messages` ➔ {ch_msg} *(suppressions, modifications, bulk delete)*\n"
+                f"🔊 `logs-vocaux` ➔ {ch_voc} *(connexions, déconnexions, déplacements)*\n"
+                f"🔨 `logs-modération` ➔ {ch_mod} *(sanctions, kicks, bans, mutes, warns)*\n"
+                f"⚙️ `logs-serveur` ➔ {ch_srv} *(salons, rôles, modifications serveur)*\n"
+                f"👥 `logs-membres` ➔ {ch_mbr} *(arrivées, départs, pseudos, rôles, timeout)*"
             ))
             cont.add_item(discord.ui.ActionRow(SetupLogsCategorySelect(lang)))
             if settings.get("log_category_id"):
