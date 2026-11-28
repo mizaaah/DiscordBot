@@ -49,7 +49,6 @@ class Bot(commands.Bot):
         await self.db.connect()
         logging.info("✅ Base de données connectée.")
 
-        @self.tree.interaction_check
         async def check_blacklist(interaction: discord.Interaction):
             if interaction.guild_id and interaction.guild and interaction.user.id != interaction.guild.owner_id:
                 if await self.db.is_blacklisted(interaction.guild_id, interaction.user.id):
@@ -59,6 +58,8 @@ class Bot(commands.Bot):
                         pass
                     return False
             return True
+
+        self.tree.interaction_check = check_blacklist
 
         cogs_dir = Path("cogs")
         for file in cogs_dir.rglob("*.py"):

@@ -10,6 +10,7 @@ class Colors:
     WARNING = discord.Color(0xE67E22)   # mute, sévérité moyenne
     CAUTION = discord.Color(0xFEE75C)   # warn, sévérité basse
     INFO    = discord.Color(0x5865F2)   # blurple, neutre/informatif
+    PRIMARY = discord.Color(0x5865F2)   # alias blurple principal (identique à INFO)
     GOLD    = discord.Color(0xFFD700)   # XP, giveaways, starboard
     NEUTRAL = discord.Color(0x95A5A6)   # gris, secondaire
     INVISIBLE = discord.Color(0x2B2D31) # couleur de fond discord sombre
