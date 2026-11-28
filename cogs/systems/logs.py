@@ -226,8 +226,8 @@ class Logs(commands.Cog):
             await self.send_log(after.guild, embed, log_type="members")
 
         # Timeout detection
-        before_timeout = before.communication_disabled_until
-        after_timeout = after.communication_disabled_until
+        before_timeout = getattr(before, 'timed_out_until', None)
+        after_timeout = getattr(after, 'timed_out_until', None)
         if before_timeout != after_timeout:
             if after_timeout and after_timeout > datetime.now(timezone.utc):
                 embed = self._base_embed("⏱️ Membre Mis en Sourdine (Timeout)", Colors.WARNING)

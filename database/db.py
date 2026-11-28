@@ -36,7 +36,7 @@ ALLOWED_TICKET_SETTINGS = {
     "channel_name_format", "open_button_label", "open_button_emoji",
     "close_button_label", "close_button_emoji",
     "panel_title", "panel_desc", "questions",
-    "panel_banner", "welcome_banner"
+    "panel_banner", "welcome_banner", "ticket_guide"
 }
 
 ALLOWED_ANTIRAID_SETTINGS = {
@@ -297,6 +297,7 @@ class Database:
                 panel_desc          TEXT,
                 panel_banner        TEXT,
                 welcome_banner      TEXT,
+                ticket_guide        TEXT,
                 questions           TEXT DEFAULT '{}'
             )""",
             """CREATE TABLE IF NOT EXISTS tickets (
@@ -557,6 +558,7 @@ class Database:
             "ALTER TABLE guild_settings ADD COLUMN log_members_id INTEGER",
             "ALTER TABLE ticket_config ADD COLUMN panel_banner TEXT",
             "ALTER TABLE ticket_config ADD COLUMN welcome_banner TEXT",
+            "ALTER TABLE ticket_config ADD COLUMN ticket_guide TEXT",
         ]:
             try:
                 await self.db.execute(migration)

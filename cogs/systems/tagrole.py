@@ -23,17 +23,23 @@ def member_has_tag(member: discord.Member, tag: str, guild: discord.Guild) -> bo
             return True
 
     # 2. Pseudo / Nom d'affichage
-    if t in member.display_name.lower():
+    if member.nick and t in member.nick.lower():
+        return True
+    if member.display_name and t in member.display_name.lower():
         return True
 
     # 3. Nom d'utilisateur global
-    if t in member.name.lower():
+    if member.name and t in member.name.lower():
+        return True
+    if getattr(member, "global_name", None) and t in member.global_name.lower():
         return True
 
     # 4. Statut personnalisé (Custom Activity)
     for act in getattr(member, "activities", []):
-        if isinstance(act, discord.CustomActivity) and act.name:
-            if t in act.name.lower():
+        if isinstance(act, discord.CustomActivity):
+            if act.state and t in act.state.lower():
+                return True
+            if act.name and t in act.name.lower():
                 return True
 
     return False
@@ -42,12 +48,38 @@ def member_has_tag(member: discord.Member, tag: str, guild: discord.Guild) -> bo
 class TagRole(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+        self._user_cache = {}
         self.periodic_sync.start()
 
     def cog_unload(self):
         self.periodic_sync.cancel()
 
-    async def _sync_member(self, member: discord.Member, role_id: int, tag_text: str) -> str:
+    async def check_member_has_tag(self, member: discord.Member, tag: str, guild: discord.Guild, allow_fetch: bool = True) -> bool:
+        """Vérifie la présence du tag avec fallback API fetch_user pour le Clan Tag Discord si nécessaire."""
+        if member_has_tag(member, tag, guild):
+            return True
+
+        if not allow_fetch:
+            return False
+
+        t = tag.lower().strip()
+        try:
+            # Vérifier via l'API User (seul moyen garanti par Discord pour récupérer primary_guild / Clan tag)
+            user = await self.bot.fetch_user(member.id)
+            if user and hasattr(user, "primary_guild") and user.primary_guild:
+                pg = user.primary_guild
+                pg_tag = getattr(pg, "tag", None)
+                if pg_tag and pg_tag.lower() == t:
+                    return True
+                pg_id = getattr(pg, "id", None)
+                if pg_id and pg_id == guild.id:
+                    return True
+        except Exception:
+            pass
+
+        return False
+
+    async def _sync_member(self, member: discord.Member, role_id: int, tag_text: str, allow_fetch: bool = True) -> str:
         """Ajoute ou retire le rôle selon la présence du tag. Retourne 'added', 'removed' ou None."""
         if not role_id or member.bot:
             return None
@@ -61,7 +93,7 @@ class TagRole(commands.Cog):
         if guild.me.top_role <= role:
             return None
 
-        should_have = member_has_tag(member, tag_text, guild)
+        should_have = await self.check_member_has_tag(member, tag_text, guild, allow_fetch=allow_fetch)
         has_role = role in member.roles
 
         try:
@@ -137,7 +169,7 @@ class TagRole(commands.Cog):
 
                 for member in guild.members:
                     if not member.bot:
-                        await self._sync_member(member, role_id, tag_text)
+                        await self._sync_member(member, role_id, tag_text, allow_fetch=False)
             except Exception as e:
                 logging.debug(f"[TagRole] Erreur loop sync guild {guild.id} : {e}")
 
@@ -170,7 +202,7 @@ class TagRole(commands.Cog):
         added = 0
         for m in interaction.guild.members:
             if not m.bot:
-                res = await self._sync_member(m, role.id, tag.strip())
+                res = await self._sync_member(m, role.id, tag.strip(), allow_fetch=False)
                 if res == "added":
                     added += 1
 
@@ -249,7 +281,7 @@ class TagRole(commands.Cog):
 
         for m in interaction.guild.members:
             if not m.bot:
-                res = await self._sync_member(m, role_id, tag_text)
+                res = await self._sync_member(m, role_id, tag_text, allow_fetch=False)
                 if res == "added":
                     added += 1
                 elif res == "removed":

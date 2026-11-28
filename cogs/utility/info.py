@@ -261,10 +261,10 @@ class Info(commands.Cog):
         embed.add_field(name=t(lang, "info.joined"),           value=f"> {discord.utils.format_dt(member.joined_at, 'D')}",   inline=True)
         embed.add_field(name="​",                              value="​",                                         inline=True)
 
-        if member.is_timed_out():
+        if member.is_timed_out() and member.timed_out_until:
             embed.add_field(
                 name=t(lang, "info.muted_until"),
-                value=discord.utils.format_dt(member.communication_disabled_until, 'R'),
+                value=discord.utils.format_dt(member.timed_out_until, 'R'),
                 inline=False,
             )
 
