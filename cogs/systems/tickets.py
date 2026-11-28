@@ -97,7 +97,7 @@ async def build_ticket_embed(bot: commands.Bot, guild: discord.Guild, channel_id
         except Exception:
             pass
 
-    embed.set_footer(text=f"Support • {guild.name}")
+    embed.set_footer(text=f"Support ┆ {guild.name}")
     return embed, bool(claimed_by)
 
 
@@ -232,7 +232,7 @@ async def _open_ticket(bot: commands.Bot, interaction: discord.Interaction, cate
         log_embed.add_field(name="📍 Salon", value=f"{channel.mention}", inline=True)
         log_embed.add_field(name="🏷️ Catégorie", value=f"`{category or 'Général'}`", inline=True)
         log_embed.set_thumbnail(url=user.display_avatar.url)
-        log_embed.set_footer(text=f"Ticket #{ticket_num:04d} • Système de Logs")
+        log_embed.set_footer(text=f"Ticket #{ticket_num:04d} ┆ Système de Logs")
         await logs.send_log(guild, log_embed, log_type="mod")
 
 
@@ -320,12 +320,14 @@ class TicketCategorySelect(discord.ui.Select):
 
 
 class TicketOpenView(discord.ui.View):
-    def __init__(self, bot: commands.Bot, categories: list = None):
+    def __init__(self, bot: commands.Bot, categories: list = None, button_label: str = "Ouvrir un ticket"):
         super().__init__(timeout=None)
         self.bot = bot
         cats = [c for c in (categories or []) if c]
         if cats:
             self.add_item(TicketCategorySelect(bot, cats))
+        if button_label:
+            self.open_button.label = button_label[:80]
 
     @discord.ui.button(
         label="Ouvrir un ticket",
@@ -348,7 +350,7 @@ class TicketOpenView(discord.ui.View):
             view = discord.ui.View(timeout=60)
             view.add_item(TicketCategorySelect(self.bot, cats))
             await interaction.response.send_message(
-                "👇 **Choisis la catégorie de ton ticket dans le menu déroulant :**",
+                "👇 **Choisis la catégorie de ton ticket dans le menu ci-dessous :**",
                 view=view,
                 ephemeral=True
             )
@@ -1080,7 +1082,7 @@ class TicketCategoryManagerView(discord.ui.View):
             lines.append("*Aucune catégorie personnalisée configurée. Les catégories par défaut sont utilisées.*")
 
         embed = discord.Embed(
-            title=f"📁 Gestionnaire des Catégories de Tickets • {guild.name}",
+            title=f"📁 Gestionnaire des Catégories ┆ {guild.name}",
             description=(
                 f"Chaque catégorie de ticket peut être envoyée dans **son propre dossier Discord** "
                 f"et être gérée par **une équipe Staff dédiée** (ex: Recruteurs, Modérateurs, Support).\n\n"
@@ -1090,7 +1092,7 @@ class TicketCategoryManagerView(discord.ui.View):
             ),
             color=Colors.PRIMARY.value
         )
-        embed.set_footer(text="Système de Tickets Avancé • Antigravity")
+        embed.set_footer(text="Système de Tickets Avancé ┆ Antigravity")
 
         if interaction.response.is_done():
             await interaction.edit_original_response(embed=embed, view=self)
@@ -1163,14 +1165,14 @@ class TicketGeneralSettingsView(discord.ui.View):
         log_ch = guild.get_channel(cfg.get("log_channel_id")) if cfg.get("log_channel_id") else None
 
         embed = discord.Embed(
-            title=f"⚙️ Paramètres Généraux des Tickets • {guild.name}",
+            title=f"⚙️ Paramètres Généraux des Tickets ┆ {guild.name}",
             description=(
                 f"Ces réglages constituent les **valeurs par défaut** du système.\n\n"
-                f"👮 **Rôle Staff par défaut :** {staff_role.mention if staff_role else '*Non configuré*'}\n"
+                f"> 👮 **Rôle Staff par défaut :** {staff_role.mention if staff_role else '*Non configuré*'}\n"
                 f"> *Reçoit l'accès aux tickets qui n'ont pas de rôle spécifique.*\n\n"
-                f"📁 **Dossier Discord d'accueil par défaut :** {cat_ch.mention if cat_ch else '*Non configuré*'}\n"
-                f"> *Salon catégorie où sont placés les tickets sans dossier spécifique.*\n\n"
-                f"🪵 **Salon des Transcriptions & Logs :** {log_ch.mention if log_ch else '*Non configuré*'}\n"
+                f"> 📁 **Dossier Discord d'accueil :** {cat_ch.mention if cat_ch else '*Non configuré*'}\n"
+                f"> *Salon catégorie où sont créés les tickets sans dossier spécifique.*\n\n"
+                f"> 🪵 **Salon des Transcriptions & Logs :** {log_ch.mention if log_ch else '*Non configuré*'}\n"
                 f"> *Reçoit les récapitulatifs complets et fichiers .txt lors de la fermeture.*"
             ),
             color=Colors.PRIMARY.value
@@ -1212,8 +1214,11 @@ class TicketDeployView(discord.ui.View):
                 return await i.response.send_message("❌ Salon introuvable.", ephemeral=True)
 
             await i.response.defer(ephemeral=True)
-            title = cfg.get("panel_title") or f"Centre d'Assistance • {guild.name}"
-            desc = cfg.get("panel_desc") or "Besoin d'aide ? Choisissez la catégorie appropriée dans le menu déroulant ci-dessous pour ouvrir un ticket privé avec notre équipe."
+            title = cfg.get("panel_title") or f"CENTRE D'ASSISTANCE ┆ {guild.name.upper()}"
+            desc = cfg.get("panel_desc") or (
+                f"Bienvenue sur l'espace d'aide et de support de **{guild.name}** !\n"
+                f"Sélectionnez le service correspondant à votre besoin dans le menu déroulant ci-dessous."
+            )
             color = discord.Color(cfg.get("embed_color") or Colors.PRIMARY.value)
 
             cats = [c for c in (cfg.get("categories") or []) if c]
@@ -1224,23 +1229,40 @@ class TicketDeployView(discord.ui.View):
                     {"name": "Plaintes & Abus", "emoji": "⚠️", "description": "Signaler un problème ou un comportement"}
                 ]
 
-            embed = discord.Embed(title=f"🎫 {title}", description=f"{desc}\n", color=color)
+            cat_blocks = []
+            for idx, c in enumerate(cats[:12], start=1):
+                name = c["name"] if isinstance(c, dict) else str(c)
+                emoji = c.get("emoji", "🎫") if isinstance(c, dict) else "🎫"
+                desc_c = c.get("description", "") if isinstance(c, dict) else ""
+                prefix = "┌" if idx == 1 else ("└" if idx == min(len(cats), 12) else "├")
+                cat_blocks.append(f"{prefix} {emoji} **{name}**\n│  *{desc_c or 'Assistance dédiée'}*")
+
+            cat_text = "\n".join(cat_blocks)
+
+            panel_desc = (
+                f"{desc}\n\n"
+                f"### 📂 Services & Catégories Disponibles\n"
+                f"{cat_text}\n\n"
+                f"### ⚡ Comment Ouvrir un Ticket ?\n"
+                f"> 1️⃣ Choisissez la catégorie dans le menu déroulant ci-dessous\n"
+                f"> 2️⃣ Votre salon textuel privé sera automatiquement créé\n"
+                f"> 3️⃣ Expliquez en détail votre situation avec courtoisie"
+            )
+
+            embed = discord.Embed(
+                title=f"🎫 {title}",
+                description=panel_desc,
+                color=color
+            )
             if guild.icon:
                 embed.set_thumbnail(url=guild.icon.url)
             if cfg.get("panel_banner"):
                 embed.set_image(url=cfg["panel_banner"])
 
-            cat_lines = []
-            for c in cats[:12]:
-                name = c["name"] if isinstance(c, dict) else str(c)
-                emoji = c.get("emoji", "🎫") if isinstance(c, dict) else "🎫"
-                desc_c = c.get("description", "") if isinstance(c, dict) else ""
-                cat_lines.append(f"{emoji} **{name}** — *{desc_c or 'Assistance'}*")
+            embed.set_footer(text=f"Support Officiel ┆ {guild.name}")
 
-            embed.add_field(name="📂 Catégories Prises en Charge", value="\n".join(cat_lines) if cat_lines else "*Support Général*", inline=False)
-            embed.set_footer(text=f"Support • {guild.name}")
-
-            panel_view = TicketOpenView(self.bot, cats)
+            button_label = cfg.get("open_button_label") or "Ouvrir un ticket"
+            panel_view = TicketOpenView(self.bot, cats, button_label=button_label)
             msg = await ch.send(embed=embed, view=panel_view)
 
             await self.bot.db.update_ticket_config(self.guild_id, "panel_message_id", msg.id)
@@ -1261,7 +1283,7 @@ class TicketDeployView(discord.ui.View):
 
         cur_panel_ch = f"<#{cfg.get('panel_channel_id')}>" if cfg.get("panel_channel_id") else "*Aucun*"
         embed = discord.Embed(
-            title=f"🚀 Déploiement du Panneau Public • {guild.name}",
+            title=f"🚀 Déploiement du Panneau Public ┆ {guild.name}",
             description=(
                 f"Sélectionnez le salon textuel dans lequel vous souhaitez afficher le message de support public.\n\n"
                 f"Les membres pourront y voir vos différentes catégories avec leurs emojis et ouvrir un ticket en un clic !\n\n"
@@ -1338,21 +1360,21 @@ class TicketSetupDashboardView(discord.ui.View):
             cat_summary_lines.append("*Aucune catégorie personnalisée (Support, Recrutement, Plainte par défaut)*")
 
         embed = discord.Embed(
-            title=f"⚙️ Panneau de Contrôle • Système de Tickets",
+            title=f"⚙️ Panneau de Contrôle ➔ Système de Tickets",
             description=(
                 f"Bienvenue dans l'interface de gestion avancée des tickets de **{guild.name}**.\n"
-                f"Gérez vos catégories indépendantes, vos dossiers Discord d'accueil, vos équipes et vos bannières.\n\n"
-                f"### 📂 Catégories de Tickets Définies ({len(cats)})\n"
+                f"Gérez vos catégories indépendantes, vos dossiers Discord d'accueil, vos équipes et vos visuels.\n\n"
+                f"### 📂 Catégories de Tickets ({len(cats)})\n"
                 + "\n".join(cat_summary_lines) + "\n\n"
-                f"### ⚙️ Paramètres par Défaut\n"
-                f"• 👮 **Staff Support :** {staff_str}\n"
-                f"• 📁 **Dossier d'accueil :** {cat_str}\n"
-                f"• 🪵 **Salon des Logs :** {log_str}\n"
-                f"• 📍 **Panel Public :** {panel_ch}\n\n"
+                f"### ⚙️ Configuration Globale\n"
+                f"> 👮 **Staff Support :** {staff_str}\n"
+                f"> 📁 **Dossier d'accueil :** {cat_str}\n"
+                f"> 🪵 **Salon des Logs :** {log_str}\n"
+                f"> 📍 **Panel Public :** {panel_ch}\n\n"
                 f"### 🎨 Visuels & Textes\n"
-                f"• 🖼️ **Bannière Panel :** `{panel_b}`\n"
-                f"• 🖼️ **Bannière dans le Ticket :** `{welcome_b}`\n"
-                f"• 📋 **Consignes :** `{guide_stat}` ┆ 💬 **Message Accueil :** `{welc_stat}`"
+                f"> 🖼️ **Bannière Panel :** {panel_b}\n"
+                f"> 🖼️ **Bannière Ticket :** {welcome_b}\n"
+                f"> 📋 **Consignes :** {guide_stat} ┆ 💬 **Accueil :** {welc_stat}"
             ),
             color=Colors.PRIMARY.value
         )
